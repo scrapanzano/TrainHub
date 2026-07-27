@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="76 108 360 296" width="32" height="32">
+  <!-- Tab-sized variant of public/logo.svg: cropped tight to the mark and
+       stripped of the dumbbell, which turns to mush at 16px.  The background
+       plate stays so the dark T survives a dark browser theme. -->
+  <rect x="76" y="108" width="360" height="296" fill="#F9FAFB"/>
+  <path d="M96 128h176v44h-66v212h-44V172h-66z" fill="#111827"/>
+  <g fill="#FE6363">
+    <rect x="296" y="128" width="44" height="256"/>
+    <rect x="372" y="128" width="44" height="256"/>
+    <rect x="296" y="234" width="120" height="44"/>
+  </g>
+</svg>

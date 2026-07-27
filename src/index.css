@@ -1,0 +1,10 @@
+/* MUI's CssBaseline owns the reset; this file only covers what it cannot. */
+html {
+  /* Keeps the layout stable when a scrollbar appears mid-navigation. */
+  scrollbar-gutter: stable;
+}
+
+body {
+  /* Stops iOS rubber-banding from revealing the page behind the app shell. */
+  overscroll-behavior-y: none;
+}
