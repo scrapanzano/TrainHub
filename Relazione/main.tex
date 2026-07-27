@@ -1,0 +1,51 @@
+\documentclass[12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{float} % Pacchetto per l'opzione di posizionamento H
+\usepackage{caption} % Pacchetto per gestire le didascalie delle figure
+\usepackage{subcaption}
+\usepackage{url}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage[hyperfootnotes=false]{hyperref} % Riferimenti
+\usepackage{setspace} %interlinea
+\usepackage{pdfpages}
+\usepackage{verbatim}
+\usepackage{afterpage}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{bm}
+
+\usepackage{enumitem}
+
+
+
+\onehalfspacing
+
+\begin{document}
+
+% FRONTESPIZIO
+\includepdf{docs/frontespizioMAD.pdf}
+
+\renewcommand{\contentsname}{Summary}
+\pagenumbering{Roman}
+\tableofcontents
+
+% RICHIAMO CAPITOLI
+\newpage
+\pagenumbering{arabic}
+
+\input{1-Introduction/Introduction.tex}
+\newpage
+\input{2-CompetitorsAnalysis/CompetitorsAnalysis.tex}
+\newpage
+\input{3-UserResearch/UserResearch.tex}
+\newpage
+\input{4-ApplicationDesign/ApplicationDesign.tex}
+\newpage
+\input{5-Implementation-Architecture/Implementation-Architecture.tex}
+\newpage
+\input{6-Conclusions-FutureDevelopments/Conclusions-FutureDevelopments.tex}
+\end{document}

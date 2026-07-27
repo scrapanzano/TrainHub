@@ -1,0 +1,45 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Claude's local files
+*.claude
+CLAUDE.MD
+docs/*
+.superpowers/
+
+# Tooling caches
+.impeccable/
+**/.impeccable/
+
+# Doc file useful for Claude
+doc/*
+# ...except the Figma design tokens: src/theme/tokens.js imports them, so the
+# build breaks on a fresh clone without this. Git will not descend into an
+# ignored directory, hence the step-by-step un-ignore.
+!doc/assets/
+doc/assets/*
+!doc/assets/variables.tokens.json
+
+Relazione/main.pdf

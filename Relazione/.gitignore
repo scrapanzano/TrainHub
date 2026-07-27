@@ -1,0 +1,117 @@
+## Core LaTeX auxiliary files
+*.aux
+*.lof
+*.log
+*.lot
+*.fls
+*.out
+*.toc
+*.fmt
+*.fot
+*.cb
+*.cb2
+.*.lb
+
+## Intermediate documents
+*.dvi
+*.xdv
+*-converted-to.*
+
+## Bibliography auxiliary files
+*.bbl
+*.bcf
+*.blg
+*-blx.aux
+*-blx.bib
+*.run.xml
+
+## Build tool auxiliary files
+*.fdb_latexmk
+*.synctex
+*.synctex(busy)
+*.synctex.gz
+*.synctex.gz(busy)
+*.pdfsync
+
+## Build tool directories
+latex.out/
+
+## Auxiliary and intermediate files from other packages
+*.nav
+*.snm
+*.vrb
+*.acn
+*.acr
+*.alg
+*.glg
+*.glo
+*.gls
+*.ist
+*.loa
+*.idx
+*.ilg
+*.ind
+*.nlg
+*.nlo
+*.nls
+*.tdo
+*.upa
+*.upb
+
+## Enumitem
+*.ent
+
+## Hyperref
+*.brf
+
+## Knitr
+*-concordance.tex
+
+## Latexindent backup files
+*.bak[0-9]
+*.bak[0-9][0-9]
+
+## Makeindex
+*.maf
+*.mlf
+*.mlt
+*.mtc[0-9]*
+
+## Minted
+_minted*
+*.pyg
+
+## Nomencl
+*.nlo
+
+## TikZ & PGF
+*.dpth
+*.md5
+*.auxlock
+
+## Todonotes
+*.tdo
+
+## Xindy
+*.xdy
+
+## WinEdt
+*.sav
+*.wbk
+
+## IDEs
+.vscode/
+.idea/
+*.sublime-*
+
+## OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+## Compiled output (uncomment if you don't want to version the PDF)
+#*.pdf
