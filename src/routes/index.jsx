@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from 'react-router'
 import AppLayout from '../layouts/AppLayout.jsx'
 import PublicLayout from '../layouts/PublicLayout.jsx'
 import Placeholder from '../components/Placeholder.jsx'
+import LoginScreen from '../features/auth/LoginScreen.jsx'
 import { memberNav, professionalNav } from './navItems.js'
 
 // Every screen starts as a placeholder; phases 1-4 replace them one by one.
@@ -11,7 +12,7 @@ const router = createBrowserRouter([
   {
     element: <PublicLayout />,
     children: [
-      { path: '/login', ...screen('Login') },
+      { path: '/login', element: <LoginScreen /> },
       { path: '/forgot-password', ...screen('Forgot Password') },
       { path: '/reset-password', ...screen('Reset Password') },
     ],

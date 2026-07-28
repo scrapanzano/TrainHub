@@ -1,5 +1,5 @@
 import { Box, Button, Stack, Typography } from '@mui/material'
-import { Navigate, Outlet } from 'react-router'
+import { Navigate, Outlet, useLocation } from 'react-router'
 import BottomNav from '../components/BottomNav.jsx'
 import TopHeader from '../components/TopHeader.jsx'
 import { useAuth } from '../features/auth/useAuth.js'
@@ -15,11 +15,15 @@ import { useAuth } from '../features/auth/useAuth.js'
  */
 export default function AppLayout({ navItems, profileHref, requiredRole }) {
   const { user, profile, profileError, loading, signOut } = useAuth()
+  const location = useLocation()
 
   // Hold the shell until the session is known, otherwise a signed-in user is
   // briefly bounced to /login on every cold start.
   if (loading) return null
-  if (!user) return <Navigate to="/login" replace />
+  // Carry where they were headed, so signing in resumes the journey instead of
+  // dumping everyone on the home screen.  `replace` keeps the bounced-from URL
+  // out of history: Back should leave the app, not re-trigger this redirect.
+  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />
 
   // `loading === false` with a user means the profile has either arrived or
   // definitively failed — there is no "still in flight" state left to wait
