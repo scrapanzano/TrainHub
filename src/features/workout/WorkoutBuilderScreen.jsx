@@ -191,7 +191,10 @@ export default function WorkoutBuilderScreen() {
         fullWidth
         disabled={rows.length === 0 || create.isPending}
       >
-        {create.isPending ? 'Saving…' : 'Save session'}
+        {/* A paused mutation stays `isPending` until it reconnects, so "Saving…"
+            would sit there indefinitely offline.  The Alert above explains it;
+            this stops the button contradicting it. */}
+        {savedOffline ? 'Saved offline' : create.isPending ? 'Saving…' : 'Save session'}
       </Button>
     </Stack>
   )
