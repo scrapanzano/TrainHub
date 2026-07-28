@@ -79,7 +79,13 @@ export default function LiveSessionScreen() {
               </Typography>
               <Typography color="text.secondary">{exercises.length} exercises</Typography>
               <Typography color="primary" sx={{ fontWeight: 700 }}>
-                {!live.started ? 'GET READY' : live.paused ? 'PAUSED' : `${remaining}/${exercises.length} to go`}
+                {!live.started
+                  ? 'GET READY'
+                  : live.paused
+                    ? 'PAUSED'
+                    : remaining === 0
+                      ? 'ALL DONE'
+                      : `${remaining}/${exercises.length} to go`}
               </Typography>
             </Box>
 
@@ -107,9 +113,10 @@ export default function LiveSessionScreen() {
 
           <Stack direction="row" spacing={0.5} alignItems="center" sx={{ justifyContent: 'flex-end' }}>
             <AccessTimeIcon fontSize="small" color="primary" aria-hidden />
-            {/* aria-live so the clock is available on demand without a screen
-                reader announcing every single second. */}
-            <Typography aria-live="off" aria-label={`Elapsed ${formatElapsed(live.elapsed)}`}>
+            {/* No aria-label: Typography renders a <p>, whose `generic` role
+                prohibits name-from-author, so the label is dropped by several
+                screen readers.  The visible text is the accessible content. */}
+            <Typography>
               {formatElapsed(live.elapsed)}
             </Typography>
           </Stack>

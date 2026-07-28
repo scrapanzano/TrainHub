@@ -22,6 +22,20 @@ export function useLiveSession(sessionId) {
   const [state, setState] = useState(() => readStored(sessionId))
   const [now, setNow] = useState(() => Date.now())
 
+  // React Router reuses this component between two matches of the same route,
+  // so the initialiser above runs only for whichever session mounted first.
+  // Correcting during render rather than in an effect is deliberate: on the
+  // render where `sessionId` changes, the persist effect below fires in the same
+  // commit and would otherwise write the previous session's clock under the new
+  // session's key.  This is React's documented "adjust state when a prop
+  // changes" pattern -- state rather than a ref, because reading a ref during
+  // render is forbidden.
+  const [loadedFor, setLoadedFor] = useState(sessionId)
+  if (loadedFor !== sessionId) {
+    setLoadedFor(sessionId)
+    setState(readStored(sessionId))
+  }
+
   useEffect(() => {
     if (state) {
       localStorage.setItem(storageKey(sessionId), JSON.stringify(state))
