@@ -6,6 +6,7 @@ import LoginScreen from '../features/auth/LoginScreen.jsx'
 import ForgotPasswordScreen from '../features/auth/ForgotPasswordScreen.jsx'
 import ResetPasswordScreen from '../features/auth/ResetPasswordScreen.jsx'
 import MemberHomeScreen from '../features/home/MemberHomeScreen.jsx'
+import WorkoutPlanScreen from '../features/workout/WorkoutPlanScreen.jsx'
 import { memberNav, professionalNav } from './navItems.js'
 
 // Every screen starts as a placeholder; phases 1-4 replace them one by one.
@@ -27,7 +28,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <MemberHomeScreen /> },
 
-      { path: 'workout', ...screen('Workout Plan') },
+      { path: 'workout', element: <WorkoutPlanScreen /> },
       { path: 'workout/session/:sessionId', ...screen('Session Detail') },
       { path: 'workout/session/:sessionId/live', ...screen('Live Session') },
       { path: 'workout/session/:sessionId/summary', ...screen('Session Summary') },
