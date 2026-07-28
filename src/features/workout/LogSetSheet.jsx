@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Box, Button, Drawer, Stack, TextField, Typography } from '@mui/material'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { mutationKeys } from '../../lib/mutationKeys.js'
@@ -14,6 +14,16 @@ export default function LogSetSheet({ open, onClose, exercise, sessionId }) {
   const [reps, setReps] = useState('')
   const [weight, setWeight] = useState('')
 
+  // Guards a double-tap within one opening of the sheet.  Deliberately NOT
+  // `logSet.isPending`: offline a mutation pauses and stays pending until
+  // reconnect, so keying off it would block every set after the first in
+  // exactly the situation this feature exists for.
+  const submitted = useRef(false)
+
+  useEffect(() => {
+    if (open) submitted.current = false
+  }, [open])
+
   const logSet = useMutation({
     // No `mutationFn` here on purpose: it is registered against this key in
     // `src/data/mutations.js`, which is also where a mutation restored from
@@ -26,7 +36,6 @@ export default function LogSetSheet({ open, onClose, exercise, sessionId }) {
       // new count now is what makes the "2/3" pill move the moment the button
       // is tapped -- otherwise nothing happens and the set gets logged twice.
       await queryClient.cancelQueries({ queryKey: queryKeys.session(sessionId) })
-      const previous = queryClient.getQueryData(queryKeys.session(sessionId))
 
       queryClient.setQueryData(queryKeys.session(sessionId), (current) =>
         current
@@ -40,20 +49,32 @@ export default function LogSetSheet({ open, onClose, exercise, sessionId }) {
             }
           : current,
       )
-
-      return { previous }
     },
 
-    onError: (_error, _variables, context) => {
-      // Put the count back only if we have something to put back.
-      if (context?.previous) {
-        queryClient.setQueryData(queryKeys.session(sessionId), context.previous)
-      }
+    onError: (_error, variables) => {
+      // Undo this set's bump rather than restoring a snapshot.  With two writes
+      // in flight, an earlier failure restoring its own snapshot would clobber
+      // the later one's optimistic state; reversing just the delta cannot.
+      queryClient.setQueryData(queryKeys.session(sessionId), (current) =>
+        current
+          ? {
+              ...current,
+              exercises: current.exercises.map((item) =>
+                item.id === variables.sessionExerciseId
+                  ? { ...item, loggedCount: Math.max(0, item.loggedCount - 1) }
+                  : item,
+              ),
+            }
+          : current,
+      )
     },
   })
 
   const onSubmit = (event) => {
     event.preventDefault()
+
+    if (submitted.current) return
+    submitted.current = true
 
     logSet.mutate({
       // The client owns this id so a replayed write upserts instead of
@@ -80,10 +101,15 @@ export default function LogSetSheet({ open, onClose, exercise, sessionId }) {
   if (!exercise) return null
 
   return (
-    <Drawer anchor="bottom" open={open} onClose={onClose}>
+    <Drawer
+      anchor="bottom"
+      open={open}
+      onClose={onClose}
+      slotProps={{ paper: { role: 'dialog', 'aria-labelledby': 'log-set-title' } }}
+    >
       <Stack component="form" onSubmit={onSubmit} spacing={3} sx={{ p: 3 }}>
         <Box>
-          <Typography variant="h2" component="h2">
+          <Typography id="log-set-title" variant="h2" component="h2">
             {exercise.exercise.name}
           </Typography>
           <Typography color="text.secondary">
