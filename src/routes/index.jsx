@@ -5,10 +5,6 @@ import Placeholder from '../components/Placeholder.jsx'
 import LoginScreen from '../features/auth/LoginScreen.jsx'
 import ForgotPasswordScreen from '../features/auth/ForgotPasswordScreen.jsx'
 import ResetPasswordScreen from '../features/auth/ResetPasswordScreen.jsx'
-import MemberHomeScreen from '../features/home/MemberHomeScreen.jsx'
-import WorkoutPlanScreen from '../features/workout/WorkoutPlanScreen.jsx'
-import SessionDetailScreen from '../features/workout/SessionDetailScreen.jsx'
-import ExerciseDetailScreen from '../features/workout/ExerciseDetailScreen.jsx'
 import { memberNav, professionalNav } from './navItems.js'
 
 // Every screen starts as a placeholder; phases 1-4 replace them one by one.
@@ -28,16 +24,28 @@ const router = createBrowserRouter([
     path: '/m',
     element: <AppLayout navItems={memberNav} profileHref="/m/profile" requiredRole="member" />,
     children: [
-      { index: true, element: <MemberHomeScreen /> },
+      {
+        index: true,
+        lazy: async () => ({ Component: (await import('../features/home/MemberHomeScreen.jsx')).default }),
+      },
 
-      { path: 'workout', element: <WorkoutPlanScreen /> },
-      { path: 'workout/session/:sessionId', element: <SessionDetailScreen /> },
+      {
+        path: 'workout',
+        lazy: async () => ({ Component: (await import('../features/workout/WorkoutPlanScreen.jsx')).default }),
+      },
+      {
+        path: 'workout/session/:sessionId',
+        lazy: async () => ({ Component: (await import('../features/workout/SessionDetailScreen.jsx')).default }),
+      },
       { path: 'workout/session/:sessionId/live', ...screen('Live Session') },
       { path: 'workout/session/:sessionId/summary', ...screen('Session Summary') },
       // The parameter is a `session_exercises.id`, not an `exercises.id`: this
       // screen shows the prescription (sets, reps, rest), which only exists on
       // the join row.  The path segment is unchanged.
-      { path: 'workout/exercise/:sessionExerciseId', element: <ExerciseDetailScreen /> },
+      {
+        path: 'workout/exercise/:sessionExerciseId',
+        lazy: async () => ({ Component: (await import('../features/workout/ExerciseDetailScreen.jsx')).default }),
+      },
       { path: 'workout/builder', ...screen('Workout Builder') },
 
       { path: 'nutrition', ...screen('Nutrition') },
