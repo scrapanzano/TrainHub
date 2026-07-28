@@ -6,4 +6,6 @@ export const queryKeys = {
   session: (sessionId) => ['session', sessionId],
   sessionExercise: (sessionExerciseId) => ['sessionExercise', sessionExerciseId],
   appointmentsOnDay: (memberId, dayISO) => ['appointments', memberId, dayISO],
+  sessionLogs: (sessionId) => ['sessionLogs', sessionId],
+  rewards: (memberId) => ['rewards', memberId],
 }

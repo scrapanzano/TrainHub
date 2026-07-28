@@ -95,3 +95,70 @@ export async function fetchSessionExercise(sessionExerciseId) {
   if (error) throw error
   return withLoggedCount(data)
 }
+
+/** Every set the member has logged in one session. */
+export async function fetchSessionLogs(sessionId) {
+  const { data, error } = await supabase
+    .from('set_logs')
+    // `!inner` turns the embed into an inner join, which is what lets the filter
+    // below reach through to the parent session.  RLS still scopes the rows to
+    // this member on top of it.
+    .select(
+      'id, session_exercise_id, set_number, reps, weight, performed_at, session_exercises!inner ( session_id )',
+    )
+    .eq('session_exercises.session_id', sessionId)
+    .order('performed_at')
+    .retry(navigator.onLine)
+
+  if (error) throw error
+  // Drop the join row the filter needed; no screen should have to see it.
+  // eslint-disable-next-line no-unused-vars -- destructured only to exclude it
+  return (data ?? []).map(({ session_exercises: _join, ...log }) => log)
+}
+
+/**
+ * Record one performed set.
+ *
+ * The caller supplies `id`.  `set_logs.id` has no database default precisely so
+ * this can be an upsert that ignores duplicates: `resumePausedMutations` will
+ * replay a write whose response never arrived, and a plain insert would fail
+ * that replay with a primary-key violation the user would see as a lost set.
+ */
+export async function logSet({ id, sessionExerciseId, memberId, setNumber, reps, weight }) {
+  const { data, error } = await supabase
+    .from('set_logs')
+    .upsert(
+      {
+        id,
+        session_exercise_id: sessionExerciseId,
+        member_id: memberId,
+        set_number: setNumber,
+        reps,
+        weight: weight ?? null,
+      },
+      { onConflict: 'id', ignoreDuplicates: true },
+    )
+    .select()
+    .maybeSingle()
+
+  if (error) throw error
+  // `ignoreDuplicates` returns no row on a replay.  That is success, not a gap.
+  return data
+}
+
+/**
+ * Move a session between `todo`, `in_progress` and `completed`.
+ *
+ * Idempotent by nature: setting a status it already holds writes the same value.
+ */
+export async function setSessionStatus({ sessionId, status }) {
+  const { data, error } = await supabase
+    .from('workout_sessions')
+    .update({ status })
+    .eq('id', sessionId)
+    .select('id, status')
+    .single()
+
+  if (error) throw error
+  return data
+}
