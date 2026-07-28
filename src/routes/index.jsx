@@ -3,6 +3,7 @@ import AppLayout from '../layouts/AppLayout.jsx'
 import PublicLayout from '../layouts/PublicLayout.jsx'
 import Placeholder from '../components/Placeholder.jsx'
 import LoginScreen from '../features/auth/LoginScreen.jsx'
+import ForgotPasswordScreen from '../features/auth/ForgotPasswordScreen.jsx'
 import { memberNav, professionalNav } from './navItems.js'
 
 // Every screen starts as a placeholder; phases 1-4 replace them one by one.
@@ -13,7 +14,7 @@ const router = createBrowserRouter([
     element: <PublicLayout />,
     children: [
       { path: '/login', element: <LoginScreen /> },
-      { path: '/forgot-password', ...screen('Forgot Password') },
+      { path: '/forgot-password', element: <ForgotPasswordScreen /> },
       { path: '/reset-password', ...screen('Reset Password') },
     ],
   },
