@@ -37,7 +37,12 @@ const router = createBrowserRouter([
         path: 'workout/session/:sessionId',
         lazy: async () => ({ Component: (await import('../features/workout/SessionDetailScreen.jsx')).default }),
       },
-      { path: 'workout/session/:sessionId/live', ...screen('Live Session') },
+      {
+        path: 'workout/session/:sessionId/live',
+        lazy: async () => ({
+          Component: (await import('../features/workout/LiveSessionScreen.jsx')).default,
+        }),
+      },
       { path: 'workout/session/:sessionId/summary', ...screen('Session Summary') },
       // The parameter is a `session_exercises.id`, not an `exercises.id`: this
       // screen shows the prescription (sets, reps, rest), which only exists on
