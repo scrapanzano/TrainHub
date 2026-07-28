@@ -43,7 +43,12 @@ const router = createBrowserRouter([
           Component: (await import('../features/workout/LiveSessionScreen.jsx')).default,
         }),
       },
-      { path: 'workout/session/:sessionId/summary', ...screen('Session Summary') },
+      {
+        path: 'workout/session/:sessionId/summary',
+        lazy: async () => ({
+          Component: (await import('../features/workout/SessionSummaryScreen.jsx')).default,
+        }),
+      },
       // The parameter is a `session_exercises.id`, not an `exercises.id`: this
       // screen shows the prescription (sets, reps, rest), which only exists on
       // the join row.  The path segment is unchanged.
