@@ -66,6 +66,10 @@ export default function LogSetSheet({ open, onClose, exercise, sessionId }) {
       setNumber: progress.done + 1,
       reps: Number(reps),
       weight: weight === '' ? null : Number(weight),
+      // Stamped here, not by the database default.  This write may sit paused
+      // for hours and be replayed on reconnect; `now()` at insert time would
+      // record a set performed at 18:00 as happening at 23:00.
+      performedAt: new Date().toISOString(),
     })
 
     setReps('')
