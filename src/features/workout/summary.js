@@ -68,6 +68,9 @@ export function rewardProgress(totalPoints, rewards) {
     total: totalPoints,
     next,
     remaining: next - totalPoints,
+    // Floor, not round: `percent: 100` is reserved for the branch above where
+    // there is nothing left to earn.  Rounding would let 1099 out of 1100 read
+    // as a full bar for a reward the member has not actually reached.
     percent: Math.floor((totalPoints / next) * 100),
   }
 }

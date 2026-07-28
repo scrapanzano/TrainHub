@@ -42,6 +42,9 @@ export function planProgress(sessions) {
   const completed = sessions.filter((s) => s.status === 'completed').length
   // Guard the divide: an empty plan is a real state (a member with no plan yet)
   // and 0/0 would put NaN into a progress bar.
-  const percent = total === 0 ? 0 : Math.round((completed / total) * 100)
+  // Floor, not round: 199 of 200 sessions rounds to 100 and shows a full bar
+  // for a plan that is not finished.  A bar may understate progress; it must
+  // never claim work that has not been done.
+  const percent = total === 0 ? 0 : Math.floor((completed / total) * 100)
   return { completed, total, percent }
 }

@@ -24,5 +24,9 @@ assert.deepEqual(
 assert.deepEqual(planProgress([{ status: 'completed' }]), { completed: 1, total: 1, percent: 100 })
 // Empty plan: percent must be 0, never NaN -- MUI renders NaN as an empty bar.
 assert.deepEqual(planProgress([]), { completed: 0, total: 0, percent: 0 })
+// Nearly-complete must not read as complete: round() would report 100 here.
+assert.equal(planProgress(Array.from({ length: 200 }, (_, i) => ({
+  status: i < 199 ? 'completed' : 'todo',
+}))).percent, 99)
 
 console.log('workout status: OK')
