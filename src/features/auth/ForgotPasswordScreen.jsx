@@ -62,7 +62,14 @@ export default function ForgotPasswordScreen() {
         label="Email"
         type="email"
         value={email}
-        onChange={(event) => setEmail(event.target.value)}
+        onChange={(event) => {
+          setEmail(event.target.value)
+          // Editing the address re-arms the button.  Without this, a user who
+          // mistyped and submitted is stuck: the confirmation disables the
+          // button permanently and the only escape is remounting the screen.
+          setSent(false)
+          setError(null)
+        }}
         placeholder="name@email.com"
         autoComplete="email"
         required
