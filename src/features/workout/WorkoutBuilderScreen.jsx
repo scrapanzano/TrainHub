@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  Autocomplete, Box, Button, Card, CardContent, IconButton, Stack, TextField, Typography,
+  Alert, Autocomplete, Box, Button, Card, CardContent, IconButton, Stack, TextField, Typography,
 } from '@mui/material'
 // `DeleteOutline` (the base/filled-style glyph) is not shipped by the installed
 // @mui/icons-material@9.2.0; only the styled variants exist, so this uses the
@@ -67,9 +67,12 @@ export default function WorkoutBuilderScreen() {
       {
         planId: plan.data.plan.id,
         name,
-        // Append after the trainer's sessions; `unique (plan_id, position)`
-        // means reusing an existing position would be rejected.
-        position: plan.data.sessions.length + 1,
+        // One past the highest position in use, not `length + 1`.  The two
+        // agree only while positions run contiguously from 1, and `unique
+        // (plan_id, position)` rejects a reused one -- so the moment a session
+        // is ever deleted, counting would land on a position still occupied and
+        // every later add for that plan would fail.
+        position: Math.max(0, ...plan.data.sessions.map((session) => session.position)) + 1,
         exercises: rows.map((row, index) => ({
           exerciseId: row.exercise.id,
           position: index + 1,
@@ -158,6 +161,14 @@ export default function WorkoutBuilderScreen() {
           ))}
         </Stack>
       )}
+
+      {/* Without this the button simply returns from "Saving…" to "Save
+          session" and the member is left believing the write went through. */}
+      {create.isError ? (
+        <Alert severity="error">
+          {create.error?.message ?? 'The session could not be saved. Try again.'}
+        </Alert>
+      ) : null}
 
       <Button
         type="submit"
