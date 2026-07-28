@@ -6,4 +6,5 @@
 export const mutationKeys = {
   logSet: ['logSet'],
   setSessionStatus: ['setSessionStatus'],
+  awardReward: ['awardReward'],
 }

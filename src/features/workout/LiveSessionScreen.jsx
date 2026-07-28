@@ -18,12 +18,15 @@ import { setProgress } from './status.js'
 import { useLiveSession } from './useLiveSession.js'
 import LogSetSheet from './LogSetSheet.jsx'
 import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
+import { pointsForWorkout } from './summary.js'
+import { useAuth } from '../auth/useAuth.js'
 
 export default function LiveSessionScreen() {
   const { sessionId } = useParams()
   const navigate = useNavigate()
   const live = useLiveSession(sessionId)
   const [openExerciseId, setOpenExerciseId] = useState(null)
+  const { user } = useAuth()
 
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: queryKeys.session(sessionId),
@@ -31,6 +34,7 @@ export default function LiveSessionScreen() {
   })
 
   const setStatus = useMutation({ mutationKey: mutationKeys.setSessionStatus })
+  const award = useMutation({ mutationKey: mutationKeys.awardReward })
 
   if (isPending) return <LoadingState />
   // `data === undefined` means it never loaded.  With `offlineFirst` a refetch
@@ -55,6 +59,14 @@ export default function LiveSessionScreen() {
 
   const onStop = () => {
     setStatus.mutate({ sessionId, status: 'completed' })
+    // Per-session code, so finishing twice -- or replaying this write after a
+    // reconnect -- awards once.  See the unique constraint on `rewards`.
+    award.mutate({
+      memberId: user.id,
+      code: `workout:${sessionId}`,
+      title: `Completed ${session.name}`,
+      points: pointsForWorkout(),
+    })
     live.clear()
     navigate(`/m/workout/session/${sessionId}/summary`, { replace: true })
   }

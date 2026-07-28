@@ -69,7 +69,12 @@ const router = createBrowserRouter([
       { path: 'profile', ...screen('Profile') },
       { path: 'profile/badge', ...screen('Access Badge') },
       { path: 'profile/subscription', ...screen('Subscription') },
-      { path: 'profile/rewards', ...screen('Rewards') },
+      {
+        path: 'profile/rewards',
+        lazy: async () => ({
+          Component: (await import('../features/rewards/RewardsScreen.jsx')).default,
+        }),
+      },
       { path: 'profile/settings', ...screen('Settings') },
     ],
   },

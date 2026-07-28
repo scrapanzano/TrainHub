@@ -1,4 +1,5 @@
 import { logSet, setSessionStatus } from './workouts.js'
+import { awardReward } from './rewards.js'
 import { mutationKeys } from '../lib/mutationKeys.js'
 import { queryPrefixes } from '../lib/queryKeys.js'
 
@@ -34,6 +35,13 @@ export function registerMutationDefaults(queryClient) {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
       // The plan screen and Home both render this session's status.
       queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.awardReward, {
+    mutationFn: awardReward,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.rewards })
     },
   })
 }
