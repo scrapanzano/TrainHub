@@ -36,6 +36,13 @@ assert.deepEqual(resumeTimer(resumed, T0 + 99_999), resumed)
 // never a negative duration rendered as "-00:00:04".
 assert.equal(elapsedMs(started, T0 - 4000), 0)
 
+// A clock corrected backwards WHILE PAUSED must not make pausedTotal negative:
+// that would be subtracted from every later reading and inflate the clock.
+const pausedThenBack = pauseTimer(startTimer(T0), T0 + 5000)
+const resumedAfterJump = resumeTimer(pausedThenBack, T0 + 1000)
+assert.equal(resumedAfterJump.pausedTotal, 0)
+assert.equal(elapsedMs(resumedAfterJump, T0 + 6000), 6000)
+
 assert.equal(formatElapsed(0), '00:00:00')
 assert.equal(formatElapsed(7000), '00:00:07')
 assert.equal(formatElapsed(440_000), '00:07:20')

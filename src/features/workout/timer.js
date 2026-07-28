@@ -25,7 +25,10 @@ export function resumeTimer(state, now) {
   return {
     ...state,
     pausedAt: null,
-    pausedTotal: state.pausedTotal + (now - state.pausedAt),
+    // Clamped: a device clock corrected backwards while paused would otherwise
+    // make `pausedTotal` negative, and a negative total is subtracted from
+    // every later reading -- inflating the clock permanently rather than once.
+    pausedTotal: state.pausedTotal + Math.max(0, now - state.pausedAt),
   }
 }
 

@@ -18,7 +18,19 @@ export default function App() {
       <CssBaseline />
       <PersistQueryClientProvider
         client={queryClient}
-        persistOptions={{ persister, maxAge: CACHE_MAX_AGE }}
+        persistOptions={{
+          persister,
+          maxAge: CACHE_MAX_AGE,
+          dehydrateOptions: {
+            // Persist anything that HAS data, not only what is currently
+            // `success`.  Offline every query refetches, fails and flips to
+            // `error` while keeping its data in memory -- and the default
+            // predicate (`status === 'success'`) would then rewrite the stored
+            // cache without it.  The first offline reopen would work and the
+            // second would show an error on every screen.
+            shouldDehydrateQuery: (query) => query.state.data !== undefined,
+          },
+        }}
         onSuccess={() => queryClient.resumePausedMutations()}
       >
         <AuthProvider>

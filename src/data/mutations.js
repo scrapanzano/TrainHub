@@ -21,8 +21,9 @@ import { queryPrefixes } from '../lib/queryKeys.js'
 export function registerMutationDefaults(queryClient) {
   queryClient.setMutationDefaults(mutationKeys.logSet, {
     mutationFn: logSet,
-    // Only the session's own caches are affected, and the summary reads the
-    // same logs -- invalidating both keeps them from disagreeing.
+    // Invalidate the families rather than one id: prefix matching cannot be
+    // defeated by a caller that omits the id, and at this cache size -- one
+    // member's own sessions -- the extra refetches are negligible.
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.sessionLogs })
       queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
@@ -31,6 +32,11 @@ export function registerMutationDefaults(queryClient) {
 
   queryClient.setMutationDefaults(mutationKeys.setSessionStatus, {
     mutationFn: setSessionStatus,
+    // Serialise replays.  `resumePausedMutations` runs paused mutations in
+    // parallel unless they share a scope, and this key queues an ordered pair
+    // -- `in_progress` on start, `completed` on stop.  Unordered, the last PATCH
+    // to land wins by luck and a finished workout can persist as unfinished.
+    scope: { id: 'sessionStatus' },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
       // The plan screen and Home both render this session's status.
