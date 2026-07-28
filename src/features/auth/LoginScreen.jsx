@@ -18,8 +18,14 @@ export default function LoginScreen() {
   // Redirect on rendered state rather than from the submit handler.  The session
   // arrives through onAuthStateChange, and the profile that decides WHERE to go
   // arrives one fetch later; navigating from the handler would race both.
-  if (user && profile) {
-    return <Navigate to={location.state?.from ?? HOME_FOR[profile.role] ?? '/m'} replace />
+  //
+  // The condition is "settled", not "profile arrived".  A profile that failed to
+  // load is a resolved state too -- the provider stops loading and leaves the
+  // profile null -- and waiting for one that is never coming would strand this
+  // screen on a disabled "Logging in…" button with nothing to explain why.
+  // AppLayout owns that failure screen and offers the way out, so hand off.
+  if (user && !loading) {
+    return <Navigate to={location.state?.from ?? HOME_FOR[profile?.role] ?? '/m'} replace />
   }
 
   const onSubmit = async (event) => {
