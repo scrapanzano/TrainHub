@@ -5,6 +5,7 @@ import Placeholder from '../components/Placeholder.jsx'
 import LoginScreen from '../features/auth/LoginScreen.jsx'
 import ForgotPasswordScreen from '../features/auth/ForgotPasswordScreen.jsx'
 import ResetPasswordScreen from '../features/auth/ResetPasswordScreen.jsx'
+import MemberHomeScreen from '../features/home/MemberHomeScreen.jsx'
 import { memberNav, professionalNav } from './navItems.js'
 
 // Every screen starts as a placeholder; phases 1-4 replace them one by one.
@@ -24,7 +25,7 @@ const router = createBrowserRouter([
     path: '/m',
     element: <AppLayout navItems={memberNav} profileHref="/m/profile" requiredRole="member" />,
     children: [
-      { index: true, ...screen('Home') },
+      { index: true, element: <MemberHomeScreen /> },
 
       { path: 'workout', ...screen('Workout Plan') },
       { path: 'workout/session/:sessionId', ...screen('Session Detail') },
