@@ -10,6 +10,9 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+# Covers .env.local, which holds the Supabase URL and publishable key.  Those
+# never enter the repository -- copy .env.example on a new machine and refill it
+# from the Supabase dashboard.
 *.local
 
 # Editor directories and files
@@ -23,23 +26,17 @@ dist-ssr
 *.sln
 *.sw?
 
-# Claude's local files
-*.claude
-CLAUDE.MD
-docs/*
-.superpowers/
-
 # Tooling caches
 .impeccable/
 **/.impeccable/
 
-# Doc file useful for Claude
-doc/*
-# ...except the Figma design tokens: src/theme/tokens.js imports them, so the
-# build breaks on a fresh clone without this. Git will not descend into an
-# ignored directory, hence the step-by-step un-ignore.
-!doc/assets/
-doc/assets/*
-!doc/assets/variables.tokens.json
+# Subagent scratch.  The progress ledger and the task reports ARE tracked -- they
+# are the record of why the code looks the way it does, and the ledger is what
+# lets work resume on another machine.  Briefs regenerate from the plans and
+# review diffs regenerate from git, so neither is worth carrying.
+.superpowers/sdd/*.diff
+.superpowers/sdd/task-*-brief.md
+.superpowers/sdd/**/task-*-brief.md
 
+# Build artefact of the LaTeX sources
 Relazione/main.pdf

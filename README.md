@@ -108,6 +108,31 @@ the seed then fails on a foreign key.
 `supabase/patches/` holds fixes to apply on top of an already-provisioned
 database, so an existing project does not need to be rebuilt from scratch.
 
+## Picking the project up on another machine
+
+A clone carries everything about *what the project is*: the code, the SQL, the
+Figma wireframes in `doc/`, the design spec and phase plans in `docs/`, and the
+progress ledger in `.superpowers/sdd/progress.md` — which records every bug found
+during implementation and why each fix is shaped the way it is.
+
+Four things it deliberately does not carry, because they are either secret or
+machine-local:
+
+| What | How to get it |
+|---|---|
+| `.env.local` | `cp .env.example .env.local`, then refill from *Supabase → Project Settings → API*. Never committed — the file is covered by `*.local`. |
+| `node_modules` | `npm install` |
+| The ngrok agent and its authtoken | Install the agent, then `ngrok config add-authtoken <token>` from *dashboard.ngrok.com → Your Authtoken*. The token lives in `%LOCALAPPDATA%\ngrok\ngrok.yml`, outside the repo. |
+| The service worker's cached state and IndexedDB | Nothing to move. They rebuild on first load; a fresh machine simply starts with an empty offline cache. |
+
+On Windows, `winget install --id ngrok.ngrok` installs the agent, and the PATH it
+adds is not visible to shells that were already open — restart the terminal, or
+reload it in place with:
+
+```powershell
+$env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')
+```
+
 ## Testing the application
 
 ### Everyday development
