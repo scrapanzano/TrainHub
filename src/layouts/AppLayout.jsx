@@ -1,6 +1,7 @@
 import { Box, Button, Stack, Typography } from '@mui/material'
 import { Navigate, Outlet, useLocation } from 'react-router'
 import BottomNav from '../components/BottomNav.jsx'
+import { LoadingState } from '../components/ScreenState.jsx'
 import TopHeader from '../components/TopHeader.jsx'
 import { useAuth } from '../features/auth/useAuth.js'
 
@@ -18,8 +19,10 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
   const location = useLocation()
 
   // Hold the shell until the session is known, otherwise a signed-in user is
-  // briefly bounced to /login on every cold start.
-  if (loading) return null
+  // briefly bounced to /login on every cold start.  A spinner rather than null:
+  // this gap is imperceptible online but real on a cold offline start, and a
+  // white screen reads as a crash.
+  if (loading) return <LoadingState />
   // Carry where they were headed, so signing in resumes the journey instead of
   // dumping everyone on the home screen.  `replace` keeps the bounced-from URL
   // out of history: Back should leave the app, not re-trigger this redirect.

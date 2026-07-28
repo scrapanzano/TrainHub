@@ -88,11 +88,17 @@ export function AuthProvider({ children }) {
 
     let active = true
 
+    // postgrest retries a failed GET three times with 1s/2s/4s backoff, which is
+    // the right call for a transient 503 and the wrong one for a phone in a gym
+    // basement: it turns "offline" into seven seconds of nothing. Retry only when
+    // the browser thinks there is a network, so the transient-error handling is
+    // kept and the offline path fails immediately.
     supabase
       .from('profiles')
       .select(PROFILE_COLUMNS)
       .eq('id', userId)
       .single()
+      .retry(navigator.onLine)
       .then(({ data, error }) => {
         if (!active) return
 

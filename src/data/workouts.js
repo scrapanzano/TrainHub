@@ -1,5 +1,11 @@
 import { supabase } from '../lib/supabase.js'
 
+// postgrest retries a failed GET three times with 1s/2s/4s backoff, which is
+// the right call for a transient 503 and the wrong one for a phone in a gym
+// basement: it turns "offline" into seven seconds of nothing. Retry only when
+// the browser thinks there is a network, so the transient-error handling is
+// kept and the offline path fails immediately. Applied to every read below.
+
 // PostgREST embeds related rows through the foreign keys already declared in
 // schema.sql.  `set_logs(count)` is an embedded aggregate: it returns how many
 // set_logs point at each session_exercise without shipping the rows.  Row Level
@@ -34,6 +40,7 @@ export async function fetchActivePlan(memberId) {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
+    .retry(navigator.onLine)
 
   if (planError) throw planError
   if (!plan) return null
@@ -43,6 +50,7 @@ export async function fetchActivePlan(memberId) {
     .select('id, name, position, status, session_exercises ( count )')
     .eq('plan_id', plan.id)
     .order('position')
+    .retry(navigator.onLine)
 
   if (sessionsError) throw sessionsError
 
@@ -62,6 +70,7 @@ export async function fetchSession(sessionId) {
     .select(`id, name, position, status, session_exercises ( ${SESSION_EXERCISE_COLUMNS} )`)
     .eq('id', sessionId)
     .single()
+    .retry(navigator.onLine)
 
   if (error) throw error
 
@@ -81,6 +90,7 @@ export async function fetchSessionExercise(sessionExerciseId) {
     .select(`${SESSION_EXERCISE_COLUMNS}, session:workout_sessions ( id, name )`)
     .eq('id', sessionExerciseId)
     .single()
+    .retry(navigator.onLine)
 
   if (error) throw error
   return withLoggedCount(data)
