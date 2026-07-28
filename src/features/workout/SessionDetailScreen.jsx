@@ -7,7 +7,7 @@ import { Link, useParams } from 'react-router'
 import { fetchSession } from '../../data/workouts.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { setProgress } from './status.js'
-import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
+import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 
 export default function SessionDetailScreen() {
   const { sessionId } = useParams()
@@ -61,40 +61,47 @@ export default function SessionDetailScreen() {
           Exercises
         </Typography>
 
-        <Stack spacing={2}>
-          {exercises.map((item) => {
-            const progress = setProgress(item.loggedCount, item.target_sets)
+        {exercises.length === 0 ? (
+          <EmptyState
+            title="No exercises yet"
+            description="Your trainer has not added any exercises to this session."
+          />
+        ) : (
+          <Stack spacing={2}>
+            {exercises.map((item) => {
+              const progress = setProgress(item.loggedCount, item.target_sets)
 
-            return (
-              <Card key={item.id}>
-                <CardActionArea component={Link} to={`/m/workout/exercise/${item.id}`}>
-                  <CardContent>
-                    <Stack direction="row" spacing={2} alignItems="center">
-                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                        <Typography variant="h3" noWrap>
-                          {item.exercise.name}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" noWrap>
-                          {item.exercise.muscle_group}
-                        </Typography>
-                        <Typography variant="body2" sx={{ mt: 0.5 }}>
-                          {item.target_sets} sets • {item.target_reps} reps
-                        </Typography>
-                      </Box>
+              return (
+                <Card key={item.id}>
+                  <CardActionArea component={Link} to={`/m/workout/exercise/${item.id}`}>
+                    <CardContent>
+                      <Stack direction="row" spacing={2} alignItems="center">
+                        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                          <Typography variant="h3" noWrap>
+                            {item.exercise.name}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" noWrap>
+                            {item.exercise.muscle_group}
+                          </Typography>
+                          <Typography variant="body2" sx={{ mt: 0.5 }}>
+                            {item.target_sets} sets • {item.target_reps} reps
+                          </Typography>
+                        </Box>
 
-                      <Chip
-                        label={progress.label}
-                        size="small"
-                        color={progress.complete ? 'success' : 'primary'}
-                      />
-                      <ChevronRightIcon color="primary" />
-                    </Stack>
-                  </CardContent>
-                </CardActionArea>
-              </Card>
-            )
-          })}
-        </Stack>
+                        <Chip
+                          label={progress.label}
+                          size="small"
+                          color={progress.complete ? 'success' : 'primary'}
+                        />
+                        <ChevronRightIcon color="primary" />
+                      </Stack>
+                    </CardContent>
+                  </CardActionArea>
+                </Card>
+              )
+            })}
+          </Stack>
+        )}
       </Box>
     </Stack>
   )

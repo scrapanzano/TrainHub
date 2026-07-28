@@ -1,4 +1,4 @@
-import { Box, Card, CardContent, Chip, Divider, IconButton, Stack, Typography } from '@mui/material'
+import { Box, Card, CardContent, Chip, IconButton, Stack, Typography } from '@mui/material'
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
@@ -8,10 +8,21 @@ import { setProgress } from './status.js'
 import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 
 // One prescription line.  Rendered as a definition list so the pairing survives
-// for a screen reader instead of collapsing into loose text.
+// for a screen reader instead of collapsing into loose text.  The separator is
+// a border rather than a <Divider>: a <dl> may only contain dt/dd groups and
+// their wrapping <div>, and an <hr> between them is invalid markup.
 function Fact({ label, value }) {
   return (
-    <Stack direction="row" justifyContent="space-between" sx={{ py: 1 }}>
+    <Stack
+      direction="row"
+      justifyContent="space-between"
+      sx={{
+        py: 1,
+        borderBottom: 1,
+        borderColor: 'divider',
+        '&:last-of-type': { borderBottom: 0 },
+      }}
+    >
       <Typography component="dt" color="text.secondary">
         {label}
       </Typography>
@@ -66,7 +77,7 @@ export default function ExerciseDetailScreen() {
         <Box
           component="img"
           src={exercise.image_url}
-          alt=""
+          alt={`Demonstration of ${exercise.name}`}
           sx={{ width: '100%', borderRadius: 4, display: 'block' }}
         />
       ) : null}
@@ -80,15 +91,8 @@ export default function ExerciseDetailScreen() {
       <Card>
         <CardContent component="dl" sx={{ m: 0 }}>
           <Fact label="Sets" value={data.target_sets} />
-          <Divider />
           <Fact label="Reps" value={data.target_reps} />
-          {data.target_weight ? (
-            <>
-              <Divider />
-              <Fact label="Weight" value={`${data.target_weight} kg`} />
-            </>
-          ) : null}
-          <Divider />
+          {data.target_weight ? <Fact label="Weight" value={`${data.target_weight} kg`} /> : null}
           <Fact label="Rest" value={`${data.rest_seconds}s`} />
         </CardContent>
       </Card>
