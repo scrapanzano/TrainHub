@@ -31,21 +31,50 @@ export default function MemberHomeScreen() {
     sessions.find((session) => session.status === 'in_progress') ??
     sessions.find((session) => session.status === 'todo')
 
+  // Three different nothings, and telling a member "every session is done" when
+  // their trainer has not written any is the worst of them.
+  const emptyPlanCopy =
+    plan.data == null
+      ? {
+          title: 'No plan yet',
+          description: 'Your trainer has not assigned you a workout plan yet.',
+        }
+      : sessions.length === 0
+        ? {
+            title: 'Plan not ready',
+            description: 'Your trainer has created your plan but has not added any sessions yet.',
+          }
+        : {
+            title: 'Plan complete',
+            description: 'Every session in your plan is done. Nice work.',
+          }
+
   return (
     <Stack spacing={4} sx={{ p: 2 }}>
       <Box>
         <Stack direction="row" spacing={1} alignItems="baseline" sx={{ mb: 2 }}>
           <Typography variant="h1">Today</Typography>
-          <Typography variant="h3" color="text.secondary">
-            • {appointments.data?.length ?? 0} activities
-          </Typography>
+          {/* No count until there is one.  "0 activities" above a spinner states
+              something the screen does not know yet. */}
+          {appointments.data ? (
+            <Typography variant="h3" color="text.secondary">
+              • {appointments.data.length} activities
+            </Typography>
+          ) : null}
         </Stack>
 
         {appointments.isPending ? <LoadingState /> : null}
-        {appointments.isError ? (
+
+        {/* Only when there is nothing to fall back on.  With `offlineFirst` a
+            refetch can fail while the persisted cache still holds a good answer,
+            and an error banner above usable data reads as "your app is broken"
+            when the truth is "you are offline" -- the state this app is built
+            to keep working in. */}
+        {appointments.isError && appointments.data === undefined ? (
           <ErrorState error={appointments.error} onRetry={appointments.refetch} />
         ) : null}
-        {appointments.isSuccess && appointments.data.length === 0 ? (
+
+        {appointments.data?.length === 0 ? (
           <EmptyState
             title="Nothing booked today"
             description="Your appointments with your trainer will show up here."
@@ -65,15 +94,18 @@ export default function MemberHomeScreen() {
         </Typography>
 
         {plan.isPending ? <LoadingState /> : null}
-        {plan.isError ? <ErrorState error={plan.error} onRetry={plan.refetch} /> : null}
-        {plan.isSuccess && !current ? (
+
+        {plan.isError && plan.data === undefined ? (
+          <ErrorState error={plan.error} onRetry={plan.refetch} />
+        ) : null}
+
+        {/* `undefined` means the plan has not loaded; `null` means it loaded and
+            there is none.  Collapsing the two would show "No plan yet" to every
+            member for the length of the first fetch. */}
+        {plan.data !== undefined && !current ? (
           <EmptyState
-            title={plan.data ? 'Plan complete' : 'No plan yet'}
-            description={
-              plan.data
-                ? 'Every session in your plan is done. Nice work.'
-                : 'Your trainer has not assigned you a workout plan yet.'
-            }
+            title={emptyPlanCopy.title}
+            description={emptyPlanCopy.description}
           />
         ) : null}
 
