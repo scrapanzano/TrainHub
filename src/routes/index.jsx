@@ -56,7 +56,12 @@ const router = createBrowserRouter([
         path: 'workout/exercise/:sessionExerciseId',
         lazy: async () => ({ Component: (await import('../features/workout/ExerciseDetailScreen.jsx')).default }),
       },
-      { path: 'workout/builder', ...screen('Workout Builder') },
+      {
+        path: 'workout/builder',
+        lazy: async () => ({
+          Component: (await import('../features/workout/WorkoutBuilderScreen.jsx')).default,
+        }),
+      },
 
       { path: 'nutrition', ...screen('Nutrition') },
       { path: 'nutrition/meal/:mealId', ...screen('Meal Details') },

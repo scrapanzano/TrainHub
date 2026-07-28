@@ -184,3 +184,47 @@ export async function setSessionStatus({ sessionId, status }) {
   if (error) throw error
   return data
 }
+
+/** The shared exercise catalogue, for the builder's picker. */
+export async function fetchExerciseCatalogue() {
+  const { data, error } = await supabase
+    .from('exercises')
+    .select('id, name, muscle_group, equipment')
+    .order('name')
+    .retry(navigator.onLine)
+
+  if (error) throw error
+  return data ?? []
+}
+
+/**
+ * Create one session and its exercises.
+ *
+ * Two statements rather than one, because PostgREST has no transaction across
+ * requests: if the second fails the session exists but is empty, which the plan
+ * screen already renders as "Plan not ready" rather than crashing.  A stored
+ * procedure would make it atomic and is the upgrade if this ever matters.
+ */
+export async function createSession({ planId, name, position, exercises }) {
+  const { data: session, error: sessionError } = await supabase
+    .from('workout_sessions')
+    .insert({ plan_id: planId, name, position })
+    .select('id')
+    .single()
+
+  if (sessionError) throw sessionError
+  if (exercises.length === 0) return session
+
+  const { error: exercisesError } = await supabase.from('session_exercises').insert(
+    exercises.map((item) => ({
+      session_id: session.id,
+      exercise_id: item.exerciseId,
+      position: item.position,
+      target_sets: item.targetSets,
+      target_reps: item.targetReps,
+    })),
+  )
+
+  if (exercisesError) throw exercisesError
+  return session
+}

@@ -1,4 +1,4 @@
-import { logSet, setSessionStatus } from './workouts.js'
+import { createSession, logSet, setSessionStatus } from './workouts.js'
 import { awardReward } from './rewards.js'
 import { mutationKeys } from '../lib/mutationKeys.js'
 import { queryPrefixes } from '../lib/queryKeys.js'
@@ -42,6 +42,13 @@ export function registerMutationDefaults(queryClient) {
     mutationFn: awardReward,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.rewards })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.createSession, {
+    mutationFn: createSession,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
     },
   })
 }
