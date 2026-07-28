@@ -13,20 +13,37 @@ const KIND_LABEL = {
 export default function AppointmentCard({ appointment }) {
   const { kind, status, starts_at: startsAt, ends_at: endsAt, pro } = appointment
   const done = status === 'done'
+  const settled = done || status === 'cancelled'
+
+  // The icon is the only thing carrying this state, and MUI hides an SvgIcon
+  // from screen readers unless `titleAccess` gives it a name.  Without one, the
+  // difference between a finished appointment and an upcoming one is visible
+  // only to people who can see it.
+  const statusLabel = {
+    done: 'Completed',
+    cancelled: 'Cancelled',
+    confirmed: 'Confirmed',
+    pending: 'Not confirmed yet',
+  }[status] ?? 'Scheduled'
 
   return (
     <Card
       sx={{
-        // A finished appointment recedes; an upcoming one keeps its type colour.
-        // Cancelled reads as finished on purpose -- neither needs attention.
-        bgcolor: done || status === 'cancelled' ? 'task.done' : `task.${kind}`,
+        // A settled appointment recedes; an upcoming one keeps its type colour.
+        // Cancelled greys out alongside done because neither needs attention --
+        // but only `done` earns the tick, and the label says which is which.
+        bgcolor: settled ? 'task.done' : `task.${kind}`,
         border: 'none',
       }}
     >
       <CardContent>
         <Stack direction="row" spacing={2} alignItems="center">
           <Box sx={{ color: 'text.primary', display: 'flex' }}>
-            {done ? <CheckCircleIcon /> : <RadioButtonUncheckedIcon />}
+            {done ? (
+              <CheckCircleIcon titleAccess={statusLabel} />
+            ) : (
+              <RadioButtonUncheckedIcon titleAccess={statusLabel} />
+            )}
           </Box>
 
           <Box sx={{ minWidth: 0 }}>
