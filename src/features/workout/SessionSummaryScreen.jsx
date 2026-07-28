@@ -61,7 +61,7 @@ export default function SessionSummaryScreen() {
 
       <Card>
         <CardContent>
-          <Typography variant="h3" component="h2">
+          <Typography variant="h3">
             Exercises
           </Typography>
           <Typography color="text.secondary">
@@ -73,7 +73,7 @@ export default function SessionSummaryScreen() {
 
       <Card>
         <CardContent>
-          <Typography variant="h3" component="h2">
+          <Typography variant="h3">
             +{pointsForWorkout()} points
           </Typography>
           <Typography color="text.secondary" sx={{ mb: 2 }}>
