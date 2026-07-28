@@ -140,8 +140,14 @@ What to check in Chrome DevTools:
 | **Application → Service Workers** | one worker, *activated and is running* |
 | **Application → Manifest** | name, theme colour `#FE6363`, all icon sizes, no warnings |
 | **Application → Cache Storage** | the precache holds the app shell (~14 entries, no duplicates) |
-| **Application → IndexedDB** | `trainhub-query-cache`, written by the query persister |
+| **Application → IndexedDB** | database `keyval-store` → store `keyval` → key `trainhub-query-cache` |
 | **Install icon in the address bar** | present; installing opens TrainHub in its own window |
+
+The IndexedDB entry only appears **once at least one query has run**. The
+persister writes on query-cache changes, so an empty cache produces no
+database at all. Through phase 0 nothing goes through TanStack Query — the
+auth provider talks to Supabase directly — so its absence is expected, not a
+fault. Phase 1 is where the key shows up.
 
 ### Testing offline behaviour
 
@@ -161,10 +167,14 @@ one that counts for the report.
 `localhost` is not reachable from your phone, and a service worker only
 registers over HTTPS (or `localhost`). A tunnel solves both:
 
+First Terminal
 ```bash
 npm run build
-npm run preview
-ngrok http 4173 --url=your-ngrok-url
+npm run preview -- --host 0.0.0.0
+```
+Second Terminal
+```
+ngrok http 4173
 ```
 
 Open that HTTPS URL on the phone and use *Add to Home screen*. The app should
@@ -198,9 +208,27 @@ bare Node buys more than a framework would.
 
 ### Walking both roles
 
-Sign in as `daniel@trainhub.dev` to get the member section (`/m`), as
-`andrea@trainhub.dev` to get the professional one (`/p`). Each screen names
-itself, so you can tell at a glance which route you landed on.
+Signing in as `daniel@trainhub.dev` gets you the member section (`/m`), as
+`andrea@trainhub.dev` the professional one (`/p`). Each screen names itself, so
+you can tell at a glance which route you landed on.
+
+**Until phase 1 lands there is no login form** — `/login` is a placeholder like
+every other screen, and the role guard bounces every `/m` and `/p` route back
+to it. To exercise the routing before then, sign in from the DevTools console
+of the **dev** server (`npm run dev`), where Vite serves modules by URL and
+returns the same client instance the app is using:
+
+```js
+const { supabase } = await import('/src/lib/supabase.js')
+await supabase.auth.signInWithPassword({
+  email: 'daniel@trainhub.dev',
+  password: 'TrainHub2026!',
+})
+```
+
+The auth provider picks the session up through `onAuthStateChange`; navigate to
+`/m` and the shell renders. This works in dev only — a production build has no
+source URLs to import.
 
 Two things worth checking explicitly, because both are guards that are easy to
 break:
