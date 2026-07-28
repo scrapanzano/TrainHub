@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Alert, Box, Button, Stack, TextField, Typography } from '@mui/material'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { supabase } from '../../lib/supabase.js'
@@ -15,14 +15,26 @@ export default function ResetPasswordScreen() {
   const [confirmation, setConfirmation] = useState('')
   const [error, setError] = useState(null)
 
+  // Holds the in-flight (or settled) exchange for one code.  A ref, because it
+  // has to survive StrictMode's synthetic remount -- state and the effect
+  // closure do not.
+  const exchange = useRef(null)
+
   useEffect(() => {
     if (!code) return
     let active = true
 
-    // The client is configured with detectSessionInUrl: false, so nothing has
-    // consumed this code yet and the exchange must be explicit.
-    supabase.auth
-      .exchangeCodeForSession(code)
+    // React 19 StrictMode mounts effects twice in development, and a PKCE code
+    // is single-use: exchanging twice consumes it on the first call and fails on
+    // the second, turning a valid link into "Link not valid".  Reusing the same
+    // promise means the code is exchanged once while every mount still gets its
+    // own handler -- skipping the replay outright would instead leave the live
+    // component with nothing attached, stuck on "Verifying your link…".
+    if (exchange.current?.code !== code) {
+      exchange.current = { code, promise: supabase.auth.exchangeCodeForSession(code) }
+    }
+
+    exchange.current.promise
       .then(({ error: exchangeError }) => {
         if (!active) return
         if (exchangeError) {
