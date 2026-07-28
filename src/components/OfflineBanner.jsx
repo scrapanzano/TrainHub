@@ -9,7 +9,11 @@ export default function OfflineBanner() {
   // `navigator.onLine` is a starting value, not a subscription -- the events are
   // what actually tell us, so both are needed.
   const [online, setOnline] = useState(() => navigator.onLine)
-  const [dismissed, setDismissed] = useState(false)
+
+  // Which failures the member has already acknowledged.  A single boolean would
+  // latch: dismissing one failure would silence every later one, and a lost set
+  // with no warning is exactly what this snackbar exists to prevent.
+  const [dismissed, setDismissed] = useState(() => new Set())
 
   useEffect(() => {
     const goOnline = () => setOnline(true)
@@ -30,13 +34,16 @@ export default function OfflineBanner() {
     select: (mutation) => mutation.state.isPaused,
   }).filter(Boolean).length
 
-  // A write that genuinely failed -- not one merely waiting for a network.
+  // A write that genuinely failed -- not one merely waiting for a network, and
+  // not one still retrying, which stays `pending` until its retries run out.
   // `LogSetSheet` rolls its optimistic count back on error, so without this the
   // set simply vanishes and the member believes it was recorded.
-  const failed = useMutationState({
+  const failedIds = useMutationState({
     filters: { status: 'error' },
     select: (mutation) => mutation.mutationId,
-  }).length
+  })
+
+  const unacknowledged = failedIds.filter((id) => !dismissed.has(id))
 
   const banner =
     !online || waiting > 0 ? (
@@ -68,14 +75,20 @@ export default function OfflineBanner() {
     <>
       {banner}
       <Snackbar
-        open={failed > 0 && !dismissed}
-        onClose={() => setDismissed(true)}
+        open={unacknowledged.length > 0}
+        onClose={() => setDismissed(new Set(failedIds))}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         // No auto-hide: a lost set is worth an explicit dismissal.
-        sx={{ bottom: { xs: 72 } }}
+        sx={{
+          // Clear the bottom navigation, including the iOS home indicator the
+          // bar pads itself with.  A flat pixel guess sits behind the nav on any
+          // device with a safe-area inset.
+          bottom: 'calc(56px + env(safe-area-inset-bottom) + 8px)',
+        }}
       >
-        <Alert severity="error" onClose={() => setDismissed(true)}>
-          {failed} change{plural(failed)} could not be saved. Try again.
+        <Alert severity="error" onClose={() => setDismissed(new Set(failedIds))}>
+          {unacknowledged.length} change{plural(unacknowledged.length)} could not be saved. Try
+          again.
         </Alert>
       </Snackbar>
     </>

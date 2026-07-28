@@ -13,7 +13,7 @@ export default function TopHeader({ profileHref, notificationCount = 0 }) {
   const { profile } = useAuth()
 
   return (
-    <AppBar position="sticky" color="inherit" elevation={0}>
+    <AppBar position="static" color="inherit" elevation={0}>
       <Toolbar sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
           <Typography variant="body2" color="text.secondary" noWrap>

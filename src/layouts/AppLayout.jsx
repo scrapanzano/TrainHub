@@ -77,8 +77,13 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
 
   return (
     <Box sx={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
-      <TopHeader profileHref={profileHref} />
-      <OfflineBanner />
+      {/* Header and sync status pin as one block.  The banner is meant to be a
+          persistent indicator; left in normal flow it scrolls away and is only
+          visible at the top of the page. */}
+      <Box sx={{ position: 'sticky', top: 0, zIndex: 'appBar' }}>
+        <TopHeader profileHref={profileHref} />
+        <OfflineBanner />
+      </Box>
       <Box component="main" sx={{ flexGrow: 1, pb: 2 }}>
         <Outlet />
       </Box>
