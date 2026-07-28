@@ -7,6 +7,8 @@ import ForgotPasswordScreen from '../features/auth/ForgotPasswordScreen.jsx'
 import ResetPasswordScreen from '../features/auth/ResetPasswordScreen.jsx'
 import MemberHomeScreen from '../features/home/MemberHomeScreen.jsx'
 import WorkoutPlanScreen from '../features/workout/WorkoutPlanScreen.jsx'
+import SessionDetailScreen from '../features/workout/SessionDetailScreen.jsx'
+import ExerciseDetailScreen from '../features/workout/ExerciseDetailScreen.jsx'
 import { memberNav, professionalNav } from './navItems.js'
 
 // Every screen starts as a placeholder; phases 1-4 replace them one by one.
@@ -29,10 +31,13 @@ const router = createBrowserRouter([
       { index: true, element: <MemberHomeScreen /> },
 
       { path: 'workout', element: <WorkoutPlanScreen /> },
-      { path: 'workout/session/:sessionId', ...screen('Session Detail') },
+      { path: 'workout/session/:sessionId', element: <SessionDetailScreen /> },
       { path: 'workout/session/:sessionId/live', ...screen('Live Session') },
       { path: 'workout/session/:sessionId/summary', ...screen('Session Summary') },
-      { path: 'workout/exercise/:exerciseId', ...screen('Exercise Details') },
+      // The parameter is a `session_exercises.id`, not an `exercises.id`: this
+      // screen shows the prescription (sets, reps, rest), which only exists on
+      // the join row.  The path segment is unchanged.
+      { path: 'workout/exercise/:sessionExerciseId', element: <ExerciseDetailScreen /> },
       { path: 'workout/builder', ...screen('Workout Builder') },
 
       { path: 'nutrition', ...screen('Nutrition') },
