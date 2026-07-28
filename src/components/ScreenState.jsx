@@ -24,7 +24,7 @@ export function ErrorState({ error, onRetry }) {
   // Offline is the common case in this app, not an exception, so it gets its own
   // wording -- "something went wrong" would send a user hunting for a fault that
   // is really just a tunnel or a lift.
-  const offline = typeof navigator !== 'undefined' && navigator.onLine === false
+  const offline = !navigator.onLine
 
   return (
     <Box sx={centred} role="alert">
@@ -43,14 +43,13 @@ export function ErrorState({ error, onRetry }) {
   )
 }
 
-export function EmptyState({ title, description, action }) {
+export function EmptyState({ title, description }) {
   return (
     <Box sx={centred}>
       <Stack spacing={1} alignItems="center">
         <Typography variant="h3">{title}</Typography>
         {description ? <Typography color="text.secondary">{description}</Typography> : null}
       </Stack>
-      {action}
     </Box>
   )
 }

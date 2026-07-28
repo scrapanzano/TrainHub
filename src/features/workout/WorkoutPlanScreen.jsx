@@ -32,6 +32,7 @@ export default function WorkoutPlanScreen() {
 
   const { plan, sessions } = data
   const progress = planProgress(sessions)
+  const subtitle = [plan.goal, plan.level].filter(Boolean).join(' - ')
 
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
@@ -39,10 +40,12 @@ export default function WorkoutPlanScreen() {
 
       <Card>
         <CardContent>
-          <Typography variant="h2">{plan.name}</Typography>
-          <Typography color="primary" sx={{ mb: 2 }}>
-            {[plan.goal, plan.level].filter(Boolean).join(' - ')}
-          </Typography>
+          <Typography variant="h2" component="h3">{plan.name}</Typography>
+          {subtitle ? (
+            <Typography color="primary" sx={{ mb: 2 }}>
+              {subtitle}
+            </Typography>
+          ) : null}
 
           {/* Two columns on any phone wide enough, stacked below that -- the
               labels are short but "Duration: 6 weeks" still wraps badly at 320px. */}
@@ -68,7 +71,7 @@ export default function WorkoutPlanScreen() {
               aria-label={`${progress.completed} of ${progress.total} sessions completed`}
               sx={{ height: 8, borderRadius: 999 }}
             />
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            <Typography variant="body2" color="text.secondary" aria-hidden sx={{ mt: 0.5 }}>
               {progress.completed} of {progress.total} sessions completed
             </Typography>
           </Box>

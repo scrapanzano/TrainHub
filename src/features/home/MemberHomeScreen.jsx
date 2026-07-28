@@ -57,7 +57,7 @@ export default function MemberHomeScreen() {
           {/* No count until there is one.  "0 activities" above a spinner states
               something the screen does not know yet. */}
           {appointments.data ? (
-            <Typography variant="h3" color="text.secondary">
+            <Typography variant="h3" component="span" color="text.secondary">
               • {appointments.data.length} activities
             </Typography>
           ) : null}
@@ -89,7 +89,7 @@ export default function MemberHomeScreen() {
       </Box>
 
       <Box>
-        <Typography variant="h1" sx={{ mb: 2 }}>
+        <Typography variant="h1" component="h2" sx={{ mb: 2 }}>
           Workout
         </Typography>
 

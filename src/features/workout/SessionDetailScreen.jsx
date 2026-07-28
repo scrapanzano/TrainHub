@@ -23,7 +23,6 @@ export default function SessionDetailScreen() {
   // can fail while the persisted cache still holds the answer, and an error
   // screen instead of that answer is the wrong call in a gym basement.
   if (isError && data === undefined) return <ErrorState error={error} onRetry={refetch} />
-  if (!data) return <LoadingState />
 
   const { session, exercises } = data
 
@@ -37,7 +36,7 @@ export default function SessionDetailScreen() {
             </IconButton>
 
             <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-              <Typography variant="h2" noWrap>
+              <Typography variant="h2" component="h1" noWrap>
                 {session.name}
               </Typography>
               <Typography color="text.secondary">{exercises.length} exercises</Typography>

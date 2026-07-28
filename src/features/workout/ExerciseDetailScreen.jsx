@@ -47,7 +47,6 @@ export default function ExerciseDetailScreen() {
   // can fail while the persisted cache still holds the answer, and an error
   // screen instead of that answer is the wrong call in a gym basement.
   if (isError && data === undefined) return <ErrorState error={error} onRetry={refetch} />
-  if (!data) return <LoadingState />
 
   const { exercise, session } = data
   const progress = setProgress(data.loggedCount, data.target_sets)

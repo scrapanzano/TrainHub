@@ -8,8 +8,8 @@ export default function ResetPasswordScreen() {
   const navigate = useNavigate()
   const code = params.get('code')
 
-  // 'exchanging' → 'ready' | 'invalid', then 'saving' → 'done'.  One state
-  // machine beats four booleans that can contradict each other.
+  // 'exchanging' → 'ready' | 'invalid', then 'saving'.  One state machine
+  // beats four booleans that can contradict each other.
   const [phase, setPhase] = useState(code ? 'exchanging' : 'invalid')
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
@@ -79,7 +79,6 @@ export default function ResetPasswordScreen() {
 
     // The exchange already signed them in, so send them to the app rather than
     // making them type the password they just chose.
-    setPhase('done')
     navigate('/m', { replace: true })
   }
 

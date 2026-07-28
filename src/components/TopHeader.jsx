@@ -19,7 +19,7 @@ export default function TopHeader({ profileHref, notificationCount = 0 }) {
           <Typography variant="body2" color="text.secondary" noWrap>
             {greeting(new Date().getHours())}
           </Typography>
-          <Typography variant="h3" noWrap>
+          <Typography variant="h3" component="p" noWrap>
             {profile?.full_name ?? ''}
           </Typography>
         </Box>

@@ -4,7 +4,7 @@
 const TODO = { label: 'To Do', color: 'error' }
 
 /** Session status → the label and palette key the wireframes use. */
-export const SESSION_STATUS = {
+const SESSION_STATUS = {
   todo: TODO,
   in_progress: { label: 'In Progress', color: 'warning' },
   completed: { label: 'Completed', color: 'success' },

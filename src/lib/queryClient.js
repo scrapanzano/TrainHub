@@ -16,7 +16,11 @@ export const queryClient = new QueryClient({
       // silently does nothing.
       gcTime: ONE_WEEK,
       staleTime: 1000 * 30,
-      retry: 2,
+      // Retrying while offline pauses the query instead of failing it, so
+      // `isPending` would stay true forever and no screen could ever show its
+      // offline state.  Fail fast when the browser already knows there is no
+      // network; `refetchOnReconnect` picks it back up.
+      retry: (failureCount) => navigator.onLine && failureCount < 2,
       refetchOnWindowFocus: false,
       // Serve cached data immediately and only then reach for the network,
       // instead of failing fast when offline.

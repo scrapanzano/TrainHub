@@ -13,6 +13,34 @@ const PROFILE_COLUMNS =
 // render claiming the role was settled when it was not.
 const NO_PROFILE = { forUserId: undefined, data: null, error: null }
 
+// The role decides which shell renders, so a cold start with no network needs
+// it before any query runs.  Row Level Security still governs every real read --
+// this copy only picks a layout, it grants nothing.
+const PROFILE_CACHE_KEY = 'trainhub-profile'
+
+function readCachedProfile(userId) {
+  try {
+    const cached = JSON.parse(localStorage.getItem(PROFILE_CACHE_KEY))
+    return cached?.id === userId ? cached : null
+  } catch {
+    // Unparseable or unavailable storage is not worth failing a sign-in over.
+    return null
+  }
+}
+
+function writeCachedProfile(profile) {
+  try {
+    localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(profile))
+  } catch {
+    // Quota exceeded or private mode.  The app still works, just not offline.
+  }
+}
+
+// postgrest-js catches network failures itself and RESOLVES with an error whose
+// `code` is empty, so the promise never rejects and a `.catch` cannot see this.
+// An empty code, or a browser that already knows it is offline, is the signal.
+const isOfflineError = (error) => error?.code === '' || !navigator.onLine
+
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [sessionReady, setSessionReady] = useState(false)
@@ -67,22 +95,36 @@ export function AuthProvider({ children }) {
       .single()
       .then(({ data, error }) => {
         if (!active) return
-        // A signed-in user with no readable profile row is a real state, not an
-        // impossible one: the row may be missing, or RLS may deny it.  Recording
-        // it as a resolved-with-error result beats leaving the profile null
-        // forever with nothing able to tell "still loading" from "never coming".
-        setProfileState({ forUserId: userId, data: error ? null : data, error: error ?? null })
-      })
-      .catch((cause) => {
-        // Offline is the expected path here, not an exceptional one -- this is a
-        // PWA and the network is optional.  Tagged so consumers can tell a dead
-        // network from a server that answered "denied": a Postgrest error has a
-        // `code`, this does not.
-        if (!active) return
+
+        if (!error) {
+          writeCachedProfile(data)
+          setProfileState({ forUserId: userId, data, error: null })
+          return
+        }
+
+        // Offline with a cached profile is not a failure -- it is the case this
+        // app exists to handle.  Fall back to the cache and let the shell render;
+        // only a denial, or an offline start that was never online, is an error.
+        const offline = isOfflineError(error)
+        const cached = offline ? readCachedProfile(userId) : null
+
         setProfileState({
           forUserId: userId,
-          data: null,
-          error: { offline: true, message: 'Could not reach the server.', cause },
+          data: cached,
+          error: cached ? null : { ...error, offline },
+        })
+      })
+      .catch((cause) => {
+        // Reached only if something outside postgrest throws.  Kept as a floor
+        // so an unexpected rejection cannot leave `loading` true forever.
+        if (!active) return
+        const cached = readCachedProfile(userId)
+        setProfileState({
+          forUserId: userId,
+          data: cached,
+          error: cached
+            ? null
+            : { offline: true, message: 'Could not reach the server.', cause },
         })
       })
 
@@ -92,6 +134,13 @@ export function AuthProvider({ children }) {
   }, [sessionReady, userId])
 
   const signOut = useCallback(async () => {
+    // Drop the cached profile first: if the network call fails, the local
+    // session is still cleared and the stale copy must not outlive it.
+    try {
+      localStorage.removeItem(PROFILE_CACHE_KEY)
+    } catch {
+      // Nothing to do -- signing out matters more than tidying storage.
+    }
     await supabase.auth.signOut()
   }, [])
 
