@@ -17,7 +17,7 @@ import { formatElapsed } from './timer.js'
 import { setProgress } from './status.js'
 import { useLiveSession } from './useLiveSession.js'
 import LogSetSheet from './LogSetSheet.jsx'
-import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
+import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import { pointsForWorkout } from './summary.js'
 import { useAuth } from '../auth/useAuth.js'
 
@@ -140,53 +140,60 @@ export default function LiveSessionScreen() {
           Exercises
         </Typography>
 
-        <Stack spacing={2}>
-          {exercises.map((item) => {
-            const progress = setProgress(item.loggedCount, item.target_sets)
-            const isCurrent = item.id === currentId && live.started && !live.paused
+        {exercises.length === 0 ? (
+          <EmptyState
+            title="No exercises yet"
+            description="Your trainer has not added any exercises to this session."
+          />
+        ) : (
+          <Stack spacing={2}>
+            {exercises.map((item) => {
+              const progress = setProgress(item.loggedCount, item.target_sets)
+              const isCurrent = item.id === currentId && live.started && !live.paused
 
-            return (
-              <Card
-                key={item.id}
-                sx={{
-                  // The wireframe outlines the exercise in progress and fades
-                  // the finished ones.  Opacity alone would carry that by sight
-                  // only, so the tick and the pill say it too.
-                  borderColor: isCurrent ? 'primary.main' : 'divider',
-                  borderWidth: isCurrent ? 2 : 1,
-                  opacity: progress.complete ? 0.6 : 1,
-                }}
-              >
-                <CardActionArea
-                  onClick={() => setOpenExerciseId(item.id)}
-                  disabled={!live.started || live.paused}
+              return (
+                <Card
+                  key={item.id}
+                  sx={{
+                    // The wireframe outlines the exercise in progress and fades
+                    // the finished ones.  Opacity alone would carry that by sight
+                    // only, so the tick and the pill say it too.
+                    borderColor: isCurrent ? 'primary.main' : 'divider',
+                    borderWidth: isCurrent ? 2 : 1,
+                    opacity: progress.complete ? 0.6 : 1,
+                  }}
                 >
-                  <CardContent>
-                    <Stack direction="row" spacing={2} alignItems="center">
-                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                        <Typography variant="h3" noWrap>
-                          {item.exercise.name}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" noWrap>
-                          {item.exercise.muscle_group}
-                        </Typography>
-                        <Typography variant="body2" sx={{ mt: 0.5 }}>
-                          {item.target_sets} sets • {item.target_reps} reps
-                        </Typography>
-                      </Box>
+                  <CardActionArea
+                    onClick={() => setOpenExerciseId(item.id)}
+                    disabled={!live.started || live.paused}
+                  >
+                    <CardContent>
+                      <Stack direction="row" spacing={2} alignItems="center">
+                        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                          <Typography variant="h3" noWrap>
+                            {item.exercise.name}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" noWrap>
+                            {item.exercise.muscle_group}
+                          </Typography>
+                          <Typography variant="body2" sx={{ mt: 0.5 }}>
+                            {item.target_sets} sets • {item.target_reps} reps
+                          </Typography>
+                        </Box>
 
-                      {progress.complete ? (
-                        <CheckCircleIcon color="success" titleAccess="Completed" />
-                      ) : (
-                        <Chip label={progress.label} size="small" color="primary" />
-                      )}
-                    </Stack>
-                  </CardContent>
-                </CardActionArea>
-              </Card>
-            )
-          })}
-        </Stack>
+                        {progress.complete ? (
+                          <CheckCircleIcon color="success" titleAccess="Completed" />
+                        ) : (
+                          <Chip label={progress.label} size="small" color="primary" />
+                        )}
+                      </Stack>
+                    </CardContent>
+                  </CardActionArea>
+                </Card>
+              )
+            })}
+          </Stack>
+        )}
       </Box>
 
       <LogSetSheet

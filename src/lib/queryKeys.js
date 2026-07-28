@@ -8,6 +8,7 @@ export const queryKeys = {
   appointmentsOnDay: (memberId, dayISO) => ['appointments', memberId, dayISO],
   sessionLogs: (sessionId) => ['sessionLogs', sessionId],
   rewards: (memberId) => ['rewards', memberId],
+  exerciseCatalogue: () => ['exerciseCatalogue'],
 }
 
 // Prefixes, for invalidating a whole family at once.  `invalidateQueries`

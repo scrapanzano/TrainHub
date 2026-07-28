@@ -1,5 +1,9 @@
-import { Box, Card, CardContent, Divider, LinearProgress, Stack, Typography } from '@mui/material'
+import {
+  Box, Card, CardContent, Divider, Fab, LinearProgress, Stack, Typography,
+} from '@mui/material'
+import AddIcon from '@mui/icons-material/Add'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router'
 import { fetchActivePlan } from '../../data/workouts.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { formatDate } from '../../lib/format.js'
@@ -36,7 +40,18 @@ export default function WorkoutPlanScreen() {
 
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
-      <Typography variant="h1">Workout Plan</Typography>
+      <Stack direction="row" alignItems="center" justifyContent="space-between">
+        <Typography variant="h1">Workout Plan</Typography>
+        <Fab
+          component={Link}
+          to="/m/workout/builder"
+          color="primary"
+          size="small"
+          aria-label="Add a session"
+        >
+          <AddIcon />
+        </Fab>
+      </Stack>
 
       <Card>
         <CardContent>

@@ -9,7 +9,7 @@
 -- Idempotent: drops and recreates.
 
 create or replace function public.set_reward_points() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql set search_path = public as $$
 begin
   new.points := case
     when new.code like 'workout:%'  then 30
@@ -35,4 +35,6 @@ select id, 'workout:patch-test', 'Patch test', 999999 from profiles where role =
 select code, points, points = 30 as points_corrected
 from rewards where code = 'workout:patch-test';
 
-delete from rewards where code = 'workout:patch-test';
+delete from rewards
+where code = 'workout:patch-test'
+  and member_id in (select id from profiles where role = 'member');

@@ -28,15 +28,22 @@ export default function WorkoutBuilderScreen() {
   })
 
   const catalogue = useQuery({
-    queryKey: ['exerciseCatalogue'],
+    queryKey: queryKeys.exerciseCatalogue(),
     queryFn: fetchExerciseCatalogue,
   })
 
   const create = useMutation({ mutationKey: mutationKeys.createSession })
 
+  // Offline this mutation pauses: `onSuccess` never runs, no error is raised,
+  // and the button would sit on "Saving…" forever with nothing to explain it.
+  const savedOffline = create.isPending && create.isPaused
+
   if (plan.isPending || catalogue.isPending) return <LoadingState />
   if (plan.isError && plan.data === undefined) {
     return <ErrorState error={plan.error} onRetry={plan.refetch} />
+  }
+  if (catalogue.isError && catalogue.data === undefined) {
+    return <ErrorState error={catalogue.error} onRetry={catalogue.refetch} />
   }
   if (!plan.data) {
     return (
@@ -161,6 +168,13 @@ export default function WorkoutBuilderScreen() {
           ))}
         </Stack>
       )}
+
+      {savedOffline ? (
+        <Alert severity="info">
+          You are offline. This session is saved on your device and will be added to your plan when
+          you reconnect.
+        </Alert>
+      ) : null}
 
       {/* Without this the button simply returns from "Saving…" to "Save
           session" and the member is left believing the write went through. */}

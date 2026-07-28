@@ -115,7 +115,7 @@ export default function RewardsScreen() {
             </Typography>
           </Stack>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
-            Claim your reward and show the code at the reception
+            Show this screen at the reception to claim a reward
           </Typography>
         </CardContent>
       </Card>
