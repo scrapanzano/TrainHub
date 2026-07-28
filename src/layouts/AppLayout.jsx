@@ -1,6 +1,7 @@
 import { Box, Button, Stack, Typography } from '@mui/material'
 import { Navigate, Outlet, useLocation } from 'react-router'
 import BottomNav from '../components/BottomNav.jsx'
+import OfflineBanner from '../components/OfflineBanner.jsx'
 import { LoadingState } from '../components/ScreenState.jsx'
 import TopHeader from '../components/TopHeader.jsx'
 import { useAuth } from '../features/auth/useAuth.js'
@@ -77,6 +78,7 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
   return (
     <Box sx={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
       <TopHeader profileHref={profileHref} />
+      <OfflineBanner />
       <Box component="main" sx={{ flexGrow: 1, pb: 2 }}>
         <Outlet />
       </Box>
