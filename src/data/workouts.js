@@ -111,9 +111,16 @@ export async function fetchSessionLogs(sessionId) {
     .retry(navigator.onLine)
 
   if (error) throw error
-  // Drop the join row the filter needed; no screen should have to see it.
-  // eslint-disable-next-line no-unused-vars -- destructured only to exclude it
-  return (data ?? []).map(({ session_exercises: _join, ...log }) => log)
+  // Return only the log's own columns; the joined `session_exercises` row exists
+  // solely so the filter above can reach the parent session.
+  return (data ?? []).map(({ id, session_exercise_id, set_number, reps, weight, performed_at }) => ({
+    id,
+    session_exercise_id,
+    set_number,
+    reps,
+    weight,
+    performed_at,
+  }))
 }
 
 /**
@@ -123,8 +130,20 @@ export async function fetchSessionLogs(sessionId) {
  * this can be an upsert that ignores duplicates: `resumePausedMutations` will
  * replay a write whose response never arrived, and a plain insert would fail
  * that replay with a primary-key violation the user would see as a lost set.
+ *
+ * The caller supplies `performedAt` for the same reason.  This write can sit
+ * paused for hours and land on reconnect; leaving it to the column's `now()`
+ * default would stamp a set performed at 18:00 as happening at 23:00.
  */
-export async function logSet({ id, sessionExerciseId, memberId, setNumber, reps, weight }) {
+export async function logSet({
+  id,
+  sessionExerciseId,
+  memberId,
+  setNumber,
+  reps,
+  weight,
+  performedAt,
+}) {
   const { data, error } = await supabase
     .from('set_logs')
     .upsert(
@@ -135,6 +154,9 @@ export async function logSet({ id, sessionExerciseId, memberId, setNumber, reps,
         set_number: setNumber,
         reps,
         weight: weight ?? null,
+        // Falls back to the caller's clock at call time rather than to the
+        // database default, so an omitted argument still cannot drift.
+        performed_at: performedAt ?? new Date().toISOString(),
       },
       { onConflict: 'id', ignoreDuplicates: true },
     )
