@@ -15,7 +15,7 @@ import { fetchClient } from '../../data/clients.js'
 import { fetchActivePlan } from '../../data/workouts.js'
 import { fetchNutritionPlan } from '../../data/nutrition.js'
 import { queryKeys } from '../../lib/queryKeys.js'
-import { todayISO } from '../../lib/format.js'
+import { localDayISO, todayISO } from '../../lib/format.js'
 import { planProgress } from '../workout/status.js'
 import { daysBetween, subscriptionStateOf } from './subscription.js'
 import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
@@ -72,10 +72,18 @@ export default function ClientDetailScreen() {
   // must not print "week 11 of 8".  Day granularity (via `todayISO`) rather
   // than `Date.now()`: this only needs to change once a day, and a bare clock
   // read in the render body is impure under StrictMode's double-invoke.
+  // `created_at` is a `timestamptz`, serialised in UTC -- `localDayISO` maps it
+  // to the viewer's local calendar day before it's compared against
+  // `todayISO()`, which is also local. Comparing the raw UTC-sliced string
+  // against a local `todayISO()` would misreport the week for the last hour or
+  // two of every UTC day.
   const planWeek = plan.data
     ? Math.min(
         plan.data.plan.weeks,
-        Math.max(1, Math.floor(daysBetween(plan.data.plan.created_at, todayISO()) / 7) + 1),
+        Math.max(
+          1,
+          Math.floor(daysBetween(localDayISO(plan.data.plan.created_at), todayISO()) / 7) + 1,
+        ),
       )
     : null
 

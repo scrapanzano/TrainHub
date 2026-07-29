@@ -23,10 +23,26 @@ export function formatDate(dateISO) {
   return `${day}/${month}/${year}`
 }
 
+/**
+ * The local calendar day, as `'YYYY-MM-DD'`, of a full ISO instant (e.g. a
+ * `timestamptz` from Supabase such as `'2026-07-15T23:30:00+00:00'`).
+ *
+ * `new Date(timestamp)` on a *full* timestamp is safe -- it parses the
+ * embedded offset (or `Z`) and the `get*` calls below read it back in the
+ * viewer's local zone. That is the opposite case from `formatDate` above,
+ * where the input is a bare `'YYYY-MM-DD'` `date` with no time or offset at
+ * all, so the constructor falls back to UTC midnight and shifts a day
+ * backwards for anyone east of Greenwich. Full timestamp in → local
+ * constructor is fine; bare date in → local constructor is the trap.
+ */
+export function localDayISO(timestamp) {
+  const d = new Date(timestamp)
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${month}-${day}`
+}
+
 /** Today as `'YYYY-MM-DD'` in the local calendar, for day-scoped queries. */
 export function todayISO() {
-  const now = new Date()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  return `${now.getFullYear()}-${month}-${day}`
+  return localDayISO(new Date())
 }
