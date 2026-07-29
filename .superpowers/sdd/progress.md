@@ -1010,3 +1010,17 @@ Task 2: complete (commits 1f3d581..1763082, re-review clean)
   its two siblings share. Harmless -- unique(member_id, pro_id) already makes
   concurrent creates idempotent.
   Deferred to human: the two-browser Realtime check.
+
+Davide, after task 2: patch 007-realtime-messages.sql HAS BEEN RUN, and the
+Phase 3 browser verification HAS BEEN DONE -- no defects reported back. So the
+long "deferred to human" list from Phase 3, including the member-builder
+regression walk from Task 7, is closed. Realtime is live; the two-browser chat
+check at the end of Task 2 is the only chat verification still outstanding.
+
+CLAUDE.md rewritten at this point. It had been frozen at Phase 0 and every
+stack claim in it was false ("src/ is still the stock Vite React template",
+"MUI is installed but not yet used anywhere", "No router installed yet", "Not a
+git repository") -- a fresh session read it first and started from a completely
+wrong model of the project. It now carries the architecture, the location of
+this ledger, and the rules-that-cost-a-day list distilled from four phases of
+review findings.
