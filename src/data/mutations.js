@@ -1,6 +1,7 @@
 import { createPlan, createSession, deleteSession, logSet, setSessionStatus } from './workouts.js'
 import { awardReward } from './rewards.js'
 import { deleteMeal, saveMeal, saveNutritionPlan } from './nutrition.js'
+import { saveBodyMetric } from './progress.js'
 import { mutationKeys } from '../lib/mutationKeys.js'
 import { queryPrefixes } from '../lib/queryKeys.js'
 
@@ -97,6 +98,13 @@ export function registerMutationDefaults(queryClient) {
     scope: { id: 'meals' },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.nutritionPlan })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.saveBodyMetric, {
+    mutationFn: saveBodyMetric,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.bodyMetrics })
     },
   })
 }

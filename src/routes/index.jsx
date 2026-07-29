@@ -121,7 +121,12 @@ const router = createBrowserRouter([
           Component: (await import('../features/nutrition/NutritionPlanEditorScreen.jsx')).default,
         }),
       },
-      { path: 'clients/:clientId/progress', ...screen('Progress Tracking') },
+      {
+        path: 'clients/:clientId/progress',
+        lazy: async () => ({
+          Component: (await import('../features/progress/ClientProgressScreen.jsx')).default,
+        }),
+      },
 
       { path: 'calendar', ...screen('Calendar') },
       // Listed literal-before-parameter for readability only. React Router
