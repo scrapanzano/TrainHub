@@ -633,3 +633,275 @@ Task 1: complete (commit bc17eba, review clean, approved)
   patch. verify.sql diff is exactly the three count changes, no whitespace churn.
   PENDING DAVIDE: run patches 004 then 005 in the Supabase SQL editor, then
   re-run verify.sql (counts now 16).
+Task 2: complete (commits f6398f4..a332e2c, re-review clean)
+  IMPORTANT found and fixed, plan-mandated, escalated to Davide who chose the
+  wider fix: subscriptionStateOf returned SHARED module-level constants, so a
+  consumer mutating the returned object would corrupt that label for every
+  other client row. Identical pattern was already shipped in status.js
+  (Phase 1 Task 2 saw it, rated it Minor and left it). Davide chose to freeze
+  BOTH, so the two modules stay consistent. Reviewer confirmed every value
+  reachable from subscriptionStateOf AND sessionStatusOf is frozen including
+  the ?? TODO fallback path, that Object.freeze being shallow costs nothing
+  here (every frozen object is a flat {label,color} of strings), and that no
+  label or colour drifted.
+  Reviewer also verified the four originals are BYTE-IDENTICAL to the brief --
+  the one failure mode that would have made everything else look fine is a
+  self-check edited to match a wrong implementation. It recomputed the calendar
+  facts by hand (1 Mar 2026 is a Sunday, June 2026 starts Monday, 2028 is leap)
+  rather than trusting the assertions, and confirmed the March case genuinely
+  discriminates Monday-first from Sunday-first.
+  PROCESS DEFECT (controller caught, commit a332e2c): the fix subagent ran
+  git add -A and swept in unrelated tracked files. Worse, the skill helper
+  sdd-workspace had rewritten .superpowers/sdd/.gitignore to a bare `*`, which
+  would have untracked the ledger and every task report. Restored. LESSON:
+  tell every implementer to stage only the files its task names, and re-check
+  that .gitignore after any skill script runs.
+  Minor carried to final review (src/features/calendar/month.js): shiftMonth
+  uses Math.floor(total/12) with (total % 12) + 1, which is wrong once total
+  goes negative -- shiftMonth(0, 1, -1) yields month 0. Unreachable here
+  (calendar years are deep positive) and the brief never crosses zero.
+Task 3: complete (commit 858be79, review clean, no findings)
+  The risky part was a shared-component refactor: AppointmentCard stopped
+  reading appointment.pro itself and now takes a `person` prop, because the
+  same row means a different counterpart to each side. Reviewer grepped src/
+  and confirmed MemberHomeScreen is the only consumer and was updated in the
+  same commit -- an un-updated one renders "Unassigned" under every appointment
+  with nothing throwing, no lint error and no test to catch it.
+  Also confirmed preserved through the move: the task.* background by kind, the
+  four-value statusLabel map, and titleAccess on the status icon (MUI hides an
+  SvgIcon from screen readers without it -- the exact bug Phase 2 Task 8 fixed).
+  Reviewer checked every embed names its FK constraint and every read carries
+  .retry(navigator.onLine), individually, and verified the constraint names
+  against schema.sql rather than assuming Postgres auto-naming.
+  Minor, not worth fixing: fetchClients sort comparator never returns 0.
+Task 4: complete (commit d513505, review clean, no findings)
+  Reviewer traced person={appointment.member} back to the embed alias in
+  fetchAgendaOnDay to confirm the direction -- passing the professional would
+  have shown Coach Andrea her own name under every appointment, which looks
+  plausible and is wrong. Also read the whole routes file to confirm only the
+  /p index placeholder was replaced, and proved the four render states are
+  mutually exclusive by construction rather than by inspection of one path.
+  Deferred to human: Step 3 browser check (expect "Today - 7 activities").
+Task 5: complete (commit 41bf5e3, review clean, approved)
+  Reviewer proved the two empty states are mutually exclusive by construction
+  and that neither can fire while data is undefined -- "No clients yet" shown
+  to a professional who merely mistyped a search is a lie about their roster.
+  Confirmed the status dot is aria-hidden with the label as text beside it, and
+  that subscriptionStateOf is called with its arguments in the declared order.
+  Minor, not fixed: the search field says "Search Client..." to sighted users
+  and "Search clients" to screen readers; both come from the brief. Straight
+  quotes used where the brief had curly ones.
+  Deferred to human: Step 4 browser check (5 clients, 4 distinct states).
+Task 6: complete (commits 566e20a..b987482, third review clean)
+  THREE defects, each invisible to the check before it:
+  1. IMPORTANT, rejected suppression: the implementer computed planWeek with a
+     bare Date.now() in the render body and silenced react-hooks/purity with an
+     eslint-disable. StrictMode double-invokes render, so the read is genuinely
+     impure -- and Phase 2 Task 7 had already established that this rule family
+     gets the code redone, not suppressed. Re-derived from todayISO().
+  2. BUILD BREAK lint could not see: the brief imported
+     @mui/icons-material/ChatBubbleOutline. That bare glyph is not shipped by
+     the installed 9.2.0 -- only the styled variants are, exactly the trap
+     DeleteOutline set in Phase 2. ESLint never resolves the module; Vite does,
+     at build time. Plan bug, corrected in the plan too.
+     LESSON: `npm run lint` is not sufficient. Every task from here runs
+     `npm run build` as well. Checked every other icon name in the plan against
+     node_modules -- ChatBubbleOutline was the only one missing.
+  3. IMPORTANT, introduced BY the fix for 1: daysBetween sliced both arguments
+     to 10 chars, which is right only when both are already the same calendar
+     frame. workout_plans.created_at is timestamptz, serialised in UTC;
+     todayISO() is the LOCAL day. In Europe/Rome a plan created at 23:30Z --
+     locally 01:30 the next day -- read one day old, so a plan created 6 local
+     days ago printed "Week 2" against the brief invariant of week 1.
+     Fixed by adding localDayISO() to src/lib/format.js, with todayISO()
+     delegating to it so there is one implementation rather than two.
+     The gap had survived because subscription.selfcheck.js only ever passed
+     plain `date` strings on both sides, never a timestamptz. New assertions in
+     format.selfcheck.js were PROVEN to fail against the naive slice by
+     temporarily reverting the implementation.
+  Minor carried to final review: those new assertions are blind on a machine
+  running exactly UTC (naive and correct agree there). Disclosed in-file.
+  Deferred to human: Step 4 browser check.
+Task 7: complete (commit 4519c53, review clean, approved)
+  The dominant risk was rewriting a screen that already shipped: the member
+  builder was gutted so its form could become the shared SessionForm.jsx that
+  the professional editor also renders. Reviewer read removed against added
+  lines and confirmed all six behaviours survived -- catalogue gate, the
+  Math.max position, "Saved offline", the error Alert, navigate-on-success, and
+  the per-row remove aria-label.
+  Reviewer also went outside the diff where the diff could not answer: read
+  schema.sql to confirm the delete really cascades session_exercises then
+  set_logs (so the confirm copy is honest), and policies.sql to confirm
+  workout_sessions_all is `for all` on owns_member, i.e. the delete actually
+  succeeds under RLS for the owning professional rather than failing silently.
+  Minor carried to final review: every row shares one removeSession mutation
+  object, so deleting one session disables the delete button on every other row
+  until it settles.
+  Deferred to human: Step 7 browser checks, including the member-builder
+  regression walk.
+Task 8: complete (commits 6f99c09..d1ee4b5, re-review clean)
+  IMPORTANT found, plan-mandated: saveNutritionPlan and saveMeal omitted `id`
+  on the create path, letting the column default fire. queryClient sets
+  retry: 3 on all mutations, so a create whose request COMMITS but whose
+  RESPONSE is lost -- a dropped connection, not the offline case, which pauses
+  before sending -- is re-run and inserts a second row. meals has
+  unique(plan_id, position) so the retry at least errors loudly;
+  nutrition_plans has no such constraint, so a retried "Create plan" silently
+  leaves an orphan that fetchNutritionPlan's `created_at desc` hides forever.
+  The codebase had already solved this twice (logSet, createAppointment); the
+  nutrition writes simply missed it.
+  THE OBVIOUS FIX WAS A TRAP: logSet uses ignoreDuplicates: true because it is
+  insert-only. These two are ALSO the edit path -- the screen calls them with
+  an existing id on every rename or macro change -- so ignoreDuplicates would
+  emit ON CONFLICT DO NOTHING and every edit would silently do nothing. Fixed
+  instead by having the CALLER generate the id, keeping a plain onConflict
+  upsert: a retried create lands on the same row, an edit still updates.
+  crypto.randomUUID() is called inside the submit/click handlers, never in a
+  render body -- react-hooks/purity is live and Task 6 was already rejected
+  once for suppressing it.
+  NOTE: the plan document still carries the pre-fix version of these two
+  functions. The committed code is the correct one.
+  Minors carried to final review: meal item rows are keyed by array index, so
+  deleting a row above one being edited can jump the cursor; one shared
+  saveMeal mutation object disables every card's Save while any one is in
+  flight; a failed save renders a screen-level Alert that does not say which
+  meal failed.
+  Deferred to human: Step 5 browser checks.
+Task 9: complete (commit 07e5b13, review clean, approved)
+  Reviewer judged the self-check as a SPECIFICATION rather than as coverage --
+  it is the only verification progress.js will ever get. Recomputed the date
+  windows by hand, confirmed each assertion would actually FAIL against the
+  plausible wrong implementations (counting logs instead of distinct days, an
+  exclusive far edge on the seven-day window, returning 0 instead of null for a
+  single reading), and confirmed the noon-local fixtures survived unweakened --
+  rewritten as plain ISO literals they would pass in Rome and fail in Los
+  Angeles.
+  Confirmed saveBodyMetric upserts on (member_id, measured_on) with NO
+  ignoreDuplicates: the pair is the real-world rule and makes an offline replay
+  land on the same row, while ignoreDuplicates would turn every correction into
+  a silent no-op, since this is also the edit path.
+  Minor carried to final review, plan-mandated: the plan query is not in the
+  loading gate, so while it is still in flight the screen shows "No plan
+  assigned, so there is no weekly target yet" -- indistinguishable from a client
+  who genuinely has none.
+  Deferred to human: Step 9 browser checks.
+Task 10: complete (commit 006612c, review clean, approved)
+  PLAN DEFECT the implementer caught: the brief MonthGrid imported Stack and
+  never used it, which trips no-unused-vars. It removed the import rather than
+  suppress -- correct, suppressions are barred in this phase.
+  Reviewer did not take the "one query serves both views" claim on trust: it
+  reran monthGrid/weekStrip for March 2026 and confirmed numerically that the
+  edge weeks (anchored on 1 and 31 March, both padding into a neighbouring
+  month) fall entirely inside the grid bounds. It also hand-traced the month
+  step, confirming 31 March stepping back lands on 28 February rather than
+  rolling forward into March.
+  Confirmed toLocaleDateString(sv-SE) survived at BOTH sites -- Swedish
+  formatting is ISO 8601, so it is the shortest correct way to a LOCAL day;
+  toISOString().slice(0,10) would put a 23:00 appointment on the wrong date.
+  NewAppointmentSheet.jsx committed as a `return null` placeholder: CalendarScreen
+  imports it and the build fails without it. Task 11 replaces it.
+  Minor carried to final review: the day heading falls back to the raw ISO
+  string for any day that is not today.
+  Deferred to human: Step 5 browser checks.
+Task 11: complete (commits 7c55b48..c66cdce, re-review clean)
+  TWO IMPORTANTs, both plan-mandated, one root cause: CalendarScreen renders
+  NewAppointmentSheet UNCONDITIONALLY -- only the Drawer open prop toggles
+  visibility -- so the component never unmounts and useState reads its
+  initialiser exactly once, at first mount. Consequences: (a) selecting next
+  Tuesday then tapping + opened the sheet on the day the screen first loaded,
+  failing the plan own acceptance test; (b) after a booking nothing was reset,
+  so reopening showed the previous client, kind, time, duration and notes, and
+  a professional changing only the client silently carried the rest across.
+  Fixed with React documented adjust-state-when-a-prop-changes pattern -- a
+  second useState compared during render -- NOT an effect. Same call Phase 2
+  Task 7 made for LiveSessionScreen: on the render where the prop changes an
+  effect fires in the same commit with stale state. A ref was barred too, this
+  repo eslint has react-hooks/refs.
+  Reviewer confirmed the reset fires on closed->open only, not on open->close
+  (which would fight the Drawer transition) nor on every render (which would
+  make every field uneditable), and that setState during render means React
+  discards the stale render before painting -- no flash of the wrong day.
+  Reviewer also confirmed ignoreDuplicates: true is right HERE, unlike Task 8:
+  booking is insert-only, so a replayed write must be a no-op. It checked there
+  is no call site passing an existing appointment id.
+  Minor carried to final review: the status Chip maps pending and confirmed to
+  the same colour, so they differ only by label text.
+  Deferred to human: Step 6 browser checks including the offline round trip.
+Task 12: complete (commit c66782d, review clean, approved)
+  PLAN DEFECT the implementer caught, same class as Task 10: the brief screen
+  imported addAvailability and deleteAvailability, but the screen never calls
+  them -- it reaches them through mutationKeys and the registered defaults.
+  Two no-unused-vars errors. Removed the imports rather than suppress.
+  Reviewer confirmed this leaves nothing orphaned: mutations.js still imports
+  and registers both, so the keys are now the SOLE link between screen and
+  implementation -- which is exactly the arrangement the persister needs.
+  Reviewer specifically checked the weekday convention, the one mistake here
+  that would silently shift every professional hours by a day with nothing in
+  the app announcing it: the select value is the real Postgres index (0 is
+  Sunday), and only DISPLAY_ORDER changes what the user sees. Storage unchanged.
+  ignoreDuplicates: true confirmed right here -- this screen has no edit path,
+  only add and delete.
+  Minor carried to final review: invalidRange compares HH:MM strings
+  lexicographically. Correct for zero-padded 24h, fragile if the format ever
+  changes; worth a comment.
+  Deferred to human: Step 5 browser checks.
+
+Phase 3 tasks 1-12 all complete. Next: final whole-branch review.
+
+## Final whole-branch review (Phase 3)
+Verdict on first pass: NOT READY. Seven findings, none owned by any single task,
+so all twelve per-task reviews missed them.
+
+IMPORTANT 1 (commit a3e97dd): /p/calendar/availability was UNREACHABLE. Nothing
+  in src/ linked to it -- a whole task deliverable, 190 lines with its own
+  review, findable only by typing the URL. This is Phase 2 final review repeated
+  verbatim (/m/workout/builder shipped invisible for the same reason). Added the
+  link to CalendarScreen header.
+IMPORTANT 2 (a3e97dd): saveNutritionPlan and saveBodyMetric were UNSCOPED while
+  their sibling saveMeal was scoped, with a comment explaining exactly why the
+  scope was needed. Reachable path: a professional edits the kcal target
+  offline, the mutation pauses, they reload the PWA -- the new observer isPending
+  is false and the cached screen still shows the OLD value, so it reads as lost.
+  They re-enter it. Two paused upserts on one row, replayed in PARALLEL, and the
+  stale one can land last. Same shape as the Phase 2 setSessionStatus Critical.
+IMPORTANT 3 (a3e97dd): createPlan was the one write in the phase with no
+  idempotency key -- plain insert, and workout_plans has no unique constraint, so
+  a retried or resubmitted create leaves an orphan that fetchActivePlan
+  `created_at desc limit 1` hides forever. Identical to the defect Task 8 review
+  found in saveNutritionPlan; createPlan was written in Task 7 and never got the
+  same treatment. Now a caller-generated id with ignoreDuplicates -- correct here
+  because creating a plan is insert-only.
+IMPORTANT 4 (a3e97dd): ClientDetailScreen overview cards branched only on
+  undefined vs null and never consulted isError, so offline they showed a
+  permanent "Loading..." with no error, no offline wording and no retry -- a dead
+  region on the graded offline path.
+IMPORTANT 5 (5551a0a): verify.sql reports four FAILs once patch 005 has run, and
+  the Task 1 handoff told Davide every check would still pass. Fixed with a
+  comment rather than by bumping the expectations: bumping them would break the
+  fresh-install-without-demo-data path, which is the whole reason the schema
+  patch and the demo patch are separate files.
+Also fixed: ClientProgressScreen printed "No plan assigned" while the plan query
+  was still in flight; CalendarScreen rendered a raw ISO date as an h2; the
+  offline banner said "your workout still works" on the professional screens;
+  queryPrefixes.clients was declared and never invalidated, so the roster goal
+  went stale after createPlan; two dead/fragile lines in AvailabilityScreen.
+
+Verdict after fixes: READY TO MERGE. lint 0, build ok, all 8 self-checks OK.
+Re-review recomputed the post-patch seed counts independently and confirmed the
+new comment is accurate, and confirmed the Schedule icon exists in the installed
+9.2.0 -- this phase had already shipped one broken icon import that passed lint.
+
+Open Minor, deferred with reasons: shiftMonth is wrong once its month total goes
+negative (unreachable); the format self-check assertions are blind on a machine
+running exactly UTC; the meal item rows are keyed by array index; several shared
+mutation objects disable sibling controls while one is in flight; the status
+Chip gives pending and confirmed the same colour. The loading/error idiom is
+still split across the eleven new screens -- some render inline under a
+persistent h1, others early-return and leave a page with no h1. Phase 1 recorded
+the same split; it now spans eleven more screens and is worth one pass.
+
+Phase 3 COMPLETE. 21 commits on branch phase-3-professional-side, not merged.
+EVERYTHING BELOW NEEDS A HUMAN:
+  - run supabase/patches/004-body-metrics.sql then 005-demo-clients.sql
+  - the per-task browser checks listed above, and the member-builder regression
+    walk from Task 7
