@@ -33,3 +33,75 @@ export async function fetchAppointmentsOnDay(memberId, dayISO) {
   if (error) throw error
   return data ?? []
 }
+
+// The professional's side of the same table.  The embed is the MEMBER rather
+// than the professional, and the constraint is named for the same reason as
+// above: `appointments` references `profiles` twice.
+const AGENDA_COLUMNS =
+  'id, kind, status, starts_at, ends_at, notes, member:profiles!appointments_member_id_fkey ( id, full_name, avatar_url )'
+
+/**
+ * Every appointment in the professional's day.
+ *
+ * Bounds built from the local day and converted by `toISOString`, exactly as
+ * `fetchAppointmentsOnDay` does: comparing a `timestamptz` against a bare date
+ * string compares against UTC midnight and silently drops the evening's work
+ * for anyone east of Greenwich.
+ */
+export async function fetchAgendaOnDay(proId, dayISO) {
+  const [year, month, day] = dayISO.split('-').map(Number)
+  const from = new Date(year, month - 1, day, 0, 0, 0, 0)
+  const to = new Date(year, month - 1, day + 1, 0, 0, 0, 0)
+
+  const { data, error } = await supabase
+    .from('appointments')
+    .select(AGENDA_COLUMNS)
+    .eq('pro_id', proId)
+    .gte('starts_at', from.toISOString())
+    .lt('starts_at', to.toISOString())
+    .order('starts_at')
+    .retry(navigator.onLine)
+
+  if (error) throw error
+  return data ?? []
+}
+
+/**
+ * Every appointment between two local calendar days, inclusive of both.
+ *
+ * The calendar fetches a whole visible month in one request and filters in
+ * memory for the selected day: a query per day would be up to 42 requests for
+ * one screen, and each one would miss the persisted cache on a different key.
+ */
+export async function fetchAppointmentsInRange(proId, fromISO, toISO) {
+  const [fy, fm, fd] = fromISO.split('-').map(Number)
+  const [ty, tm, td] = toISO.split('-').map(Number)
+  const from = new Date(fy, fm - 1, fd, 0, 0, 0, 0)
+  // One day past the end, so the last day's appointments are included.
+  const to = new Date(ty, tm - 1, td + 1, 0, 0, 0, 0)
+
+  const { data, error } = await supabase
+    .from('appointments')
+    .select(AGENDA_COLUMNS)
+    .eq('pro_id', proId)
+    .gte('starts_at', from.toISOString())
+    .lt('starts_at', to.toISOString())
+    .order('starts_at')
+    .retry(navigator.onLine)
+
+  if (error) throw error
+  return data ?? []
+}
+
+/** One appointment, for the detail screen. */
+export async function fetchAppointment(appointmentId) {
+  const { data, error } = await supabase
+    .from('appointments')
+    .select(AGENDA_COLUMNS)
+    .eq('id', appointmentId)
+    .single()
+    .retry(navigator.onLine)
+
+  if (error) throw error
+  return data
+}
