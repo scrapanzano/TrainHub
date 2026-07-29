@@ -35,11 +35,14 @@ export async function fetchNutritionPlan(memberId) {
 /**
  * Create or update a nutrition plan.
  *
- * One statement for both, because the caller knows the id only when the plan
- * already exists.  `id: undefined` is dropped by supabase-js, so the insert
- * branch lets the column default fire; with an id present, `onConflict: 'id'`
- * turns it into an update.  RLS (`nutrition_plans_write_pro`) requires the
- * caller to be a professional who owns this member either way.
+ * The caller supplies `id` either way.  `resumePausedMutations` will replay a
+ * write whose response never arrived, and a plain insert on the create path
+ * would leave the retry to invent a second row -- there is no constraint on
+ * `nutrition_plans` to even turn that into a loud error, so it would be a
+ * silent orphan.  A client-generated id makes the replay land on the same
+ * row, and `onConflict: 'id'` still turns an existing id into a plain update.
+ * RLS (`nutrition_plans_write_pro`) requires the caller to be a professional
+ * who owns this member either way.
  */
 export async function saveNutritionPlan({
   id,
@@ -52,6 +55,7 @@ export async function saveNutritionPlan({
   fatG,
 }) {
   const row = {
+    id,
     member_id: memberId,
     author_id: authorId,
     name,
@@ -60,7 +64,6 @@ export async function saveNutritionPlan({
     carbs_g: carbsG ?? null,
     fat_g: fatG ?? null,
   }
-  if (id) row.id = id
 
   const { data, error } = await supabase
     .from('nutrition_plans')
@@ -75,12 +78,20 @@ export async function saveNutritionPlan({
 /**
  * Create or update one meal.
  *
- * `position` carries `unique (plan_id, position)`, so the caller must pass one
- * past the highest in use rather than `length + 1` -- the two agree only while
+ * The caller supplies `id` either way, for the same reason as `logSet`: a
+ * replayed write from `resumePausedMutations` must land on the same row, not
+ * insert a second one.  Here `unique (plan_id, position)` would at least turn
+ * an id-less retry into a loud error rather than a silent duplicate, but a
+ * client-generated id avoids the error entirely and keeps the retry
+ * invisible, which is what a saved edit should look like.
+ *
+ * `position` carries that same constraint, so the caller must pass one past
+ * the highest in use rather than `length + 1` -- the two agree only while
  * positions run contiguously, and they stop the first time a meal is deleted.
  */
 export async function saveMeal({ id, planId, name, timeOfDay, position, kcal, items }) {
   const row = {
+    id,
     plan_id: planId,
     name,
     time_of_day: timeOfDay,
@@ -88,7 +99,6 @@ export async function saveMeal({ id, planId, name, timeOfDay, position, kcal, it
     kcal: kcal ?? null,
     items: items ?? [],
   }
-  if (id) row.id = id
 
   const { data, error } = await supabase
     .from('meals')

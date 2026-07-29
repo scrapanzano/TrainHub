@@ -241,7 +241,16 @@ export default function NutritionPlanEditorScreen() {
         paused={savePlan.isPending && savePlan.isPaused}
         error={savePlan.error}
         onSave={(values) =>
-          savePlan.mutate({ id: plan?.id, memberId: clientId, authorId: user.id, ...values })
+          savePlan.mutate({
+            // The client owns this id so a replayed write upserts instead of
+            // duplicating -- see saveNutritionPlan's doc comment. Generated
+            // here, in the submit handler, so it is a fresh value only for an
+            // actual new-plan submission and not on every render.
+            id: plan?.id ?? crypto.randomUUID(),
+            memberId: clientId,
+            authorId: user.id,
+            ...values,
+          })
         }
       />
 
@@ -288,6 +297,11 @@ export default function NutritionPlanEditorScreen() {
             disabled={saveMealMutation.isPending}
             onClick={() =>
               saveMealMutation.mutate({
+                // The client owns this id so a replayed write upserts instead
+                // of duplicating -- see saveMeal's doc comment. Generated
+                // here, in the click handler, so it is a fresh value only for
+                // this one new-meal action.
+                id: crypto.randomUUID(),
                 planId: plan.id,
                 name: 'New meal',
                 timeOfDay: '12:00',
