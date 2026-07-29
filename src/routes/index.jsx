@@ -69,7 +69,10 @@ const router = createBrowserRouter([
       { path: 'trainer', ...screen('My Trainer') },
       { path: 'trainer/browse', ...screen('Choose a Professional') },
       { path: 'trainer/appointments', ...screen('My Appointments') },
-      { path: 'trainer/chat', ...screen('Chat') },
+      {
+        path: 'trainer/chat',
+        lazy: async () => ({ Component: (await import('../features/chat/ThreadScreen.jsx')).default }),
+      },
 
       { path: 'profile', ...screen('Profile') },
       { path: 'profile/badge', ...screen('Access Badge') },
