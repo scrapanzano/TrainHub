@@ -596,3 +596,40 @@ unscoped delete and unnecessary security definer.
 Verdict after fixes: READY TO MERGE. lint 0, build ok, all four self-checks OK.
 
 Phase 2 COMPLETE. 43 commits ahead of origin, not pushed.
+
+# Phase 3 — Professional Side
+Plan: docs/superpowers/plans/2026-07-29-trainhub-phase-3-professional-side.md
+Base commit: b375a01
+Status: plan written, not started.
+
+Decisions taken with Davide before planning:
+  - Progress Tracking gets a real `body_metrics` table (member_id, measured_on,
+    weight_kg, note), WRITTEN BY THE PROFESSIONAL during a check-in. The
+    wireframe's weight/trend/check-in-note panels were unbacked by any table;
+    faking them was rejected.
+  - /p/clients/:id/workout is a FULL plan editor (create the plan, list, add and
+    delete sessions), not just "add a session to the existing plan". A client
+    with no plan was otherwise unreachable: nothing in the app could create one.
+  - The calendar ships BOTH views (pt/06 week strip and pt/06B month grid). The
+    spec named the month view as the first thing to cut if behind; we are ahead.
+
+Wireframe deviations recorded in the plan, all forced by schema or RLS:
+  - no `+` on /p/clients: `profiles_update_self` is the only UPDATE policy, so a
+    professional cannot assign themselves a client. Adding one would let any
+    professional claim any member.
+  - pt/10 loses "Latest Session Note" (no table holds a member-written note).
+  - pt/09 loses "View Full PDF Plan" (no PDF, no bucket, no generator).
+  - pt/08 loses the "Age" pill (no date of birth) and the "Call" button (no
+    phone number). Age becomes "Member since <year>" from created_at.
+
+Task 1 ends in a human step: Davide runs supabase/patches/004-body-metrics.sql
+and 005-demo-clients.sql, then re-runs verify.sql with its counts at 16.
+Task 1: complete (commit bc17eba, review clean, approved)
+  Reviewer verified by inspection what nobody in the pipeline can execute:
+  enum casts resolve against schema.sql, every on conflict target matches a
+  real unique constraint, `continue when` is valid PL/pgSQL, the auth.users
+  guard correlation is valid SQL, and the three expected counts follow from
+  seed.sql plus the patch. schema.sql/policies.sql stay in lockstep with the
+  patch. verify.sql diff is exactly the three count changes, no whitespace churn.
+  PENDING DAVIDE: run patches 004 then 005 in the Supabase SQL editor, then
+  re-run verify.sql (counts now 16).

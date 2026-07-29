@@ -2,11 +2,13 @@
 // roster and the client dossier both draw.  No imports, so the self-check runs
 // under bare Node.
 
-const ACTIVE    = { label: 'Active', color: 'success.main' }
-const EXPIRING  = { label: 'Close to Expiring', color: 'warning.main' }
-const EXPIRED   = { label: 'Expired', color: 'error.main' }
-const SUSPENDED = { label: 'Suspended', color: 'task.suspended' }
-const UNKNOWN   = { label: 'Unknown', color: 'task.suspended' }
+// Frozen: subscriptionStateOf() returns these same objects to every caller.
+// A mutation in one place would corrupt the lookup table for the entire app.
+const ACTIVE    = Object.freeze({ label: 'Active', color: 'success.main' })
+const EXPIRING  = Object.freeze({ label: 'Close to Expiring', color: 'warning.main' })
+const EXPIRED   = Object.freeze({ label: 'Expired', color: 'error.main' })
+const SUSPENDED = Object.freeze({ label: 'Suspended', color: 'task.suspended' })
+const UNKNOWN   = Object.freeze({ label: 'Unknown', color: 'task.suspended' })
 
 /** Whole days from `fromISO` to `toISO`, both `'YYYY-MM-DD'`. */
 function daysBetween(fromISO, toISO) {
