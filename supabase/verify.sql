@@ -32,6 +32,23 @@ from (
     ('tables with at least one policy',
      (select count(distinct tablename)::text from pg_policies
       where schemaname = 'public'), '16'),
+    -- RLS is the second gate, not the first.  PostgREST connects as `anon` and
+    -- switches to `authenticated`, and Postgres checks the table GRANT before it
+    -- ever evaluates a policy -- so a table with perfect RLS and no grant fails
+    -- with `42501 permission denied`, which the two checks above cannot see.
+    -- This is not hypothetical: `drop schema public cascade` takes the grants
+    -- with it, and `grant on all tables` only touches tables that already exist,
+    -- so every table created afterwards is born unreachable.
+    ('tables the app role can read',
+     (select count(*)::text from pg_tables
+      where schemaname = 'public'
+        and has_table_privilege('authenticated', format('%I.%I', schemaname, tablename), 'select')),
+     '16'),
+    ('tables the app role can write',
+     (select count(*)::text from pg_tables
+      where schemaname = 'public'
+        and has_table_privilege('authenticated', format('%I.%I', schemaname, tablename), 'insert')),
+     '16'),
 
     -- Seed contents --------------------------------------------------------
     -- The four counts below (`profiles`, `workout_plans`, `workout_sessions`,

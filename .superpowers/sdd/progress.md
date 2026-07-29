@@ -905,3 +905,38 @@ EVERYTHING BELOW NEEDS A HUMAN:
   - run supabase/patches/004-body-metrics.sql then 005-demo-clients.sql
   - the per-task browser checks listed above, and the member-builder regression
     walk from Task 7
+
+## Post-merge defect: table grants lost by the schema reset
+Symptom: login reached the app shell and died on "Profile unavailable" for BOTH
+demo accounts, while verify.sql reported every security check PASS.
+
+The profiles request returned:
+  42501  permission denied for table profiles
+  hint: GRANT SELECT ON public.profiles TO authenticated
+
+That is a table GRANT denial, not an RLS denial -- Postgres checks the grant
+BEFORE it evaluates any policy, so RLS was never consulted.
+
+ROOT CAUSE, and it was the controller's: early in the session Davide hit
+`type "user_role" already exists` from a half-applied schema.sql, and was given
+`drop schema public cascade` to start over. That statement also destroys the
+grants Supabase installs on public. The recovery snippet included
+`grant all on all tables in schema public`, which applies ONLY to tables that
+exist at the instant it runs -- and it ran against a freshly created, empty
+schema. Every table schema.sql created afterwards was born unreachable. The
+snippet also omitted `alter default privileges`, which is what makes future
+tables inherit the grant.
+
+Why nothing caught it: verify.sql checked that RLS was enabled and that every
+table carried a policy, but never that the app role could actually reach the
+table. Perfect RLS with no grant passes both checks and denies every request --
+the same SHAPE as the Phase 0 finding that RLS-on-with-zero-policies passes a
+rowsecurity check while breaking every read.
+
+Fixed in patches/006-restore-public-grants.sql, plus two new rows in verify.sql
+(`tables the app role can read` / `can write`) that fail against the broken
+state and pass after the patch.
+
+Still to watch, same cause: `drop schema public cascade` also drops the tables
+from the `supabase_realtime` publication. Nothing in Phases 0-3 uses Realtime,
+so it is invisible today -- Phase 4 chat is where it will surface.
