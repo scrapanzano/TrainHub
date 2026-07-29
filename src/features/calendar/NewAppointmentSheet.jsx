@@ -37,6 +37,28 @@ export default function NewAppointmentSheet({ open, onClose, defaultDayISO }) {
   const [minutes, setMinutes] = useState(60)
   const [notes, setNotes] = useState('')
 
+  // The sheet stays mounted -- only `open` toggles the Drawer -- so the
+  // initialisers above run once, at first mount, and never again.  Left alone,
+  // the day would go stale the moment the calendar's selection moves, and every
+  // field would carry the last booking into the next.  Correcting during render
+  // rather than in an effect is deliberate, same as `useLiveSession`: on the
+  // render where `open` flips, an effect fires in the same commit with stale
+  // state.  This is React's documented "adjust state when a prop changes"
+  // pattern -- state rather than a ref, because reading a ref during render is
+  // forbidden.
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setMemberId('')
+      setKind('training')
+      setDay(defaultDayISO)
+      setTime('09:00')
+      setMinutes(60)
+      setNotes('')
+    }
+  }
+
   const clients = useQuery({
     queryKey: queryKeys.clients(user.id),
     queryFn: () => fetchClients(user.id),
