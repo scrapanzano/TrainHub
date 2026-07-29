@@ -940,3 +940,73 @@ state and pass after the patch.
 Still to watch, same cause: `drop schema public cascade` also drops the tables
 from the `supabase_realtime` publication. Nothing in Phases 0-3 uses Realtime,
 so it is invisible today -- Phase 4 chat is where it will surface.
+
+# Phase 4A — Member Completion and Chat
+Plan: docs/superpowers/plans/2026-07-29-trainhub-phase-4a-member-completion-and-chat.md
+Base commit: a82c899
+Branch: phase-4a-member-completion-and-chat
+Status: starting.
+
+Scope split decided with Davide: Phase 4 in the spec is five independent
+subsystems and ~15 screens. 4A takes everything verifiable in a browser
+(nutrition, trainer section, booking, profile, settings + logout, chat with
+Realtime); 4B takes the two device-dependent features (push via Edge Function,
+QR badge and scanner) where all the environmental risk lives.
+
+Decisions taken before planning:
+  - Push gets the FULL Edge Function + DB trigger, not a client-side fake:
+    only that notifies with the app closed, which is the test the spec states.
+  - The QR badge uses a checkin_tokens row with an expiry, not a client-signed
+    token: signing with a secret that ships in the bundle is not security.
+  - jsQR fallback AUTHORISED by Davide -> a new dependency, in 4B. A second one
+    (qrcode) is needed to GENERATE the badge; flagged, also 4B.
+Task 1: complete (commit b6e3e2f, review clean, approved)
+  Reviewer confirmed messages.id has no database default in schema.sql, so the
+  client-supplied id + ignoreDuplicates is right HERE (sending is insert-only),
+  and contrasted it against nutrition.js which deliberately omits
+  ignoreDuplicates because those functions are also the edit path.
+  Both writes share scope on the REGISTERED DEFAULT, which is what survives
+  rehydration; both Realtime guards present in the right order (undefined check
+  before the duplicate scan) with removeChannel cleanup on unmount and on
+  threadId change.
+  Confirmed the threads embeds name their FK constraints -- threads references
+  profiles twice, and an unqualified embed 300s at runtime with "more than one
+  relationship was found".
+  SECURITY observation for the final review, PRE-EXISTING and outside this diff:
+  messages_update_read (policies.sql) has a USING clause and no WITH CHECK, so
+  Postgres reuses USING for both -- any thread member can UPDATE any message in
+  a thread they belong to, including flipping read_at back to null or editing a
+  row they did not send. markThreadRead itself is safely filtered; the policy is
+  broader than the app needs.
+  PENDING DAVIDE: run supabase/patches/007-realtime-messages.sql. Its final
+  select must list `messages` -- if it does not, Realtime reports SUBSCRIBED and
+  never fires, which is the worst possible failure mode.
+Task 2: complete (commits 1f3d581..1763082, re-review clean)
+  THREE findings, two of them defects in the plan own code:
+  1. IMPORTANT: the read-receipt effect was guarded by a ref holding the thread
+     id already marked -- a permanent gate for the component lifetime, not a
+     per-batch one. After the first batch was marked, every later message
+     arriving over Realtime while the thread stayed mounted never marked as
+     read. Receipts silently stopped for the rest of the session. The guard
+     could not just be deleted: Realtime pushes re-render the screen and an
+     unguarded effect writes once per push. Fixed by keying the ref on the id of
+     the NEWEST UNREAD message instead of the thread, so it re-fires per batch
+     while re-render churn still collapses to zero extra writes.
+  2. IMPORTANT: the thread-creation effect guarded on isPending || isSuccess but
+     not isError, and the mutation object identity changes on every state
+     transition -- so a failed ensureThread re-ran the effect, passed the guard,
+     and fired again immediately with no backoff. An uncontrolled retry loop
+     against the backend, with the member shown nothing but a permanent loading
+     state. Fixed on both halves: the guard blocks on error AND an ErrorState
+     with Retry now surfaces it.
+     ensureThread was also the ONE write in the app with no registered handler
+     (inline mutationFn). Now registered like every other.
+  3. MINOR: a dangling `pending` prop was still passed to MessageComposer after
+     the prop was removed from it. Deleted.
+  PLAN DEFECT the implementer caught: the brief MessageComposer declared a
+  `pending` prop it never read, tripping no-unused-vars. Removed rather than
+  suppressed -- third time this class has appeared in the two phases.
+  Minor carried to final review: ensureThread registration omits the chat scope
+  its two siblings share. Harmless -- unique(member_id, pro_id) already makes
+  concurrent creates idempotent.
+  Deferred to human: the two-browser Realtime check.
