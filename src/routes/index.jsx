@@ -153,8 +153,16 @@ const router = createBrowserRouter([
         }),
       },
 
-      { path: 'chat', ...screen('Chat') },
-      { path: 'chat/:threadId', ...screen('Thread') },
+      {
+        path: 'chat',
+        lazy: async () => ({
+          Component: (await import('../features/chat/ThreadListScreen.jsx')).default,
+        }),
+      },
+      {
+        path: 'chat/:threadId',
+        lazy: async () => ({ Component: (await import('../features/chat/ThreadScreen.jsx')).default }),
+      },
 
       { path: 'scan', ...screen('Scan Access Badge') },
 
