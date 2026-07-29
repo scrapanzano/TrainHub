@@ -83,7 +83,11 @@ export default function MemberHomeScreen() {
 
         <Stack spacing={2}>
           {(appointments.data ?? []).map((appointment) => (
-            <AppointmentCard key={appointment.id} appointment={appointment} />
+            <AppointmentCard
+              key={appointment.id}
+              appointment={appointment}
+              person={appointment.pro}
+            />
           ))}
         </Stack>
       </Box>

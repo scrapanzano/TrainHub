@@ -1,5 +1,9 @@
-import { createSession, logSet, setSessionStatus } from './workouts.js'
+import { createPlan, createSession, deleteSession, logSet, setSessionStatus } from './workouts.js'
 import { awardReward } from './rewards.js'
+import { deleteMeal, saveMeal, saveNutritionPlan } from './nutrition.js'
+import { saveBodyMetric } from './progress.js'
+import { createAppointment, setAppointmentStatus } from './appointments.js'
+import { addAvailability, deleteAvailability } from './availability.js'
 import { mutationKeys } from '../lib/mutationKeys.js'
 import { queryPrefixes } from '../lib/queryKeys.js'
 
@@ -55,6 +59,99 @@ export function registerMutationDefaults(queryClient) {
     mutationFn: createSession,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.createPlan, {
+    mutationFn: createPlan,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
+      // `fetchClients` derives each roster row's `goal` from the client's
+      // newest `workout_plans` row, so the roster goes stale the moment a new
+      // plan is created unless this family is invalidated too.
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.clients })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.deleteSession, {
+    mutationFn: deleteSession,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
+    },
+  })
+
+  // Scoped for the same reason as `saveMeal` below: two edits to the same plan
+  // replayed in parallel land in whichever order the network settles them, and
+  // the older can win.
+  queryClient.setMutationDefaults(mutationKeys.saveNutritionPlan, {
+    mutationFn: saveNutritionPlan,
+    scope: { id: 'nutritionPlan' },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.nutritionPlan })
+    },
+  })
+
+  // Meals share a scope so replays run in insertion order.  Without it,
+  // `resumePausedMutations` replays in parallel and two edits to the same meal
+  // land in whichever order the network settles them -- the older one can win.
+  queryClient.setMutationDefaults(mutationKeys.saveMeal, {
+    mutationFn: saveMeal,
+    scope: { id: 'meals' },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.nutritionPlan })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.deleteMeal, {
+    mutationFn: deleteMeal,
+    scope: { id: 'meals' },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.nutritionPlan })
+    },
+  })
+
+  // Scoped because the write upserts on `(member_id, measured_on)`: two saves
+  // for the same client on the same day target the same row, so replays must
+  // run in order rather than racing.
+  queryClient.setMutationDefaults(mutationKeys.saveBodyMetric, {
+    mutationFn: saveBodyMetric,
+    scope: { id: 'bodyMetric' },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.bodyMetrics })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.createAppointment, {
+    mutationFn: createAppointment,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.agenda })
+    },
+  })
+
+  // Scoped so replays run serially.  Two status changes to the same appointment
+  // -- confirm then complete -- replayed in parallel land in whichever order the
+  // network settles them, and the earlier one can win.
+  queryClient.setMutationDefaults(mutationKeys.setAppointmentStatus, {
+    mutationFn: setAppointmentStatus,
+    scope: { id: 'appointmentStatus' },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.agenda })
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.appointment })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.addAvailability, {
+    mutationFn: addAvailability,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.availability })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.deleteAvailability, {
+    mutationFn: deleteAvailability,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.availability })
     },
   })
 }

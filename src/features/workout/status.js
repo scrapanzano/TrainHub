@@ -1,14 +1,16 @@
 // Pure mappings shared by the workout screens.  No imports, so the self-check
 // runs under bare Node.
 
-const TODO = { label: 'To Do', color: 'error' }
+// Frozen: sessionStatusOf() returns these same objects to every caller.
+// A mutation in one place would corrupt the lookup table for the entire app.
+const TODO = Object.freeze({ label: 'To Do', color: 'error' })
 
 /** Session status → the label and palette key the wireframes use. */
-const SESSION_STATUS = {
+const SESSION_STATUS = Object.freeze({
   todo: TODO,
-  in_progress: { label: 'In Progress', color: 'warning' },
-  completed: { label: 'Completed', color: 'success' },
-}
+  in_progress: Object.freeze({ label: 'In Progress', color: 'warning' }),
+  completed: Object.freeze({ label: 'Completed', color: 'success' }),
+})
 
 /**
  * Total-safe lookup.  The enum can gain values in the database before the UI

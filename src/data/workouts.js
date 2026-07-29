@@ -228,3 +228,55 @@ export async function createSession({ planId, name, position, exercises }) {
   if (exercisesError) throw exercisesError
   return session
 }
+
+/**
+ * Create a workout plan for a member.
+ *
+ * A professional reaches this through `workout_plans_write`, which is gated on
+ * `owns_member(member_id)` -- so this succeeds for their own clients and is
+ * rejected by the database for anyone else's.  `author_id` records who wrote
+ * it, which the member's plan screen prints.
+ *
+ * The caller supplies `id`.  `workout_plans` has no unique constraint besides
+ * the primary key, and `fetchActivePlan` takes `created_at desc limit 1`, so a
+ * duplicate insert would be invisible rather than loud -- both the global
+ * `retry: 3` re-running a lost response and a professional resubmitting after
+ * a reload while the first create is still paused offline can produce one.
+ * `ignoreDuplicates` is correct here because creating a plan is insert-only:
+ * unlike `saveNutritionPlan`, there is no edit path through this function for
+ * it to silently no-op.
+ */
+export async function createPlan({ id, memberId, authorId, name, goal, level, weeks }) {
+  const { data, error } = await supabase
+    .from('workout_plans')
+    .upsert(
+      {
+        id,
+        member_id: memberId,
+        author_id: authorId,
+        name,
+        goal: goal || null,
+        level: level || null,
+        weeks,
+      },
+      { onConflict: 'id', ignoreDuplicates: true },
+    )
+    .select('id')
+    .maybeSingle()
+
+  if (error) throw error
+  // `ignoreDuplicates` returns no row on a replay.  That is success, not a gap.
+  return data
+}
+
+/**
+ * Delete one session.
+ *
+ * `session_exercises` and any `set_logs` beneath it cascade.  Idempotent by
+ * nature: deleting a row that is already gone affects nothing and does not
+ * error, which is what makes it safe to replay after a reconnect.
+ */
+export async function deleteSession({ sessionId }) {
+  const { error } = await supabase.from('workout_sessions').delete().eq('id', sessionId)
+  if (error) throw error
+}

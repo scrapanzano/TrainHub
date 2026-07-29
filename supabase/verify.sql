@@ -21,19 +21,53 @@ from (
     -- Schema ---------------------------------------------------------------
     ('public tables',
      (select count(*)::text from information_schema.tables
-      where table_schema = 'public' and table_type = 'BASE TABLE'), '15'),
+      where table_schema = 'public' and table_type = 'BASE TABLE'), '16'),
 
     -- Security -------------------------------------------------------------
     ('tables with RLS enabled',
      (select count(*)::text from pg_tables
-      where schemaname = 'public' and rowsecurity), '15'),
+      where schemaname = 'public' and rowsecurity), '16'),
     -- RLS switched on with zero policies denies everything: it passes the
     -- check above while silently breaking every read the app makes.
     ('tables with at least one policy',
      (select count(distinct tablename)::text from pg_policies
-      where schemaname = 'public'), '15'),
+      where schemaname = 'public'), '16'),
+    -- RLS is the second gate, not the first.  PostgREST connects as `anon` and
+    -- switches to `authenticated`, and Postgres checks the table GRANT before it
+    -- ever evaluates a policy -- so a table with perfect RLS and no grant fails
+    -- with `42501 permission denied`, which the two checks above cannot see.
+    -- This is not hypothetical: `drop schema public cascade` takes the grants
+    -- with it, and `grant on all tables` only touches tables that already exist,
+    -- so every table created afterwards is born unreachable.
+    ('tables the app role can read',
+     (select count(*)::text from pg_tables
+      where schemaname = 'public'
+        and has_table_privilege('authenticated', format('%I.%I', schemaname, tablename), 'select')),
+     '16'),
+    ('tables the app role can write',
+     (select count(*)::text from pg_tables
+      where schemaname = 'public'
+        and has_table_privilege('authenticated', format('%I.%I', schemaname, tablename), 'insert')),
+     '16'),
 
     -- Seed contents --------------------------------------------------------
+    -- The four counts below (`profiles`, `workout_plans`, `workout_sessions`,
+    -- `appointments`) are the seed.sql-ONLY baseline: what a fresh install
+    -- reads after schema.sql + policies.sql + seed.sql and nothing else. They
+    -- are deliberately NOT bumped to match `patches/005-demo-clients.sql`,
+    -- because doing so would break this exact fresh-install-without-demo-data
+    -- path -- the whole reason the schema patch and the demo-data patch are
+    -- two separate files in the first place.
+    --
+    -- Once `patches/005-demo-clients.sql` has also been run, these four rows
+    -- read FAIL against the numbers below.  That is expected, not a bug:
+    --   profiles          2  -> 6   (Daniel + Coach Andrea + four demo clients)
+    --   workout_plans     1  -> 5   (the seeded plan + one per demo client)
+    --   workout_sessions  4  -> 16  (the seeded four + three per demo plan)
+    --   appointments      3  -> 8   (the seeded three + five from the demo patch)
+    -- `patches/005-demo-clients.sql` ends with its own PASS/FAIL block that
+    -- checks the post-patch counts directly -- use that file's output to
+    -- confirm the database once the demo data is loaded, not this one.
     ('profiles',           (select count(*)::text from profiles),           '2'),
     ('exercises',          (select count(*)::text from exercises),          '10'),
     ('workout_plans',      (select count(*)::text from workout_plans),      '1'),

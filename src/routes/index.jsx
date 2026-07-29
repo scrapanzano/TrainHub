@@ -90,20 +90,65 @@ const router = createBrowserRouter([
       <AppLayout navItems={professionalNav} profileHref="/p/profile" requiredRole="professional" />
     ),
     children: [
-      { index: true, ...screen("Today's Agenda") },
+      {
+        index: true,
+        lazy: async () => ({
+          Component: (await import('../features/agenda/ProfessionalHomeScreen.jsx')).default,
+        }),
+      },
 
-      { path: 'clients', ...screen('Clients') },
-      { path: 'clients/:clientId', ...screen('Client Detail') },
-      { path: 'clients/:clientId/workout', ...screen('Assign Workout') },
-      { path: 'clients/:clientId/nutrition', ...screen('Nutrition Plan') },
-      { path: 'clients/:clientId/progress', ...screen('Progress Tracking') },
+      {
+        path: 'clients',
+        lazy: async () => ({
+          Component: (await import('../features/clients/ClientsScreen.jsx')).default,
+        }),
+      },
+      {
+        path: 'clients/:clientId',
+        lazy: async () => ({
+          Component: (await import('../features/clients/ClientDetailScreen.jsx')).default,
+        }),
+      },
+      {
+        path: 'clients/:clientId/workout',
+        lazy: async () => ({
+          Component: (await import('../features/clients/ClientWorkoutScreen.jsx')).default,
+        }),
+      },
+      {
+        path: 'clients/:clientId/nutrition',
+        lazy: async () => ({
+          Component: (await import('../features/nutrition/NutritionPlanEditorScreen.jsx')).default,
+        }),
+      },
+      {
+        path: 'clients/:clientId/progress',
+        lazy: async () => ({
+          Component: (await import('../features/progress/ClientProgressScreen.jsx')).default,
+        }),
+      },
 
-      { path: 'calendar', ...screen('Calendar') },
+      {
+        path: 'calendar',
+        lazy: async () => ({
+          Component: (await import('../features/calendar/CalendarScreen.jsx')).default,
+        }),
+      },
       // Listed literal-before-parameter for readability only. React Router
       // ranks branches by segment specificity, not declaration order, so a
       // static segment already outranks `:appointmentId` either way.
-      { path: 'calendar/availability', ...screen('Availability') },
-      { path: 'calendar/:appointmentId', ...screen('Appointment Detail') },
+      {
+        path: 'calendar/availability',
+        lazy: async () => ({
+          Component: (await import('../features/calendar/AvailabilityScreen.jsx')).default,
+        }),
+      },
+      {
+        path: 'calendar/:appointmentId',
+        lazy: async () => ({
+          Component: (await import('../features/calendar/AppointmentDetailScreen.jsx')).default,
+        }),
+      },
 
       { path: 'chat', ...screen('Chat') },
       { path: 'chat/:threadId', ...screen('Thread') },

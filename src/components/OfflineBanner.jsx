@@ -66,7 +66,7 @@ export default function OfflineBanner() {
             ? `Syncing ${waiting} change${plural(waiting)}…`
             : waiting > 0
               ? `Offline — ${waiting} change${plural(waiting)} will sync when you reconnect`
-              : 'Offline — your workout still works'}
+              : 'Offline — your changes are saved and will sync when you reconnect'}
         </Typography>
       </Box>
     ) : null
