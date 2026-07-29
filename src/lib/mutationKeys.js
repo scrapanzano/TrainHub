@@ -20,5 +20,6 @@ export const mutationKeys = {
   deleteAvailability: ['deleteAvailability'],
   sendMessage: ['sendMessage'],
   markThreadRead: ['markThreadRead'],
+  ensureThread: ['ensureThread'],
   chooseProfessional: ['chooseProfessional'],
 }

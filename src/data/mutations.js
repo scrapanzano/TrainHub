@@ -4,7 +4,7 @@ import { deleteMeal, saveMeal, saveNutritionPlan } from './nutrition.js'
 import { saveBodyMetric } from './progress.js'
 import { createAppointment, setAppointmentStatus } from './appointments.js'
 import { addAvailability, deleteAvailability } from './availability.js'
-import { markThreadRead, sendMessage } from './chat.js'
+import { ensureThread, markThreadRead, sendMessage } from './chat.js'
 import { mutationKeys } from '../lib/mutationKeys.js'
 import { queryPrefixes } from '../lib/queryKeys.js'
 
@@ -170,6 +170,13 @@ export function registerMutationDefaults(queryClient) {
   queryClient.setMutationDefaults(mutationKeys.markThreadRead, {
     mutationFn: markThreadRead,
     scope: { id: 'chat' },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.chat })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.ensureThread, {
+    mutationFn: ensureThread,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.chat })
     },

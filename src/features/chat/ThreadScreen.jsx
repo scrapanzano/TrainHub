@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Avatar, Box, Stack, Typography } from '@mui/material'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router'
-import { ensureThread, fetchMemberThread } from '../../data/chat.js'
+import { fetchMemberThread } from '../../data/chat.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
@@ -35,25 +35,38 @@ export default function ThreadScreen() {
   const messages = useThreadMessages(threadId)
   const send = useMutation({ mutationKey: mutationKeys.sendMessage })
   const markRead = useMutation({ mutationKey: mutationKeys.markThreadRead })
-  const createThread = useMutation({ mutationFn: ensureThread })
+  const createThread = useMutation({ mutationKey: mutationKeys.ensureThread })
 
-  // Mark the other party's messages read once, when the thread is opened and
-  // something is actually unread. Guarded on the id so re-renders and the
-  // Realtime pushes that follow do not fire a write per message.
-  const markedFor = useRef(null)
+  // Mark the other party's messages read whenever the newest unread one
+  // changes, rather than once per thread: a live back-and-forth keeps
+  // pushing new messages in via Realtime, and a guard keyed on the thread id
+  // would only ever fire for the first batch. Keyed on the newest unread
+  // message's id (not the whole unread-id set) because it is the smaller
+  // guard -- one id comparison catches "the unread set changed" exactly as
+  // well as comparing sets would, since a newly-arrived or newly-read
+  // message always changes which message is newest-and-unread.
+  // `markThreadRead` is idempotent (its filter excludes already-read rows),
+  // so a redundant call here would be harmless -- this guard just avoids it.
+  const markedUpTo = useRef(null)
   useEffect(() => {
-    if (!threadId || markedFor.current === threadId) return
-    if (!messages.data?.some((m) => m.sender_id !== user.id && m.read_at === null)) return
-    markedFor.current = threadId
+    if (!threadId) return
+    const unread = messages.data?.filter((m) => m.sender_id !== user.id && m.read_at === null)
+    const newestUnreadId = unread?.at(-1)?.id ?? null
+    if (!newestUnreadId || markedUpTo.current === newestUnreadId) return
+    markedUpTo.current = newestUnreadId
     markRead.mutate({ threadId, readerId: user.id })
   }, [threadId, messages.data, user.id, markRead])
 
   // A member whose professional has never messaged them has no thread row yet.
-  // Create it on first open so the composer has somewhere to write.
+  // Create it on first open so the composer has somewhere to write. Guarded
+  // on isError too: without it, a failed `ensureThread` (RLS denial,
+  // transient network error) leaves `memberThread.data` unset, the effect's
+  // dependencies change on every mutation state transition, and the guard
+  // would let `mutate` fire again immediately -- an uncontrolled retry loop.
   useEffect(() => {
     if (!isMember) return
     if (memberThread.isPending || memberThread.data || !profile?.assigned_pro_id) return
-    if (createThread.isPending || createThread.isSuccess) return
+    if (createThread.isPending || createThread.isSuccess || createThread.isError) return
     createThread.mutate(
       { memberId: user.id, proId: profile.assigned_pro_id },
       { onSuccess: () => memberThread.refetch() },
@@ -63,6 +76,24 @@ export default function ThreadScreen() {
   if (isMember && memberThread.isPending) return <LoadingState />
   if (isMember && memberThread.isError && memberThread.data === undefined) {
     return <ErrorState error={memberThread.error} onRetry={memberThread.refetch} />
+  }
+  // `createThread.isError` short-circuits the effect above forever (by design --
+  // otherwise a failed create would retry in an uncontrolled loop), so without
+  // this the screen would sit on an empty/loading state with no way out.
+  // Calling `mutate` again moves the mutation out of its error state, which is
+  // what lets the effect's guard open again on a future re-render.
+  if (isMember && createThread.isError && !memberThread.data) {
+    return (
+      <ErrorState
+        error={createThread.error}
+        onRetry={() =>
+          createThread.mutate(
+            { memberId: user.id, proId: profile.assigned_pro_id },
+            { onSuccess: () => memberThread.refetch() },
+          )
+        }
+      />
+    )
   }
 
   // A member with no professional has nobody to talk to. That is a real state,
@@ -111,7 +142,6 @@ export default function ThreadScreen() {
 
       <Box sx={{ position: 'sticky', bottom: 0, bgcolor: 'background.default', pt: 1 }}>
         <MessageComposer
-          pending={send.isPending}
           paused={send.isPending && send.isPaused}
           error={send.error}
           onSend={(body) =>
