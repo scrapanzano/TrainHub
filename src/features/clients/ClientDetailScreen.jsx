@@ -137,8 +137,18 @@ export default function ClientDetailScreen() {
           >
             {/* `undefined` means not loaded yet; `null` means loaded and there
                 is none.  Collapsing them shows "No plan assigned" to every
-                client for the length of the first fetch. */}
-            {plan.data === undefined ? (
+                client for the length of the first fetch.  The error branch is
+                gated on `isError && data === undefined`, never `isError`
+                alone: with `networkMode: 'offlineFirst'` a failed refetch
+                leaves good cached data in place, and this must keep showing
+                it rather than an error. */}
+            {plan.isError && plan.data === undefined ? (
+              <Typography variant="body2" color="text.secondary">
+                {navigator.onLine
+                  ? 'Could not load the workout plan. Tap to try again.'
+                  : 'You are offline. This will load once you reconnect.'}
+              </Typography>
+            ) : plan.data === undefined ? (
               <Typography variant="body2" color="text.secondary">
                 Loading…
               </Typography>
@@ -168,7 +178,13 @@ export default function ClientDetailScreen() {
             title="Nutrition Plan"
             to={`/p/clients/${clientId}/nutrition`}
           >
-            {nutrition.data === undefined ? (
+            {nutrition.isError && nutrition.data === undefined ? (
+              <Typography variant="body2" color="text.secondary">
+                {navigator.onLine
+                  ? 'Could not load the nutrition plan. Tap to try again.'
+                  : 'You are offline. This will load once you reconnect.'}
+              </Typography>
+            ) : nutrition.data === undefined ? (
               <Typography variant="body2" color="text.secondary">
                 Loading…
               </Typography>

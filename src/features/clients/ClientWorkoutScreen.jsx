@@ -130,7 +130,16 @@ export default function ClientWorkoutScreen() {
           paused={createPlan.isPending && createPlan.isPaused}
           error={createPlan.error}
           onSubmit={(values) =>
-            createPlan.mutate({ memberId: clientId, authorId: user.id, ...values })
+            // Generated here, in the submit handler, not during render: a
+            // render-time `crypto.randomUUID()` call would be impure and
+            // lint-detected.  It is the idempotency key `createPlan` upserts
+            // on, so a retried or replayed submit lands on the same row.
+            createPlan.mutate({
+              id: crypto.randomUUID(),
+              memberId: clientId,
+              authorId: user.id,
+              ...values,
+            })
           }
         />
       </Stack>

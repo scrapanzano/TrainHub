@@ -236,22 +236,36 @@ export async function createSession({ planId, name, position, exercises }) {
  * `owns_member(member_id)` -- so this succeeds for their own clients and is
  * rejected by the database for anyone else's.  `author_id` records who wrote
  * it, which the member's plan screen prints.
+ *
+ * The caller supplies `id`.  `workout_plans` has no unique constraint besides
+ * the primary key, and `fetchActivePlan` takes `created_at desc limit 1`, so a
+ * duplicate insert would be invisible rather than loud -- both the global
+ * `retry: 3` re-running a lost response and a professional resubmitting after
+ * a reload while the first create is still paused offline can produce one.
+ * `ignoreDuplicates` is correct here because creating a plan is insert-only:
+ * unlike `saveNutritionPlan`, there is no edit path through this function for
+ * it to silently no-op.
  */
-export async function createPlan({ memberId, authorId, name, goal, level, weeks }) {
+export async function createPlan({ id, memberId, authorId, name, goal, level, weeks }) {
   const { data, error } = await supabase
     .from('workout_plans')
-    .insert({
-      member_id: memberId,
-      author_id: authorId,
-      name,
-      goal: goal || null,
-      level: level || null,
-      weeks,
-    })
+    .upsert(
+      {
+        id,
+        member_id: memberId,
+        author_id: authorId,
+        name,
+        goal: goal || null,
+        level: level || null,
+        weeks,
+      },
+      { onConflict: 'id', ignoreDuplicates: true },
+    )
     .select('id')
-    .single()
+    .maybeSingle()
 
   if (error) throw error
+  // `ignoreDuplicates` returns no row on a replay.  That is success, not a gap.
   return data
 }
 

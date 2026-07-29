@@ -61,7 +61,10 @@ export default function ClientProgressScreen() {
 
   const saveMetric = useMutation({ mutationKey: mutationKeys.saveBodyMetric })
 
-  if (training.isPending || metrics.isPending) return <LoadingState />
+  // `plan` must gate the loading state too: while it is still in flight,
+  // `weeklyTraining` gets `0` for the target, which prints "No plan assigned"
+  // -- indistinguishable from a client who genuinely has none.
+  if (training.isPending || metrics.isPending || plan.isPending) return <LoadingState />
   if (training.isError && training.data === undefined) {
     return <ErrorState error={training.error} onRetry={training.refetch} />
   }

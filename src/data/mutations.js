@@ -66,6 +66,10 @@ export function registerMutationDefaults(queryClient) {
     mutationFn: createPlan,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
+      // `fetchClients` derives each roster row's `goal` from the client's
+      // newest `workout_plans` row, so the roster goes stale the moment a new
+      // plan is created unless this family is invalidated too.
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.clients })
     },
   })
 
@@ -77,8 +81,12 @@ export function registerMutationDefaults(queryClient) {
     },
   })
 
+  // Scoped for the same reason as `saveMeal` below: two edits to the same plan
+  // replayed in parallel land in whichever order the network settles them, and
+  // the older can win.
   queryClient.setMutationDefaults(mutationKeys.saveNutritionPlan, {
     mutationFn: saveNutritionPlan,
+    scope: { id: 'nutritionPlan' },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.nutritionPlan })
     },
@@ -103,8 +111,12 @@ export function registerMutationDefaults(queryClient) {
     },
   })
 
+  // Scoped because the write upserts on `(member_id, measured_on)`: two saves
+  // for the same client on the same day target the same row, so replays must
+  // run in order rather than racing.
   queryClient.setMutationDefaults(mutationKeys.saveBodyMetric, {
     mutationFn: saveBodyMetric,
+    scope: { id: 'bodyMetric' },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.bodyMetrics })
     },

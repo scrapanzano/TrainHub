@@ -37,7 +37,10 @@ export default function AvailabilityScreen() {
 
   const savedOffline = add.isPending && add.isPaused
   // The database rejects this too, but telling the user before the round trip
-  // is better than an error message from Postgres.
+  // is better than an error message from Postgres.  String comparison is
+  // correct here (not just for the common case) because `<input type="time">`
+  // guarantees zero-padded 24-hour `'HH:MM'` values, which sort the same
+  // lexicographically as they do chronologically.
   const invalidRange = endsAt <= startsAt
 
   if (slots.isPending) return <LoadingState />
@@ -111,16 +114,18 @@ export default function AvailabilityScreen() {
               spacing={2}
               onSubmit={(event) => {
                 event.preventDefault()
-                add.mutate(
-                  {
-                    id: crypto.randomUUID(),
-                    proId: user.id,
-                    weekday: Number(weekday),
-                    startsAt,
-                    endsAt,
-                  },
-                  { onSuccess: () => setWeekday(Number(weekday)) },
-                )
+                // No `onSuccess` reset here on purpose: the form keeps its
+                // values after a save so a professional can add several slots
+                // to the same day in a row without re-picking the day and
+                // times each time. (A previous version set `weekday` back to
+                // the value it already held -- a no-op dressed as a reset.)
+                add.mutate({
+                  id: crypto.randomUUID(),
+                  proId: user.id,
+                  weekday: Number(weekday),
+                  startsAt,
+                  endsAt,
+                })
               }}
             >
               <TextField

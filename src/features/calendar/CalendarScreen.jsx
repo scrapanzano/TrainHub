@@ -5,11 +5,12 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import ScheduleIcon from '@mui/icons-material/Schedule'
 import { useQuery } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { fetchAppointmentsInRange } from '../../data/appointments.js'
 import { queryKeys } from '../../lib/queryKeys.js'
-import { todayISO } from '../../lib/format.js'
+import { formatDate, todayISO } from '../../lib/format.js'
 import AppointmentCard from '../../components/AppointmentCard.jsx'
 import MonthGrid from '../../components/MonthGrid.jsx'
 import WeekStrip from '../../components/WeekStrip.jsx'
@@ -78,6 +79,12 @@ export default function CalendarScreen() {
           {expanded ? <ExpandLessIcon color="primary" /> : <ExpandMoreIcon color="primary" />}
         </IconButton>
 
+        {/* Grouped with the view controls above rather than the `+` Fab: this
+            opens weekly availability settings, it does not book anything. */}
+        <IconButton component={Link} to="/p/calendar/availability" aria-label="Weekly availability">
+          <ScheduleIcon color="primary" />
+        </IconButton>
+
         <Box sx={{ flexGrow: 1 }} />
 
         <IconButton onClick={() => step(-1)} aria-label="Previous month">
@@ -109,7 +116,7 @@ export default function CalendarScreen() {
       )}
 
       <Stack direction="row" spacing={1} alignItems="baseline">
-        <Typography variant="h2">{selected === todayISO() ? 'Today' : selected}</Typography>
+        <Typography variant="h2">{selected === todayISO() ? 'Today' : formatDate(selected)}</Typography>
         {appointments.data ? (
           <Typography variant="h3" component="span" color="text.secondary">
             • {onDay.length} activities
