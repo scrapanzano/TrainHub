@@ -105,3 +105,57 @@ export async function fetchAppointment(appointmentId) {
   if (error) throw error
   return data
 }
+
+/**
+ * Book one appointment.
+ *
+ * The caller supplies `id`.  The column has a default, but this write can pause
+ * offline and be replayed on reconnect, and a replay of a write whose response
+ * was lost would otherwise book the same slot a second time.  Upserting on the
+ * client's id makes the replay a no-op.
+ */
+export async function createAppointment({
+  id,
+  memberId,
+  proId,
+  kind,
+  status = 'confirmed',
+  startsAt,
+  endsAt,
+  notes,
+}) {
+  const { data, error } = await supabase
+    .from('appointments')
+    .upsert(
+      {
+        id,
+        member_id: memberId,
+        pro_id: proId,
+        kind,
+        status,
+        starts_at: startsAt,
+        ends_at: endsAt,
+        notes: notes || null,
+      },
+      { onConflict: 'id', ignoreDuplicates: true },
+    )
+    .select()
+    .maybeSingle()
+
+  if (error) throw error
+  // `ignoreDuplicates` returns no row on a replay.  That is success.
+  return data
+}
+
+/** Move an appointment between `pending`, `confirmed`, `cancelled` and `done`. */
+export async function setAppointmentStatus({ appointmentId, status }) {
+  const { data, error } = await supabase
+    .from('appointments')
+    .update({ status })
+    .eq('id', appointmentId)
+    .select('id, status')
+    .single()
+
+  if (error) throw error
+  return data
+}

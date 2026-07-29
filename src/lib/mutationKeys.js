@@ -14,4 +14,6 @@ export const mutationKeys = {
   saveMeal: ['saveMeal'],
   deleteMeal: ['deleteMeal'],
   saveBodyMetric: ['saveBodyMetric'],
+  createAppointment: ['createAppointment'],
+  setAppointmentStatus: ['setAppointmentStatus'],
 }

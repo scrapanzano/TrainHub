@@ -138,7 +138,12 @@ const router = createBrowserRouter([
       // ranks branches by segment specificity, not declaration order, so a
       // static segment already outranks `:appointmentId` either way.
       { path: 'calendar/availability', ...screen('Availability') },
-      { path: 'calendar/:appointmentId', ...screen('Appointment Detail') },
+      {
+        path: 'calendar/:appointmentId',
+        lazy: async () => ({
+          Component: (await import('../features/calendar/AppointmentDetailScreen.jsx')).default,
+        }),
+      },
 
       { path: 'chat', ...screen('Chat') },
       { path: 'chat/:threadId', ...screen('Thread') },

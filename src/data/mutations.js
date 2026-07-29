@@ -2,6 +2,7 @@ import { createPlan, createSession, deleteSession, logSet, setSessionStatus } fr
 import { awardReward } from './rewards.js'
 import { deleteMeal, saveMeal, saveNutritionPlan } from './nutrition.js'
 import { saveBodyMetric } from './progress.js'
+import { createAppointment, setAppointmentStatus } from './appointments.js'
 import { mutationKeys } from '../lib/mutationKeys.js'
 import { queryPrefixes } from '../lib/queryKeys.js'
 
@@ -105,6 +106,25 @@ export function registerMutationDefaults(queryClient) {
     mutationFn: saveBodyMetric,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.bodyMetrics })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.createAppointment, {
+    mutationFn: createAppointment,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.agenda })
+    },
+  })
+
+  // Scoped so replays run serially.  Two status changes to the same appointment
+  // -- confirm then complete -- replayed in parallel land in whichever order the
+  // network settles them, and the earlier one can win.
+  queryClient.setMutationDefaults(mutationKeys.setAppointmentStatus, {
+    mutationFn: setAppointmentStatus,
+    scope: { id: 'appointmentStatus' },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.agenda })
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.appointment })
     },
   })
 }
