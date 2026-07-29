@@ -10,4 +10,7 @@ export const mutationKeys = {
   createSession: ['createSession'],
   createPlan: ['createPlan'],
   deleteSession: ['deleteSession'],
+  saveNutritionPlan: ['saveNutritionPlan'],
+  saveMeal: ['saveMeal'],
+  deleteMeal: ['deleteMeal'],
 }

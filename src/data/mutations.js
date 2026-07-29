@@ -1,5 +1,6 @@
 import { createPlan, createSession, deleteSession, logSet, setSessionStatus } from './workouts.js'
 import { awardReward } from './rewards.js'
+import { deleteMeal, saveMeal, saveNutritionPlan } from './nutrition.js'
 import { mutationKeys } from '../lib/mutationKeys.js'
 import { queryPrefixes } from '../lib/queryKeys.js'
 
@@ -70,6 +71,32 @@ export function registerMutationDefaults(queryClient) {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
       queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.saveNutritionPlan, {
+    mutationFn: saveNutritionPlan,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.nutritionPlan })
+    },
+  })
+
+  // Meals share a scope so replays run in insertion order.  Without it,
+  // `resumePausedMutations` replays in parallel and two edits to the same meal
+  // land in whichever order the network settles them -- the older one can win.
+  queryClient.setMutationDefaults(mutationKeys.saveMeal, {
+    mutationFn: saveMeal,
+    scope: { id: 'meals' },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.nutritionPlan })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.deleteMeal, {
+    mutationFn: deleteMeal,
+    scope: { id: 'meals' },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.nutritionPlan })
     },
   })
 }
