@@ -21,17 +21,17 @@ from (
     -- Schema ---------------------------------------------------------------
     ('public tables',
      (select count(*)::text from information_schema.tables
-      where table_schema = 'public' and table_type = 'BASE TABLE'), '15'),
+      where table_schema = 'public' and table_type = 'BASE TABLE'), '16'),
 
     -- Security -------------------------------------------------------------
     ('tables with RLS enabled',
      (select count(*)::text from pg_tables
-      where schemaname = 'public' and rowsecurity), '15'),
+      where schemaname = 'public' and rowsecurity), '16'),
     -- RLS switched on with zero policies denies everything: it passes the
     -- check above while silently breaking every read the app makes.
     ('tables with at least one policy',
      (select count(distinct tablename)::text from pg_policies
-      where schemaname = 'public'), '15'),
+      where schemaname = 'public'), '16'),
 
     -- Seed contents --------------------------------------------------------
     ('profiles',           (select count(*)::text from profiles),           '2'),

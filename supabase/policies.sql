@@ -16,6 +16,7 @@ alter table threads            enable row level security;
 alter table messages           enable row level security;
 alter table rewards            enable row level security;
 alter table checkins           enable row level security;
+alter table body_metrics       enable row level security;
 alter table push_subscriptions enable row level security;
 
 -- SECURITY DEFINER so the helper can read `profiles` without recursing back
@@ -189,6 +190,16 @@ create policy checkins_select on checkins
 -- Only a professional records a check-in, and only by scanning.
 create policy checkins_insert_pro on checkins
   for insert with check (is_professional() and scanned_by_id = auth.uid());
+
+-- body_metrics ---------------------------------------------------------------
+-- The professional measures; the member reads.  A member editing their own
+-- weight would defeat the purpose of a coach recording it.
+create policy body_metrics_select on body_metrics
+  for select using (owns_member(member_id));
+
+create policy body_metrics_write_pro on body_metrics
+  for all using (is_professional() and owns_member(member_id))
+  with check (is_professional() and owns_member(member_id));
 
 -- push_subscriptions --------------------------------------------------------
 create policy push_subscriptions_all on push_subscriptions

@@ -181,6 +181,21 @@ create table checkins (
 );
 create index on checkins (member_id, created_at desc);
 
+-- Body measurements taken by the professional during a check-in.  One reading
+-- per client per day; the unique pair is also the upsert target, which makes a
+-- replayed offline save idempotent.
+create table body_metrics (
+  id             uuid primary key default gen_random_uuid(),
+  member_id      uuid not null references profiles(id) on delete cascade,
+  recorded_by_id uuid references profiles(id) on delete set null,
+  measured_on    date not null,
+  weight_kg      numeric(5,2),
+  note           text,
+  created_at     timestamptz not null default now(),
+  unique (member_id, measured_on)
+);
+create index on body_metrics (member_id, measured_on desc);
+
 create table push_subscriptions (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid not null references profiles(id) on delete cascade,
