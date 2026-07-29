@@ -128,7 +128,12 @@ const router = createBrowserRouter([
         }),
       },
 
-      { path: 'calendar', ...screen('Calendar') },
+      {
+        path: 'calendar',
+        lazy: async () => ({
+          Component: (await import('../features/calendar/CalendarScreen.jsx')).default,
+        }),
+      },
       // Listed literal-before-parameter for readability only. React Router
       // ranks branches by segment specificity, not declaration order, so a
       // static segment already outranks `:appointmentId` either way.
