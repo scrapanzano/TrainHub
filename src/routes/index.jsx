@@ -90,7 +90,12 @@ const router = createBrowserRouter([
       <AppLayout navItems={professionalNav} profileHref="/p/profile" requiredRole="professional" />
     ),
     children: [
-      { index: true, ...screen("Today's Agenda") },
+      {
+        index: true,
+        lazy: async () => ({
+          Component: (await import('../features/agenda/ProfessionalHomeScreen.jsx')).default,
+        }),
+      },
 
       { path: 'clients', ...screen('Clients') },
       { path: 'clients/:clientId', ...screen('Client Detail') },
