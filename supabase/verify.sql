@@ -34,6 +34,23 @@ from (
       where schemaname = 'public'), '16'),
 
     -- Seed contents --------------------------------------------------------
+    -- The four counts below (`profiles`, `workout_plans`, `workout_sessions`,
+    -- `appointments`) are the seed.sql-ONLY baseline: what a fresh install
+    -- reads after schema.sql + policies.sql + seed.sql and nothing else. They
+    -- are deliberately NOT bumped to match `patches/005-demo-clients.sql`,
+    -- because doing so would break this exact fresh-install-without-demo-data
+    -- path -- the whole reason the schema patch and the demo-data patch are
+    -- two separate files in the first place.
+    --
+    -- Once `patches/005-demo-clients.sql` has also been run, these four rows
+    -- read FAIL against the numbers below.  That is expected, not a bug:
+    --   profiles          2  -> 6   (Daniel + Coach Andrea + four demo clients)
+    --   workout_plans     1  -> 5   (the seeded plan + one per demo client)
+    --   workout_sessions  4  -> 16  (the seeded four + three per demo plan)
+    --   appointments      3  -> 8   (the seeded three + five from the demo patch)
+    -- `patches/005-demo-clients.sql` ends with its own PASS/FAIL block that
+    -- checks the post-patch counts directly -- use that file's output to
+    -- confirm the database once the demo data is loaded, not this one.
     ('profiles',           (select count(*)::text from profiles),           '2'),
     ('exercises',          (select count(*)::text from exercises),          '10'),
     ('workout_plans',      (select count(*)::text from workout_plans),      '1'),
