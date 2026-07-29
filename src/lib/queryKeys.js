@@ -20,6 +20,12 @@ export const queryKeys = {
   availability: (proId) => ['availability', proId],
   bodyMetrics: (memberId) => ['bodyMetrics', memberId],
   clientTraining: (memberId) => ['clientTraining', memberId],
+  memberThread: (memberId) => ['chat', 'memberThread', memberId],
+  threads: (proId) => ['chat', 'threads', proId],
+  threadMessages: (threadId) => ['chat', 'messages', threadId],
+  unreadCount: (userId) => ['chat', 'unread', userId],
+  professionals: () => ['professionals'],
+  memberAppointments: (memberId, fromISO, toISO) => ['appointments', memberId, 'range', fromISO, toISO],
 }
 
 // Prefixes, for invalidating a whole family at once.  `invalidateQueries`
@@ -41,4 +47,8 @@ export const queryPrefixes = {
   nutritionPlan: ['nutritionPlan'],
   availability: ['availability'],
   bodyMetrics: ['bodyMetrics'],
+  // Every chat key starts with 'chat', so one prefix invalidates the thread
+  // list, the open conversation and the unread badge together.
+  chat: ['chat'],
+  professionals: ['professionals'],
 }

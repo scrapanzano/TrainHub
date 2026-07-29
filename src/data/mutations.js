@@ -4,6 +4,7 @@ import { deleteMeal, saveMeal, saveNutritionPlan } from './nutrition.js'
 import { saveBodyMetric } from './progress.js'
 import { createAppointment, setAppointmentStatus } from './appointments.js'
 import { addAvailability, deleteAvailability } from './availability.js'
+import { markThreadRead, sendMessage } from './chat.js'
 import { mutationKeys } from '../lib/mutationKeys.js'
 import { queryPrefixes } from '../lib/queryKeys.js'
 
@@ -152,6 +153,25 @@ export function registerMutationDefaults(queryClient) {
     mutationFn: deleteAvailability,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.availability })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.sendMessage, {
+    mutationFn: sendMessage,
+    // Serialise replays.  Messages are the one thing in this app whose ORDER is
+    // the content: two queued sends replayed in parallel can land out of order
+    // and the conversation reads wrong.
+    scope: { id: 'chat' },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.chat })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.markThreadRead, {
+    mutationFn: markThreadRead,
+    scope: { id: 'chat' },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.chat })
     },
   })
 }

@@ -18,4 +18,7 @@ export const mutationKeys = {
   setAppointmentStatus: ['setAppointmentStatus'],
   addAvailability: ['addAvailability'],
   deleteAvailability: ['deleteAvailability'],
+  sendMessage: ['sendMessage'],
+  markThreadRead: ['markThreadRead'],
+  chooseProfessional: ['chooseProfessional'],
 }
