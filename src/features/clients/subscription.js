@@ -10,8 +10,9 @@ const EXPIRED   = Object.freeze({ label: 'Expired', color: 'error.main' })
 const SUSPENDED = Object.freeze({ label: 'Suspended', color: 'task.suspended' })
 const UNKNOWN   = Object.freeze({ label: 'Unknown', color: 'task.suspended' })
 
-/** Whole days from `fromISO` to `toISO`, both `'YYYY-MM-DD'`. */
-function daysBetween(fromISO, toISO) {
+/** Whole days from `fromISO` to `toISO`, both `'YYYY-MM-DD'` (or longer ISO
+ * timestamps -- only the leading date part is read). */
+export function daysBetween(fromISO, toISO) {
   const [fy, fm, fd] = fromISO.slice(0, 10).split('-').map(Number)
   const [ty, tm, td] = toISO.slice(0, 10).split('-').map(Number)
   // UTC on both sides so the subtraction cannot straddle a DST boundary and come

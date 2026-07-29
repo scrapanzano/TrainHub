@@ -14,7 +14,7 @@ import { fetchNutritionPlan } from '../../data/nutrition.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { todayISO } from '../../lib/format.js'
 import { planProgress } from '../workout/status.js'
-import { subscriptionStateOf } from './subscription.js'
+import { daysBetween, subscriptionStateOf } from './subscription.js'
 import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 
 /** One overview card: an icon, a title, a chevron, and whatever the caller shows. */
@@ -66,15 +66,13 @@ export default function ClientDetailScreen() {
   // `weeks` is the plan's intended length and `created_at` is when it started,
   // so the week the client is in is derived, not stored.  Clamped at both ends:
   // a plan read on its first day is week 1, and one left running past its span
-  // must not print "week 11 of 8".
+  // must not print "week 11 of 8".  Day granularity (via `todayISO`) rather
+  // than `Date.now()`: this only needs to change once a day, and a bare clock
+  // read in the render body is impure under StrictMode's double-invoke.
   const planWeek = plan.data
     ? Math.min(
         plan.data.plan.weeks,
-        Math.max(
-          1,
-          // eslint-disable-next-line react-hooks/purity
-          Math.floor((Date.now() - Date.parse(plan.data.plan.created_at)) / (7 * 86_400_000)) + 1,
-        ),
+        Math.max(1, Math.floor(daysBetween(plan.data.plan.created_at, todayISO()) / 7) + 1),
       )
     : null
 
