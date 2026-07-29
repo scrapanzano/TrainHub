@@ -2,7 +2,10 @@ import {
   Avatar, Box, Card, CardActionArea, CardContent, Chip, LinearProgress, Stack, Typography,
 } from '@mui/material'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline'
+// The bare `ChatBubbleOutline` glyph is not shipped by the installed
+// @mui/icons-material@9.2.0 -- only the styled variants are, the same trap
+// `DeleteOutline` set in Phase 2. Vite resolves it at build time, not lint time.
+import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutlineOutlined'
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter'
 import RestaurantIcon from '@mui/icons-material/Restaurant'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
