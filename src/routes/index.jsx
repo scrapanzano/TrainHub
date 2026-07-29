@@ -137,7 +137,12 @@ const router = createBrowserRouter([
       // Listed literal-before-parameter for readability only. React Router
       // ranks branches by segment specificity, not declaration order, so a
       // static segment already outranks `:appointmentId` either way.
-      { path: 'calendar/availability', ...screen('Availability') },
+      {
+        path: 'calendar/availability',
+        lazy: async () => ({
+          Component: (await import('../features/calendar/AvailabilityScreen.jsx')).default,
+        }),
+      },
       {
         path: 'calendar/:appointmentId',
         lazy: async () => ({

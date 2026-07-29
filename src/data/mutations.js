@@ -3,6 +3,7 @@ import { awardReward } from './rewards.js'
 import { deleteMeal, saveMeal, saveNutritionPlan } from './nutrition.js'
 import { saveBodyMetric } from './progress.js'
 import { createAppointment, setAppointmentStatus } from './appointments.js'
+import { addAvailability, deleteAvailability } from './availability.js'
 import { mutationKeys } from '../lib/mutationKeys.js'
 import { queryPrefixes } from '../lib/queryKeys.js'
 
@@ -125,6 +126,20 @@ export function registerMutationDefaults(queryClient) {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.agenda })
       queryClient.invalidateQueries({ queryKey: queryPrefixes.appointment })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.addAvailability, {
+    mutationFn: addAvailability,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.availability })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.deleteAvailability, {
+    mutationFn: deleteAvailability,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.availability })
     },
   })
 }
