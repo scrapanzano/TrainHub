@@ -8,4 +8,6 @@ export const mutationKeys = {
   setSessionStatus: ['setSessionStatus'],
   awardReward: ['awardReward'],
   createSession: ['createSession'],
+  createPlan: ['createPlan'],
+  deleteSession: ['deleteSession'],
 }

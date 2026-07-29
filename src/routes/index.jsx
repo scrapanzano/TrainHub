@@ -109,7 +109,12 @@ const router = createBrowserRouter([
           Component: (await import('../features/clients/ClientDetailScreen.jsx')).default,
         }),
       },
-      { path: 'clients/:clientId/workout', ...screen('Assign Workout') },
+      {
+        path: 'clients/:clientId/workout',
+        lazy: async () => ({
+          Component: (await import('../features/clients/ClientWorkoutScreen.jsx')).default,
+        }),
+      },
       { path: 'clients/:clientId/nutrition', ...screen('Nutrition Plan') },
       { path: 'clients/:clientId/progress', ...screen('Progress Tracking') },
 

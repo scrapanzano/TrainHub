@@ -228,3 +228,41 @@ export async function createSession({ planId, name, position, exercises }) {
   if (exercisesError) throw exercisesError
   return session
 }
+
+/**
+ * Create a workout plan for a member.
+ *
+ * A professional reaches this through `workout_plans_write`, which is gated on
+ * `owns_member(member_id)` -- so this succeeds for their own clients and is
+ * rejected by the database for anyone else's.  `author_id` records who wrote
+ * it, which the member's plan screen prints.
+ */
+export async function createPlan({ memberId, authorId, name, goal, level, weeks }) {
+  const { data, error } = await supabase
+    .from('workout_plans')
+    .insert({
+      member_id: memberId,
+      author_id: authorId,
+      name,
+      goal: goal || null,
+      level: level || null,
+      weeks,
+    })
+    .select('id')
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+/**
+ * Delete one session.
+ *
+ * `session_exercises` and any `set_logs` beneath it cascade.  Idempotent by
+ * nature: deleting a row that is already gone affects nothing and does not
+ * error, which is what makes it safe to replay after a reconnect.
+ */
+export async function deleteSession({ sessionId }) {
+  const { error } = await supabase.from('workout_sessions').delete().eq('id', sessionId)
+  if (error) throw error
+}
