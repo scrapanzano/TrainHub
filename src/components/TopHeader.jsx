@@ -24,7 +24,13 @@ export default function TopHeader({ profileHref, notificationCount = 0 }) {
           </Typography>
         </Box>
 
-        <IconButton aria-label={`${notificationCount} notifications`}>
+        <IconButton
+          aria-label={
+            notificationCount === 0
+              ? 'No unread messages'
+              : `${notificationCount} unread message${notificationCount === 1 ? '' : 's'}`
+          }
+        >
           <Badge badgeContent={notificationCount} color="primary">
             <NotificationsIcon />
           </Badge>
