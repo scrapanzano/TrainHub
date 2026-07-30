@@ -15,18 +15,29 @@ export default function ScannerScreen() {
   // The decode loop fires five times a second; without this the same QR is
   // redeemed repeatedly in the moment it stays in frame.
   const lastToken = useRef(null)
+  // Re-arms lastToken after a thrown error, on a delay — an immediate clear
+  // would let the 200ms decode loop hammer the RPC every tick for as long as
+  // the badge sits in frame during an outage.
+  const cooldownTimer = useRef(null)
   const [result, setResult] = useState(null)
   const [cameraError, setCameraError] = useState(null)
   const [manual, setManual] = useState('')
 
   const redeem = useCallback(async (token) => {
     if (!token || token === lastToken.current) return
+    if (cooldownTimer.current) {
+      clearTimeout(cooldownTimer.current)
+      cooldownTimer.current = null
+    }
     lastToken.current = token
     try {
       setResult(await redeemCheckinToken(token))
     } catch (cause) {
-      lastToken.current = null
       setResult({ status: 'error', message: cause.message })
+      cooldownTimer.current = setTimeout(() => {
+        lastToken.current = null
+        cooldownTimer.current = null
+      }, 3000)
     }
   }, [])
 
@@ -78,6 +89,10 @@ export default function ScannerScreen() {
     return () => {
       cancelled = true
       if (timer) clearInterval(timer)
+      if (cooldownTimer.current) {
+        clearTimeout(cooldownTimer.current)
+        cooldownTimer.current = null
+      }
       // A camera left running is a visible bug: the phone's indicator stays lit
       // after the screen is gone.
       if (stream) stream.getTracks().forEach((track) => track.stop())
