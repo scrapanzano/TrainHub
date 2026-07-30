@@ -224,10 +224,65 @@ the course requirements.
 
 ---
 
+## 9. Phase 4B — badge, scanner, and push notifications
+
+- [ ] **Badge QR.** `/m/profile/badge` as Daniel: a QR code renders. The
+      countdown to expiry runs; refresh the page and it is still counting from
+      where it was, not reset.
+- [ ] **Badge regeneration.** Wait for the countdown to reach zero. It expires,
+      then a new QR appears with a full countdown. Compare tokens in the
+      database before and after: `select count(*) from checkin_tokens where member_id = '<daniel>';`
+      the count grows by one.
+- [ ] **Badge stops minting while hidden.** Lock the phone with `/m/profile/badge`
+      open in the browser. Wait three minutes. Then `select count(*) from checkin_tokens where member_id = '<daniel>';`
+      — the count has not grown by three.
+- [ ] **Badge offline.** Airplane mode, visit `/m/profile/badge`. It does not
+      render the QR; instead it says something about needing a connection.
+- [ ] **Scan.** `/p/scan` as Andrea. Hold Daniel's phone in front of the camera:
+      the badge QR scans, Andrea's screen shows the member's name and their
+      subscription state (Lean Bulk, e.g.), and the database now holds a check-in
+      (`select * from checkins order by created_at desc limit 1;` names the pair).
+      Nothing in the app displays it; this is SQL verification only.
+- [ ] **Already used.** Scan the same QR a second time (same badge, which has now
+      rotated: take the old one from the phone's screen history or wait for
+      expiry and step back in time). Andrea's screen says *already used*.
+- [ ] **Expired.** Scan a QR that is older than a minute. The screen says
+      *expired*. (This can be the QR from the subscription-state check, which was
+      scanned at least a minute ago.)
+- [ ] **Camera denied.** Restart the app or clear permissions, then open `/p/scan`.
+      When the permission prompt appears, tap Deny. The camera input is gone, but
+      the text field for manual entry still accepts input and can submit.
+- [ ] **Push notifications, Android.** Phone running Android, app installed as a
+      PWA from Chrome. Close the app (not just backgrounded: swipe it away from
+      the switcher). As Andrea send Daniel a message → the Android notification
+      appears. Tap it → the app opens and shows the chat thread, not the home
+      screen. Return to home and tap the Settings icon. **Push Notifications** is
+      on by default; toggle it **off** → send another message → no notification.
+      Toggle it back on. (If the toggle is already off, this is the correct
+      default and the next two checks cover the disabling path.)
+- [ ] **Push notifications, iPhone.** Phone running iOS 16.4+, app installed to
+      the Home Screen **from Safari** (not Chrome, not a shortcut in a folder —
+      Safari's "Add to Home Screen" is the only path that grants Web Push). Close
+      the app. As Andrea send a message, confirm the appointment change by
+      accepting a booking request, and assign a plan to Daniel → **three**
+      notifications, one for each, appear. Tap one → the app opens to the right
+      thread or screen (message tap opens chat, appointment tap opens the
+      calendar, plan tap opens nutrition).
+- [ ] **Push notification opt-out, iOS.** Settings → toggle **Push
+      Notifications** off → in the iOS settings for the app itself (Settings →
+      TrainHub → Notifications), confirm it is no longer registered. Assign
+      another plan as Andrea. No notification. Toggle the app's push back on in
+      app settings. iOS Notifications in iOS Settings shows it registered again.
+- [ ] **Push stops on sign-out.** As Daniel, Settings → Sign Out. As Andrea,
+      send a message and assign a plan. Open the device's notification log (pull
+      down the notification shade on Android, swipe down on iOS). No new
+      notifications for Daniel's device — they landed on Andrea's, not Daniel's,
+      because the subscription was unregistered when Daniel left.
+
+---
+
 ## Not testable here
 
-- `/m/profile/badge`, `/p/scan` and push notifications are **Phase 4B** — the QR
-  badge, the scanner and the Edge Function do not exist yet.
 - Two members sharing a professional, or a member switching professional: the
   seed ships one professional, so the switch path stays unreachable until a
   second `profiles` row with `role = 'professional'` exists. The code was fixed
