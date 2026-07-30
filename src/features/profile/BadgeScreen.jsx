@@ -24,7 +24,11 @@ export default function BadgeScreen() {
   // navigated away doesn't call setState on a gone screen.
   const aliveRef = useRef(true)
 
+  // React 19 StrictMode mounts effects twice in development. The cleanup below
+  // flips aliveRef to false on unmount; resetting it here ensures the second
+  // mount doesn't inherit the first mount's teardown.
   useEffect(() => {
+    aliveRef.current = true
     return () => {
       aliveRef.current = false
     }
