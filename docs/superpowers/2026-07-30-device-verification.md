@@ -271,7 +271,7 @@ a session of sending messages and watching nothing happen, with no clue why.
 - [ ] **Scan.** `/p/scan` as Andrea. Hold Daniel's phone in front of the camera:
       the badge QR scans, Andrea's screen shows the member's name and their
       subscription state (Lean Bulk, e.g.), and the database now holds a check-in
-      (`select * from checkins order by created_at desc limit 1;` names the pair).
+      (`select * from checkins order by created_at desc limit 5;` names the pair).
       Nothing in the app displays it; this is SQL verification only.
 - [ ] **Already used.** Scan the badge currently on screen — Andrea's screen
       shows the check-in. Reload `/p/scan` (the scanner only blocks redeeming
@@ -280,18 +280,21 @@ a session of sending messages and watching nothing happen, with no clue why.
       database) and scan the same still-valid badge again, inside its sixty
       seconds. This time it reaches `redeem_checkin_token` and answers
       *already used*.
-- [ ] **Expired.** Reachable through the UI, but it is a timing race, not a
-      guaranteed step: `redeem_checkin_token` checks `used_at` before
-      `expires_at`, so a token has to go unscanned past its minute rather than
-      be reused, and `BadgeScreen` re-mints the instant the tab becomes
-      visible again, replacing the on-screen QR before you get another chance.
-      As Daniel, open `/m/profile/badge`, then lock the phone for two minutes
-      — longer than the token's one-minute life. Have Andrea's scanner already
-      pointed at the phone, unlock it, and scan whatever is on screen the
-      instant it wakes, before the re-mint replaces it. The screen says
-      *expired*. If the re-mint wins the race, lock and unlock again — the
-      token genuinely did expire while hidden, only the scan's timing is
-      finicky.
+- [ ] **Expired.** `redeem_checkin_token` checks `used_at` before `expires_at`,
+      so a token has to go **unscanned** past its minute — reusing a scanned one
+      always answers *already used* instead. Chasing that with a camera is a
+      race against `BadgeScreen`'s re-mint, so take the deterministic path: the
+      badge steps above have already left expired, never-scanned tokens in the
+      table. Pick one up in the SQL editor —
+
+      ```sql
+      select token from checkin_tokens
+      where member_id = '<daniel>' and used_at is null and expires_at < now()
+      order by expires_at desc limit 1;
+      ```
+
+      — and type it into `/p/scan`'s manual-entry field as Andrea. The screen
+      says *expired*, every time, with no timing to get right.
 - [ ] **Unknown badge.** `/p/scan` as Andrea: type a made-up string (e.g.
       `not-a-real-badge`) into the manual-entry field and submit. The screen
       says the badge is not one of ours.
