@@ -33,6 +33,7 @@ export default function BrowseTrainersScreen() {
   })
 
   const choose = useMutation({ mutationKey: mutationKeys.chooseProfessional })
+  const savedOffline = choose.isPending && choose.isPaused
 
   const term = search.trim().toLowerCase()
   const visible = (professionals.data ?? []).filter((pro) => {
@@ -94,13 +95,30 @@ export default function BrowseTrainersScreen() {
         ))}
       </Stack>
 
+      {/* Offline the mutation pauses and stays pending, which keeps every choose
+          button disabled until reconnect. Say why, or the screen just looks
+          dead. */}
+      {savedOffline ? (
+        <Alert severity="info">
+          You are offline. This choice is saved on your device and will be sent when you reconnect.
+        </Alert>
+      ) : null}
       {choose.isError ? (
         <Alert severity="error">
           {choose.error?.message ?? 'Could not select this professional. Try again.'}
         </Alert>
       ) : null}
 
-      {visible.length === 0 ? (
+      {/* Two different nothings: an empty roster is not a filter that matched
+          nobody, and telling a member to widen a search that has nothing to
+          find would be a lie. */}
+      {professionals.data?.length === 0 ? (
+        <EmptyState
+          title="No professionals yet"
+          description="Certified coaches will appear here once they join."
+        />
+      ) : null}
+      {professionals.data?.length > 0 && visible.length === 0 ? (
         <EmptyState
           title="No match"
           description="No professional matches this search and filter."
