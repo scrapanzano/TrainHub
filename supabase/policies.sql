@@ -169,11 +169,26 @@ create policy messages_insert on messages
                   and (t.member_id = auth.uid() or t.pro_id = auth.uid()))
   );
 
+-- Marking a message read is the only UPDATE the app makes.
+--
+-- The `with check` is not decoration: an UPDATE policy with a `using` clause and
+-- no `with check` makes Postgres reuse `using` for both, which permitted either
+-- party to rewrite the OTHER party's message body, or to set `read_at` back to
+-- null so the unread badge stuck.  `read_at is not null` closes the second half.
+-- The first half is closed by the column grant in
+-- patches/008-messages-update-read.sql -- Postgres checks the GRANT before it
+-- evaluates any policy, so that is the gate that keeps `body` unwritable, and a
+-- fresh install still needs that patch for it.
 create policy messages_update_read on messages
   for update using (
     exists (select 1 from threads t
             where t.id = thread_id
               and (t.member_id = auth.uid() or t.pro_id = auth.uid()))
+  ) with check (
+    exists (select 1 from threads t
+            where t.id = thread_id
+              and (t.member_id = auth.uid() or t.pro_id = auth.uid()))
+    and read_at is not null
   );
 
 -- rewards -------------------------------------------------------------------
