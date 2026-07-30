@@ -18,6 +18,12 @@ export default function ThreadListScreen() {
   const threads = useQuery({
     queryKey: queryKeys.threads(user.id),
     queryFn: () => fetchThreads(user.id),
+    // Polled rather than pushed: the chat's Realtime channel is filtered to one
+    // `thread_id` and only exists inside a conversation, so a professional
+    // sitting on this inbox would otherwise never see a new message arrive.
+    // Covering every thread would need a second, unfiltered channel; an
+    // interval is enough at this scale.
+    refetchInterval: 60_000,
   })
 
   const term = search.trim().toLowerCase()

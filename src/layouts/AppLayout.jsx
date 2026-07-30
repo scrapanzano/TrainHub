@@ -27,6 +27,13 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
     queryFn: () => fetchUnreadCount(user.id),
     // Nothing to count until somebody is signed in.
     enabled: Boolean(user?.id),
+    // Polled rather than pushed: the chat's Realtime channel is filtered to one
+    // `thread_id` and lives on the conversation screen, so it cannot feed a
+    // badge that must count every thread. This layout never unmounts on inner
+    // navigation either, so without an interval the badge freezes at its
+    // page-load value. A shell-level subscription is the fuller answer and is
+    // not worth a second channel at this scale.
+    refetchInterval: 60_000,
   })
 
   // Hold the shell until the session is known, otherwise a signed-in user is
