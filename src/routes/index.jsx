@@ -118,7 +118,12 @@ const router = createBrowserRouter([
           Component: (await import('../features/rewards/RewardsScreen.jsx')).default,
         }),
       },
-      { path: 'profile/settings', ...screen('Settings') },
+      {
+        path: 'profile/settings',
+        lazy: async () => ({
+          Component: (await import('../features/profile/SettingsScreen.jsx')).default,
+        }),
+      },
     ],
   },
 
@@ -207,7 +212,12 @@ const router = createBrowserRouter([
           Component: (await import('../features/profile/ProfileScreen.jsx')).default,
         }),
       },
-      { path: 'profile/settings', ...screen('Settings') },
+      {
+        path: 'profile/settings',
+        lazy: async () => ({
+          Component: (await import('../features/profile/SettingsScreen.jsx')).default,
+        }),
+      },
     ],
   },
 
