@@ -18,12 +18,13 @@ Work top to bottom — the order matters in two places, both flagged.
 ## 0. Setup
 
 - [ ] `npm run lint` exits 0, `npm run build` succeeds.
-- [ ] All eight self-checks pass:
+- [ ] All nine self-checks pass:
       `node src/lib/format.selfcheck.js`, `src/theme/resolveTokens.selfcheck.js`,
       `src/features/workout/timer.selfcheck.js`, `.../status.selfcheck.js`,
       `.../summary.selfcheck.js`, `src/features/clients/subscription.selfcheck.js`,
       `src/features/calendar/month.selfcheck.js`,
-      `src/features/progress/progress.selfcheck.js`.
+      `src/features/progress/progress.selfcheck.js`,
+      `src/features/profile/pushSubscription.selfcheck.js`.
 - [ ] `npm run preview` (port 4173). **Not `npm run dev`** — the service worker
       is not generated in dev, so every PWA check below would be meaningless.
 - [ ] `ngrok http 4173 --url=wrinkly-mankind-doodle.ngrok-free.dev`
@@ -124,8 +125,7 @@ Daniel and desktop Chrome as Andrea.
 
 ## 4. Phase 4A — the rest of the member's app
 
-- [ ] Every route renders real content except `/m/profile/badge` and `/p/scan`,
-      which are Phase 4B placeholders.
+- [ ] Every route renders real content.
 - [ ] `/m/nutrition` as Daniel: "Lean Bulk", 2600 kcal, three macros, four meal
       cards. Tap Breakfast: Oats / Whey / Banana with quantities.
 - [ ] The nutrition empty state (wireframe 03B) — needs a member with no
@@ -226,9 +226,39 @@ the course requirements.
 
 ## 9. Phase 4B — badge, scanner, and push notifications
 
-- [ ] **Badge QR.** `/m/profile/badge` as Daniel: a QR code renders. The
-      countdown to expiry runs; refresh the page and it is still counting from
-      where it was, not reset.
+### Prerequisites — Davide's, applied once before this section is testable
+
+The badge and scanner checks below need only `patches/009` and a signed-in
+member/professional pair. **Push needs the full stack**, and `notify_user()`
+was written to fail silent when it is missing: an unconfigured database keeps
+minting badges and recording check-ins exactly as if push did not exist, with
+no error anywhere. Skipping any one of these turns the push checks below into
+a session of sending messages and watching nothing happen, with no clue why.
+
+- [ ] `supabase/patches/009-checkin-tokens.sql` and
+      `supabase/patches/010-push-notifications.sql` both applied, in that
+      order, in the Supabase SQL editor. Each prints its own PASS/FAIL block —
+      every row must read PASS.
+- [ ] The `notify` Edge Function deployed:
+      `npx supabase functions deploy notify --no-verify-jwt`
+- [ ] Its secrets set: `npx supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:... NOTIFY_SECRET=...`
+      (`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected by the
+      platform and need no setting).
+- [ ] The matching config rows inserted into `app_config` by hand, in the SQL
+      editor — `notify_secret` must equal the `NOTIFY_SECRET` secret above:
+      ```sql
+      insert into app_config (key, value) values
+        ('notify_function_url', 'https://<project-ref>.functions.supabase.co/notify'),
+        ('notify_secret', '<same value as NOTIFY_SECRET>')
+      on conflict (key) do update set value = excluded.value;
+      ```
+
+- [ ] **Badge QR.** `/m/profile/badge` as Daniel: a QR code renders and the
+      countdown to expiry runs. Refresh the page: the countdown does **not**
+      pick up where it was. `BadgeScreen` mints a brand-new token on every
+      mount, so a refresh always restarts the countdown from about 0:59 on a
+      different QR — that is the shipped behaviour, not something to chase as
+      a bug.
 - [ ] **Badge regeneration.** Wait for the countdown to reach zero. It expires,
       then a new QR appears with a full countdown. Compare tokens in the
       database before and after: `select count(*) from checkin_tokens where member_id = '<daniel>';`
@@ -243,15 +273,40 @@ the course requirements.
       subscription state (Lean Bulk, e.g.), and the database now holds a check-in
       (`select * from checkins order by created_at desc limit 1;` names the pair).
       Nothing in the app displays it; this is SQL verification only.
-- [ ] **Already used.** Scan the same QR a second time (same badge, which has now
-      rotated: take the old one from the phone's screen history or wait for
-      expiry and step back in time). Andrea's screen says *already used*.
-- [ ] **Expired.** Scan a QR that is older than a minute. The screen says
-      *expired*. (This can be the QR from the subscription-state check, which was
-      scanned at least a minute ago.)
+- [ ] **Already used.** Scan the badge currently on screen — Andrea's screen
+      shows the check-in. Reload `/p/scan` (the scanner only blocks redeeming
+      the identical token twice within the same page load, so a reload is
+      needed to get a second attempt past that client-side guard and onto the
+      database) and scan the same still-valid badge again, inside its sixty
+      seconds. This time it reaches `redeem_checkin_token` and answers
+      *already used*.
+- [ ] **Expired.** Reachable through the UI, but it is a timing race, not a
+      guaranteed step: `redeem_checkin_token` checks `used_at` before
+      `expires_at`, so a token has to go unscanned past its minute rather than
+      be reused, and `BadgeScreen` re-mints the instant the tab becomes
+      visible again, replacing the on-screen QR before you get another chance.
+      As Daniel, open `/m/profile/badge`, then lock the phone for two minutes
+      — longer than the token's one-minute life. Have Andrea's scanner already
+      pointed at the phone, unlock it, and scan whatever is on screen the
+      instant it wakes, before the re-mint replaces it. The screen says
+      *expired*. If the re-mint wins the race, lock and unlock again — the
+      token genuinely did expire while hidden, only the scan's timing is
+      finicky.
+- [ ] **Unknown badge.** `/p/scan` as Andrea: type a made-up string (e.g.
+      `not-a-real-badge`) into the manual-entry field and submit. The screen
+      says the badge is not one of ours.
 - [ ] **Camera denied.** Restart the app or clear permissions, then open `/p/scan`.
       When the permission prompt appears, tap Deny. The camera input is gone, but
       the text field for manual entry still accepts input and can submit.
+- [ ] **Retry cooldown.** As Andrea on `/p/scan`, put the device in airplane
+      mode and scan any badge (or submit a code by hand). The RPC call fails
+      and the error alert appears. Scan or resubmit the same code again
+      immediately — nothing happens; the client is still cooling down for
+      three seconds and never calls the RPC. Wait past three seconds,
+      reconnect, and scan it again — a new RPC attempt goes out and, now that
+      the device is back online, succeeds, replacing the error with the
+      check-in card. That confirms the retry actually fired rather than the
+      cooldown silently swallowing it.
 - [ ] **Push notifications, Android.** Phone running Android, app installed as a
       PWA from Chrome. Close the app (not just backgrounded: swipe it away from
       the switcher). As Andrea send Daniel a message → the Android notification

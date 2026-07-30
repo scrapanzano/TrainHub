@@ -163,8 +163,9 @@ credentials, so any schema work ends in a handoff to Davide.
 
 - `schema.sql`, `policies.sql`, `seed.sql` — a fresh install, in that order,
   after creating the two demo auth users with **Auto Confirm User** ticked.
-- `patches/001`…`007` — applied in order on top. They also carry their own
-  PASS/FAIL blocks.
+- `patches/001`…`010` — applied in order on top. They also carry their own
+  PASS/FAIL blocks. `009` (checkin tokens) and `010` (push notifications) are
+  what Phase 4B's badge, scanner and push features depend on.
 - `verify.sql` — run last. The three security rows and the two grant rows must
   read PASS. **Four seed-count rows read FAIL by design** once
   `patches/005-demo-clients.sql` has run; the comment in the file explains why
