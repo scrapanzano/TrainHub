@@ -1024,3 +1024,315 @@ git repository") -- a fresh session read it first and started from a completely
 wrong model of the project. It now carries the architecture, the location of
 this ledger, and the rules-that-cost-a-day list distilled from four phases of
 review findings.
+Task 3: complete (commit d8b7b3f, review clean, approved)
+  Verbatim implementation of the brief; reviewer independently confirmed
+  fetchThreads' return shape matches what the screen destructures, that
+  SearchIcon is already used elsewhere in the repo (the lint-passes/build-breaks
+  icon trap), and that the h1/h3 variants map to the right levels without a
+  component= override. No findings at any severity.
+  Deferred to human: the /p/chat browser walk (unread badge of 1, badge clears
+  after the receipt, "To Read" then shows Nothing unread, `zzz` gives No match).
+Task 4: complete (commit dca2a58, review clean, approved)
+  The bell prop TopHeader has taken since Phase 0 is finally fed. Reviewer read
+  the whole of AppLayout rather than the diff context and confirmed all four
+  early returns (loading, !user, !profile, wrong role) sit BELOW the new
+  useQuery -- the one way this task could have broken rules-of-hooks. No
+  findings at any severity.
+  Deferred to human: bell reads 1 for Andrea before opening the chat and 0
+  after; 0 for Daniel until Andrea sends something.
+Task 5: complete (commit eb1bc67, review clean, approved)
+  Reviewer independently confirmed the three cross-file shapes the brief only
+  asserted: weekStrip returns {dateISO, day, weekday} which is what WeekStrip
+  documents, fetchNutritionPlan's null-vs-{plan,meals} contract is what both
+  screens destructure, and meals[].items {food, qty} matches the field names the
+  Phase 3 professional editor WRITES -- a mismatch there would have rendered
+  blank rows with no error. palette.task.nutrition and ChevronRight both exist.
+  No findings at any severity.
+  Deferred to human: /m/nutrition as Daniel (Lean Bulk, 2600 kcal, three macros,
+  four meal cards; Breakfast lists Oats/Whey/Banana), and the 03B empty branch
+  as a client with no nutrition plan.
+Task 6: complete (commit f0a868a, review clean, approved)
+  First member-side profile write. Reviewer verified the whole registration
+  chain -- key from mutationKeys, same setMutationDefaults shape as its
+  siblings, and the only call site passes mutationKey at the hook with
+  { onSuccess } per-call, never onSettled -- plus that AuthProvider's select
+  list actually contains every profile field the two screens branch on, and
+  that the pro_specialty enum in schema.sql matches the filter's three values
+  so the filter cannot silently match nothing.
+  Accepted as designed, from the plan: choosing a professional finishes with
+  window.location.assign('/m/trainer'). AuthProvider holds `profile` outside the
+  query cache, so no invalidation can refresh `assigned_pro_id`; a full reload
+  is the plan's chosen answer and both the registration and the call site
+  document it. An AuthProvider refresh is the real fix and is noted as future
+  work.
+  Two Minor carried to the final review: the "No match" empty state cannot
+  distinguish a filter that excluded everyone from an empty professionals table;
+  the '?' avatar initial fallback.
+  Deferred to human: /m/trainer as Daniel shows Coach Andrea; clearing
+  assigned_pro_id by SQL redirects to browse and the picker re-assigns.
+Task 7: complete (commit 413fc71, review clean, approved)
+  The implementer went one step outside the brief's file list and was right to:
+  createAppointment's registered onSettled invalidated queryPrefixes.agenda
+  only, and TanStack prefix matching is positional, so ['agenda', proId, ...]
+  never matches the member's ['appointments', memberId, ...] keys. A freshly
+  booked appointment would not have appeared in the member's own list. Reviewer
+  confirmed against git show f0a868a that this was a PRE-EXISTING gap -- it also
+  affected MemberHomeScreen's appointmentsOnDay since Phase 2 -- and that the
+  new queryPrefixes.appointments invalidation is purely additive: the
+  professional's screens are all agenda-prefixed and cannot be reached by it.
+  Fixed at the shared registration, not at the call site. Disclosed, not
+  smuggled.
+  Also verified: the booking id comes from crypto.randomUUID() inside onSubmit
+  (react-hooks/purity), every ISO<->Date conversion computes in the local frame,
+  and the two pieces of pure logic (slotToISO, the month-step clamp) are
+  byte-identical to already-shipped Phase 3 code whose underlying arithmetic
+  month.selfcheck.js already covers -- so no new self-check was owed.
+  One Minor carried to the final review: dayOf() reimplements
+  toLocaleDateString('sv-SE') instead of calling localDayISO from format.js. It
+  matches CalendarScreen's pre-existing idiom, so BOTH sites want one pass.
+  Deferred to human: the seeded dots, a live booking as Daniel, Coach Andrea
+  confirming it, and the 31 March -> 28 Feb month step.
+Task 8: complete (commits 18dbdd4..21956b3, re-review clean)
+  ONE CRITICAL, and it was the PLAN's: the brief asserted "no new reads --
+  useAuth().profile already holds everything both screens show", which is false.
+  PROFILE_COLUMNS in AuthProvider selects subscription_status but NOT
+  subscription_until, so the subscription screen's whole reason to exist was
+  broken two ways: "Valid until" always rendered an em dash, and
+  subscriptionStateOf treats a missing `until` as open-ended -- so a member whose
+  date had passed while subscription_status still said 'active' was shown as
+  ACTIVE. That is precisely the case the date check in subscription.js was
+  written to catch, defeated by the select list. Neither lint nor build can see
+  a missing column; it reads undefined with no error.
+  Fixed at the root: one field added to the single select list that feeds
+  `profile`. Re-review confirmed PROFILE_COLUMNS has exactly one definition and
+  one call site (no initial/refresh split still missing it), that every other
+  field both screens read is in the list, and that the fix left AuthProvider's
+  forUserId/readiness machinery -- flagged in its own comments as previously
+  broken -- byte-for-byte untouched.
+  One Minor carried to the final review: SubscriptionScreen renders a bare '#'
+  for the membership id if `profile` is ever null on that route (no loading
+  guard); it matches the brief's reference code.
+  Deferred to human: /m/profile and /p/profile link sets, and
+  /m/profile/subscription showing the date eight months out with an Active chip.
+Task 9: complete (commits 200cb21..d469d26, re-review clean)
+  TWO IMPORTANT, both in the plan's own code:
+  1. Double submit on the password form. The "New password" onChange reset the
+     status to idle whenever it was not idle -- INCLUDING while saving -- neither
+     field was disabled during a save, and onSubmit guarded only on mismatch and
+     emptiness. Typing one character mid-save re-enabled the button and a second
+     click fired a second concurrent supabase.auth.updateUser. Fixed on both
+     halves: the phase is in the submit guard AND both fields disable while
+     saving, with the deliberate "clear a stale result when the user starts over"
+     behaviour kept for idle/done/error.
+  2. The persisted query cache survived logout. signOut cleared only the
+     trainhub-profile localStorage key, and AppLayout navigates client-side with
+     no reload -- so the in-memory QueryClient and its IndexedDB mirror
+     (trainhub-query-cache via idb-keyval) both survived. The outgoing user's
+     messages, nutrition plan, body metrics, appointments and session logs stayed
+     readable in cleartext IndexedDB via DevTools for up to the one-week gcTime,
+     on the shared browser this very task exists to make switchable. Per-user
+     query keys stop a LATER signed-in user's screens from rendering that data;
+     they do not remove it from the device. Fixed at the root, inside signOut, so
+     AppLayout's profile-failure branch benefits too, on the unconditional path
+     that runs even when the network call fails. Discarding paused mutations is
+     the intended trade on a deliberate sign-out and is commented as such.
+  The brief mandated neither: it asserted signOut "already clears the cached
+  profile ... Do not reimplement it here", which is true and insufficient.
+  Also confirmed correct and left alone: the password change deliberately does
+  NOT go through useMutation. Reviewer checked GoTrueClient's source -- an
+  offline updateUser resolves to {data, error} rather than rejecting, so the
+  error branch catches it; and a password change is the one write that must
+  never pause and replay.
+  One Minor fixed in the same pass: the confirm field did not reset the status
+  banner the way its sibling did.
+  One Minor carried to the final review: the cache clear relies on IndexedDB
+  same-store transaction ordering for the case where a persist write is already
+  mid-flight when removeClient() runs. It holds, but nothing in the code says so.
+
+ALL NINE TASKS COMPLETE. Next: whole-branch review, then finishing-a-development-branch.
+
+## Phase 4A whole-branch review (base a82c899, 14 commits at review time)
+ONE CRITICAL, FOUR IMPORTANT, all cross-task -- the pattern holds for a fifth
+phase: no single task owned any of them.
+
+CRITICAL (security, pre-existing but this branch is what made it reachable):
+  messages_update_read in policies.sql has a `using` clause and no `with check`,
+  so Postgres reuses `using` for both. With patch 006's `grant all on all
+  tables`, ANY thread member could UPDATE any row in a thread they belong to --
+  rewrite a message body they did not send, or set read_at back to null so the
+  badge sticks. Every sibling policy in the file carries an explicit `with
+  check`; this was the only one that did not. Nothing used `messages` before
+  Phase 4A, which is why four phases of review never surfaced it.
+  Fixed in patches/008-messages-update-read.sql at TWO layers: `revoke update`
+  then `grant update (read_at)` -- the column grant is load-bearing because
+  Postgres checks grants BEFORE policies -- plus the recreated policy with an
+  explicit `with check` carrying the membership test AND `read_at is not null`.
+  Re-review confirmed markThreadRead is the app's only messages UPDATE, so the
+  revoke breaks nothing, and that verify.sql's grant rows ask about select and
+  insert only, so they still PASS.
+IMPORTANT 1: the chat was not live anywhere except inside an open conversation.
+  staleTime 30s, refetchOnWindowFocus false, and the only Realtime channel is
+  filtered to one thread_id and mounted only on ThreadScreen -- while AppLayout
+  never unmounts, so its unreadCount observer is created once per page load. A
+  member sitting on /m saw the bell frozen at its page-load value forever; a
+  professional on /p/chat never saw a message arrive. Three tasks each did their
+  own half correctly (Task 1 scoped Realtime to one thread, Task 3 built the
+  inbox, Task 4 built the badge) and nobody owned the seam. The Task 4 human
+  check as written -- "1 before opening the chat, 0 after" -- passes on a reload
+  and never exercises liveness. Fixed with refetchInterval 60s on both queries,
+  deliberately not a second Realtime channel.
+IMPORTANT 2: ThreadScreen rendered the composer while threadId was null (a
+  member with an assigned pro but no threads row yet). Online the window is
+  milliseconds; OFFLINE IT IS PERMANENT, because ensureThread pauses and its
+  onSuccess never fires -- so a message typed there queued with thread_id null
+  and failed the not-null constraint on reconnect. Lost message, on the app's
+  flagship offline path. Composer now gated on threadId, and the indefinite
+  spinner replaced with copy.
+IMPORTANT 3: two comments claimed an optimistic insert that did not exist
+  ("already queued and rendered", "the sender already has this row from its own
+  optimistic insert"). onMutate appeared exactly once in the repo, in
+  LogSetSheet. Offline a sent message simply vanished. Fixed by adding the
+  onMutate the comments described.
+IMPORTANT 4: fetchMemberThread used .eq('member_id').maybeSingle(), but threads
+  is unique (member_id, pro_id) -- one thread per PAIR. The picker supports
+  switching professional, which creates a second row, after which PostgREST
+  answers PGRST116 and the member's chat becomes a permanent ErrorState whose
+  Retry can never succeed. Not reachable with the shipped seed (one professional)
+  and reachable the moment a second exists. Fixed by scoping the lookup to
+  assigned_pro_id and widening queryKeys.memberThread.
+  The fixer found a second-order bug the review missed: gating on proId left an
+  UNASSIGNED member on an eternal spinner, because the isPending early return sat
+  above the "No trainer yet" one. The two are now ordered deliberately with a
+  comment; re-review walked all five states and confirmed no regression.
+Also fixed: an isPaused Alert on chooseProfessional (offline it disabled every
+  button with nothing explaining why, unlike its two siblings on this same
+  branch); slotToISO deduplicated into lib/format.js with self-check assertions
+  that fail a UTC-frame regression in BOTH hemispheres (re-review re-ran them
+  under five timezones); three inline reimplementations of localDayISO replaced;
+  the picker's "No match" state split into two branches; ensureThread's missing
+  chat scope; and, in a final pass, two comments in mutations.js that claimed
+  onMutate reruns on a replay (it does not -- query-core skips it when the
+  mutation is restored; the optimistic row survives a reload because the query
+  cache is persisted) plus a missing cancelQueries in that onMutate.
+
+Verdict after fixes: READY TO MERGE. lint 0, build ok, all 8 self-checks OK.
+
+EVERYTHING BELOW NEEDS A HUMAN:
+  - RUN supabase/patches/008-messages-update-read.sql. All five rows must read
+    PASS and `app role can update body` must read false. It must run AFTER 006;
+    replaying 006 silently reopens the Critical.
+  - the two-browser Realtime round trip (still the one chat check never done)
+  - the per-task browser walks listed under tasks 3-9 above
+  - DECISION: patches/008 fixes messages_update_read but policies.sql still
+    declares the vulnerable version, so a fresh install (schema -> policies ->
+    seed) has the hole open until 008 runs. Patch 001 set the opposite precedent
+    -- it amended policies.sql too, which is why the fresh-install path is safe
+    there. Either amend policies.sql for consistency, or revert 001's amendment
+    and keep "patches only" as the rule.
+Open Minor, deferred with reasons: unread messages in an abandoned thread still
+  count toward the badge and the member has no route to clear them (FIX 5 made
+  this state work at all, so this is an improvement, not a regression); the
+  professional's ThreadScreen shows "Chat" instead of the client's name, while
+  the inbox one tap earlier shows it; patch 008's `with check` still lets a party
+  stamp read_at on their OWN message, suppressing the recipient's badge for it
+  (cosmetic, blocked at the body level, one line to harden with
+  `and sender_id <> auth.uid()`); BookingSheet lets a member book a slot outside
+  the professional's availability -- the plan asserted the booking sheet reads
+  availability_select_all and its own code never does, so this is plan-mandated
+  and is Davide's call; the loading/error idiom split now spans five more
+  screens, and eleven files of mechanical change is the wrong thing to do in a
+  pre-merge scramble -- pick the inline idiom and do it as one commit after merge.
+
+DECIDED with Davide after the whole-branch review: policies.sql gets the fix
+too, following patch 001's precedent (commit dd6254a). The `with check`
+predicate is byte-identical to the one in patches/008, so an existing database
+and a fresh install end in the same state -- except for the column grant, which
+only 008 carries, because policies.sql does not do grants. A fresh install
+therefore still needs 008 for the half that keeps `body` unwritable, and the
+comment in policies.sql says so.
+Branch left unmerged by choice: merge after 008 has been run and the two-browser
+Realtime round trip has passed, since 008 is what makes Realtime real.
+
+## Device verification, 2026-07-30 (Davide, real Android phone over ngrok)
+patches/008 APPLIED. Two-device chat round trip PASSES -- Realtime is real, and
+the last open chat verification from Task 2 is closed.
+Install, standalone launch, theme and offline relaunch all pass.
+Offline cold start, offline set logging and the double-tap guard all pass.
+
+Found by the device run, and fixed (commit 2f65ac6):
+  The second tick was not live. The subscription listened for INSERT only, so a
+  read receipt -- an UPDATE of read_at -- never reached the sender, whose own
+  threadMessages query has no refetchInterval and no refetch on focus. The tick
+  therefore waited for the next message either side sent and could sit unseen
+  for the rest of the conversation. Added an UPDATE handler that replaces the
+  row in place, returning the same array identity when the row is not held so a
+  receipt does not re-render every bubble. No invalidation on that path: a
+  receipt changes nothing the recipient of the event counts.
+  This is what patches/007's `replica identity full` was set for, and
+  patches/008 is what makes the handler safe to trust -- read_at is now the only
+  column the app role may update, so an UPDATE on `messages` IS a read receipt.
+
+CHECKLIST DEFECT, mine: the verification file told Davide to look for
+Lighthouse's PWA audits (installability, apple-touch-icon, themed omnibox,
+splash). Lighthouse 12 REMOVED the PWA category -- there is nothing to find.
+Installability now lives in DevTools > Application > Manifest / Service Workers.
+The file is corrected.
+Lighthouse on the login screen: 96 performance / 94 accessibility /
+96 best practices / 82 SEO. The 82 was index.html never having a
+<meta name="description">; added in the same commit, mirroring the manifest's
+sentence. Re-run pending.
+
+Confirmed correct, recorded so nobody "fixes" them later: a route never visited
+online has no data offline (the code is precached, the data was never fetched);
+finishing a session offline refuses to render a summary (Phase 2's deliberate
+refusal to celebrate sets that never reached Postgres); signing in offline is
+impossible. The rule: an error on a screen holding no usable data is correct, an
+error banner ABOVE data the app already has is the defect.
+
+## Device run, part 2 (2026-07-30) -- the password reset was broken since Phase 1
+Davide created a user with a REAL mailbox and ran the reset flow. Supabase sent
+the link; opening it rendered "Link not valid" every time.
+
+ROOT CAUSE, a Phase 1 defect that four phases of review never saw:
+  ResetPasswordScreen reads `?code=` from the query string and starts in the
+  `invalid` phase when it is absent. src/lib/supabase.js created the client
+  WITHOUT `flowType`, and @supabase/auth-js@2.110.9 defaults to `implicit`
+  (GoTrueClient.js:21). The implicit flow returns a recovery session in the URL
+  FRAGMENT (#access_token=...&type=recovery) and never produces a code, and
+  `detectSessionInUrl: false` stopped the library picking the fragment up on its
+  own. So the screen waited for something that flow cannot emit -- every reset
+  link, always.
+  The irony worth recording: Phase 1's fix for StrictMode double-invoking the
+  single-use PKCE exchange was protecting code that could never execute.
+Fixed in commit e7631e5 with `flowType: 'pkce'`. Verified that only
+resetPasswordForEmail and exchangeCodeForSession are flow-sensitive -- the app's
+other four auth calls (signInWithPassword, getSession, signOut, updateUser)
+behave identically either way. Its cost is that the emailed link must be opened
+in the browser that requested it, because the verifier lives in that browser's
+storage; the invalid-link copy already said so.
+
+WHY NOTHING CAUGHT IT: the check was deferred to a human in Phase 1 as "needs a
+real reset email", the demo accounts use a fake domain (trainhub.dev, created
+with Auto Confirm precisely to skip email), and every later phase inherited the
+deferral. A browser could not catch it; only a real mailbox could. This is the
+strongest argument yet for running the deferred human checks BEFORE a phase
+merges rather than after.
+
+Also confirmed on device: password change works (the one write deliberately
+outside the offline mutation pipeline); /m/profile/badge and /p/scan correctly
+still Placeholder, they are Phase 4B.
+
+Operational note, learned the hard way 2026-07-30: Davide deleted the
+daniel@trainhub.dev auth user while testing the reset flow, which cascaded from
+profiles through every table that references it -- plan, sessions, set logs,
+nutrition, appointments, thread, messages, rewards, check-ins. Fully
+recoverable, because seed.sql looks the two demo users up BY EMAIL rather than
+by a hard-coded uuid and upserts their profiles: recreate the auth user with the
+same address and Auto Confirm, then re-run seed.sql. The one thing to clear
+first is Andrea's availability -- it is pro-owned, so it SURVIVES the cascade,
+and seed.sql inserts its ten rows unguarded:
+  delete from availability
+  where pro_id = (select id from auth.users where email = 'andrea@trainhub.dev');
+Everything else seed.sql inserts unguarded belongs to the member and was already
+gone. patches/005 is idempotent and only needs re-running if a demo client was
+deleted too.

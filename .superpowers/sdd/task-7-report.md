@@ -1,149 +1,136 @@
-# Task 7 Report — Reset-password screen
+# Task 7 report: member appointments and booking
 
-## Files
+## What was implemented
 
-- Created: `src/features/auth/ResetPasswordScreen.jsx` — transcribed verbatim from the brief's
-  code block (Step 1), including all comments. No deviations.
-- Modified: `src/routes/index.jsx` — added `import ResetPasswordScreen from
-  '../features/auth/ResetPasswordScreen.jsx'` next to the existing `LoginScreen` /
-  `ForgotPasswordScreen` imports, and replaced the `/reset-password` placeholder entry
-  (`...screen('Reset Password')`) with `element: <ResetPasswordScreen />`, exactly as specified
-  in Step 2.
+1. **`src/data/appointments.js`** — added `fetchMemberAppointmentsInRange(memberId, fromISO, toISO)`,
+   verbatim from the brief: the member's mirror of `fetchAppointmentsInRange`, filtering on
+   `member_id` and embedding the professional via `pro:profiles!appointments_pro_id_fkey`.
+   Carries `.retry(navigator.onLine)` like every other read in the file.
 
-Verified `PublicLayout.jsx` (the wrapping layout for this route) renders `BrandLogo` above its
-`<Outlet />` — `ResetPasswordScreen` renders no logo of its own, so no duplication.
+2. **`src/features/trainer/BookingSheet.jsx`** (new) — the member's booking `Drawer`, verbatim
+   from the brief. No client picker; `pro_id` comes from `profile.assigned_pro_id`, `member_id`
+   from `user.id`, status starts at `'pending'` (the professional confirms). Same closed→open
+   reset pattern as `NewAppointmentSheet.jsx` (compared during render, not in an effect), same
+   client-generated `crypto.randomUUID()` id generated in the submit handler, same offline/error/
+   pending button states.
 
-Confirmed `react-router` (not `react-router-dom`) is the installed package (`package.json` line
-25: `"react-router": "^8.3.0"`) and is the import source already used elsewhere in the codebase
-(`src/routes/index.jsx`, `src/layouts/PublicLayout.jsx`), matching the brief's import line.
+3. **`src/features/trainer/MemberAppointmentsScreen.jsx`** (new) — verbatim from the brief. Month
+   grid with per-day kind-coloured markers, selected day's list via `AppointmentCard`, a "Book for
+   this day" card that opens `BookingSheet`, and a "No professional yet" `EmptyState` in its place
+   when `profile.assigned_pro_id` is unset. One `<h1>` (month label), one `<h2>` (day heading), one
+   `<h3>` (card title / activity count) — no level skipped or doubled.
 
-## Lint
+4. **`src/routes/index.jsx`** — replaced the `trainer/appointments` `Placeholder` with the lazy
+   route from the brief.
 
-`npm run lint` → exit 0, no output (clean).
+5. **Two files beyond the brief's list — a cache-invalidation gap, fixed at the shared
+   registration:**
+   - `src/lib/queryKeys.js` — added `queryPrefixes.appointments: ['appointments']`, mirroring the
+     existing `agenda` prefix comment. `appointmentsOnDay` and the new `memberAppointments` both
+     start with `'appointments'`.
+   - `src/data/mutations.js` — `createAppointment`'s registered `onSettled` now also invalidates
+     `queryPrefixes.appointments`, alongside the pre-existing `queryPrefixes.agenda` invalidation.
 
-## Commit
+   **Why:** `createAppointment` was already registered (per the brief's pointer to check first),
+   but its `onSettled` invalidated only `queryPrefixes.agenda` (`['agenda']`). That was correct
+   while only the professional's `NewAppointmentSheet` called it — the professional's own queries
+   are all `agenda`-prefixed. Task 7 makes the *member's* `BookingSheet` call the same mutation,
+   and the member's queries (`appointmentsOnDay`, `memberAppointments`) are `appointments`-prefixed
+   — a different first array element, so `invalidateQueries({queryKey: ['agenda']})` never matches
+   them (TanStack Query's default invalidation is a queryKey-prefix match). With `staleTime: 30_000`
+   and `refetchOnWindowFocus: false` in `src/lib/queryClient.js`, and no remount between booking and
+   viewing the list (`onSuccess` just closes the drawer, same screen instance), a freshly booked
+   appointment would not have appeared in the day's list until the 30s staleTime happened to lapse
+   and something else triggered a refetch — silently failing the brief's own verification step
+   ("request a 60-minute training — it appears in the list"). Fixed once in the shared mutation
+   registration rather than adding a per-call `onSuccess` invalidation at the `BookingSheet` call
+   site, per the project's own convention that a call site should not carry logic the registration
+   is supposed to own, and so the same fix also benefits `MemberHomeScreen`'s `appointmentsOnDay`
+   query for any future member-initiated booking flow.
 
-- Hash: `d166ac8f6abf3e1c90886d2ba9286cde15fa394d`
-- Message: `feat: add reset password screen with explicit code exchange`
-- Both files committed together in one commit (`git add
-  src/features/auth/ResetPasswordScreen.jsx src/routes/index.jsx`). No trailer of any kind was
-  added — checked `git log -1` output, message is the subject line only.
-- `git status --short` before staging showed only these two files affected by this task; the
-  pre-existing `README.md` modification (present before this task started) was left untouched
-  and unstaged.
+   This does not touch `setAppointmentStatus`'s registration (professional confirming/cancelling):
+   the brief's verification only requires the professional to see the pending request on `/p` and
+   `/p/calendar`, not the member to see the confirmation land live without a remount, and the
+   existing remount-triggered refetch behaviour (`refetchOnMount` default) already covers that case
+   the same way every other screen in the app does.
 
-## Step 3 (browser verification)
+## Verified
 
-Deferred to the human, per instructions. No dev server was started, and no browser or reset
-email was available in this environment. The 7-row verification table in the brief (missing
-code, garbage code, real link, mismatched passwords, short password, valid submit, replay of a
-used link) still needs to be run manually against a live Supabase project.
+**Lint** — `npm run lint`, exit 0, no output:
+```
+> trainhub@0.0.0 lint
+> eslint .
+```
 
-## Self-review — tracing every path through the state machine
+**Build** — `npm run build`, succeeded, service worker built:
+```
+> trainhub@0.0.0 build
+> vite build
+...
+✓ built in 626ms
+PWA v1.3.0
+Building src/sw.js service worker ("es" format)...
+...
+✓ built in 156ms
+PWA v1.3.0
+mode      injectManifest
+format:   es
+precache  76 entries (1128.79 KiB)
+files generated
+  dist/sw.js
+```
 
-State variable: `phase ∈ {'exchanging', 'invalid', 'ready', 'saving', 'done'}`, initialized to
-`code ? 'exchanging' : 'invalid'`.
+**Self-checks** — none added. This task's new logic (`slotToISO`, `dayOf`, `step`'s month-clamp)
+mirrors patterns already shipped without a self-check (`NewAppointmentSheet.jsx`'s identical
+`slotToISO`, `CalendarScreen.jsx`'s identical month-step-and-clamp), and `month.js` — the actual
+date arithmetic both screens depend on — already has `month.selfcheck.js`, which covers the
+`shiftMonth`/`monthGrid` behaviour this screen calls into. Ran it to confirm nothing in that shared
+logic broke:
+```
+node src/features/calendar/month.selfcheck.js
+```
+(exit 0, no output — all asserts passed)
 
-1. **No `code` in the URL.** `phase` starts at `'invalid'`. The `useEffect` guard `if (!code)
-   return` means the effect body never runs and `active`/cleanup are irrelevant. Render hits the
-   `phase === 'invalid'` branch immediately: heading, fallback text (`error` is `null`, so the
-   default message "This reset link is missing its code." shows), and a working "Request a new
-   link" button (`<Link to="/forgot-password">`). No blank screen, no dead button.
+**Not run — needs a human with database credentials**, per the brief:
+> As Daniel, `/m/trainer/appointments` shows the month with dots on the seeded days. Select a day,
+> tap the booking card, request a 60-minute training — it appears in the list as "Not confirmed
+> yet", and Coach Andrea sees it on `/p` and `/p/calendar` with Confirm available. **Step from 31
+> March back a month** and confirm the selection lands on 28 February.
 
-2. **`code` present but garbage.** `phase` starts at `'exchanging'` → renders "Verifying your
-   link…" (a `role="status"` text node, not blank). The effect calls
-   `exchangeCodeForSession(code)`. Two sub-paths:
-   - Resolves with `{ error: exchangeError }` truthy → `setError(message)`, `setPhase('invalid')`.
-     Falls into the invalid branch, now showing the real Supabase error message instead of the
-     fallback. Button still present and functional.
-   - Rejects (network/thrown) → caught by `.catch`, same landing in `'invalid'` with a fallback
-     message when `cause.message` is absent. Same outcome, no strand.
-   Both sub-paths check `active` first, so a call that resolves after the component has unmounted
-   (route changed away) is a no-op — matches the guard pattern in `AuthProvider.jsx`.
+## Files changed
 
-3. **`code` valid.** Same `'exchanging'` render, then the exchange resolves with no error →
-   `setPhase('ready')`. Falls through past both early-return `if` blocks to the default return,
-   which renders the password form. Submit button is enabled (`disabled={phase === 'saving'}`,
-   and phase is `'ready'`).
+- `src/data/appointments.js` — added `fetchMemberAppointmentsInRange`
+- `src/features/trainer/BookingSheet.jsx` — new
+- `src/features/trainer/MemberAppointmentsScreen.jsx` — new
+- `src/routes/index.jsx` — wired `/m/trainer/appointments`
+- `src/lib/queryKeys.js` — added `queryPrefixes.appointments`
+- `src/data/mutations.js` — `createAppointment` now also invalidates `queryPrefixes.appointments`
 
-4. **Passwords don't match.** `onSubmit` clears the previous error, compares strings, sets
-   `error` and returns *before* touching `phase`. Phase stays `'ready'`, button stays enabled
-   (never got set to `'saving'`), user can immediately correct and resubmit. No strand.
+## Self-review findings
 
-5. **Password shorter than 8 characters** (and it matches its own confirmation, since the
-   mismatch check runs first). Same shape: `setError`, return, phase untouched at `'ready'`,
-   button still enabled.
+- Confirmed `AddIcon`, `ChevronLeftIcon`, `ChevronRightIcon` exist in the installed
+  `@mui/icons-material` before use (`Add.js`, `ChevronLeft.js`, `ChevronRight.js` present on disk).
+- Confirmed `profile.assigned_pro_id` is the real field name used elsewhere (`BrowseTrainersScreen`,
+  `MyTrainerScreen`, `AuthProvider`, `data/profile.js`), not a brief invention.
+- Confirmed no `onSettled` passed at either mutation call site (`BookingSheet.jsx` only uses
+  `mutate(vars, { onSuccess })`, which is the safe per-call mechanism).
+- Confirmed the write (`createAppointment`) carries no `.retry(...)` and the read
+  (`fetchMemberAppointmentsInRange`) does — matches the project's read/write retry rule.
+- Confirmed `id: crypto.randomUUID()` is generated inside `onSubmit` (an event handler), not in the
+  render body — satisfies `react-hooks/purity` and the replay-idempotence requirement.
+- Found and fixed the cache-invalidation gap described above (`queryPrefixes.appointments`).
+- Did not add a self-check file: no new pure/branchy logic was introduced beyond what's already
+  covered by `month.selfcheck.js`, and the brief did not call one out.
+- Kept `.superpowers/sdd/*` scratch files (pre-existing uncommitted changes from earlier tasks) out
+  of this commit — staged and committed only the six files above.
 
-6. **Valid submit, `updateUser` fails.** `phase` is set to `'saving'` first (button disables,
-   label flips to "Saving…"), the await resolves with an error → `setError(message)`,
-   `setPhase('ready')`. Button re-enables on the next render. No permanent disabled state — the
-   only way into `'saving'` is from a submit, and every submit path that enters it also has an
-   exit (`'ready'` on failure, `'done'` + navigate on success). There is no `await` without a
-   subsequent `setPhase` call, so `'saving'` can never be the terminal state.
+## Issues or concerns
 
-7. **Valid submit, `updateUser` succeeds.** `setPhase('done')` then `navigate('/m', { replace:
-   true })`. `'done'` has no dedicated `if` branch, so it would fall through to the default
-   (form) render if it rendered at all — but `navigate` triggers a route change to `/m`, and
-   `ResetPasswordScreen` unmounts before or immediately after that render is visible. This
-   matches the brief's code exactly (I did not add a `'done'` branch — the brief doesn't have
-   one either, and the fallthrough is harmless because navigation supersedes it). No blank
-   screen: worst case is one frame of the already-rendered form, not emptiness.
-
-Conclusion: every reachable `phase` value maps to a non-blank render, and every state that
-disables the submit button (`'saving'`) has exactly one entry point and is always followed by a
-state transition (`'ready'` on failure or `'done'`+navigate on success) — nothing can strand the
-user on a permanently disabled button or an empty screen.
-
-One pre-existing constraint outside this task's scope, noted for completeness: like the rest of
-the auth screens, the effect's `active` flag only prevents state updates after unmount — it does
-not cancel the in-flight `exchangeCodeForSession` network call itself. This mirrors the same
-tradeoff already made in `AuthProvider.jsx` and is not something this task was asked to change.
-
-## Fix: StrictMode double-exchange burns the reset code
-
-**Finding.** `src/main.jsx` wraps the app in `<StrictMode>`. React 19 double-invokes effects in
-dev (mount → cleanup → mount). The exchange effect called `supabase.auth.exchangeCodeForSession(code)`
-fresh on every invocation: the first call consumed the single-use PKCE code and succeeded, but its
-`active` flag was already `false` so the result was discarded; the second call then failed because
-the code was already spent, landing the live component on `phase = 'invalid'`. A valid reset link
-opened under `npm run dev` showed "Link not valid" even though the user had just been silently
-signed in.
-
-**Fix.** Added a ref (`exchange = useRef(null)`) that caches `{ code, promise }` for the
-in-flight/settled exchange. Each effect invocation checks whether `exchange.current?.code` matches
-the current `code`; if not, it starts a new `exchangeCodeForSession(code)` call and caches it. Every
-invocation — first mount, StrictMode's synthetic remount, or a real remount on a route change —
-then attaches its own `.then`/`.catch` handler to that same shared promise, gated by its own
-`active` flag. The exchange network call happens exactly once per code; every mount still gets a
-result. Rejected the alternative of a ref that skips the second call outright, since that leaves the
-live (post-remount) component with no handler on the first call's promise, stranding the UI on
-"Verifying your link…" forever.
-
-Changed only `src/features/auth/ResetPasswordScreen.jsx`: added `useRef` to the React import,
-declared the `exchange` ref, and replaced the exchange effect body to reuse
-`exchange.current.promise` instead of calling `exchangeCodeForSession` unconditionally. No changes
-to the state machine's phases, validation, copy, or `src/lib/supabase.js`.
-
-**Lint.** `npm run lint` → exit 0, no output.
-
-**Commit.** `7a0a102` — `fix(auth): share the reset-code exchange promise across StrictMode
-remounts`. No `Co-Authored-By` trailer.
-
-**Traced sequences (re-reading the edited file):**
-
-- (a) StrictMode double mount, valid code: mount 1 creates `exchange.current = { code, promise }`
-  and calls `exchangeCodeForSession` (network call #1, only call); cleanup sets that mount's
-  `active = false`; mount 2 sees `exchange.current.code === code` so reuses the cached promise and
-  attaches a fresh handler with its own `active = true`. When the promise resolves with no error,
-  mount 2's handler runs `setPhase('ready')` (mount 1's handler is a no-op since its `active` is
-  `false`). Exchanged exactly once. Final `phase = 'ready'`.
-- (b) Single mount (production build), valid code: only one invocation, `exchange.current` is
-  `null` so it creates and calls the promise once, resolves with no error, `active` is still `true`,
-  `setPhase('ready')` runs. Final `phase = 'ready'`.
-- (c) Genuinely invalid/already-used code: single relevant call resolves with `{ error }` (or
-  rejects); handler runs `setError(...)` then `setPhase('invalid')` (StrictMode would still call
-  `exchangeCodeForSession` only once thanks to the cache — the second mount just reuses the same
-  rejected/error result). Final `phase = 'invalid'`.
-- (d) No `code` query param: `phase` initializes to `'invalid'`; the effect's `if (!code) return`
-  guard fires before touching `exchange.current`, so no call is made on any mount. Final
-  `phase = 'invalid'`.
+- The browser walkthrough in the brief's Step 4 (seeded dots, live booking, Coach Andrea's view,
+  the 31 March → 28 February step) needs a human with Supabase credentials and cannot be run from
+  here.
+- The `queryPrefixes.appointments` / `mutations.js` fix goes beyond the brief's literal file list
+  (`src/data/appointments.js src/features/trainer src/routes/index.jsx`) and its `git add` command.
+  I judged it necessary because, unfixed, the feature would silently fail its own acceptance
+  criterion. I staged and committed it alongside the brief's files; flagging here in case a
+  reviewer wants it split into its own commit instead.
