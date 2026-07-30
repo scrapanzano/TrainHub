@@ -25,6 +25,7 @@ export default function ScannerScreen() {
     try {
       setResult(await redeemCheckinToken(token))
     } catch (cause) {
+      lastToken.current = null
       setResult({ status: 'error', message: cause.message })
     }
   }, [])
@@ -45,6 +46,9 @@ export default function ScannerScreen() {
         }
         videoRef.current.srcObject = stream
         await videoRef.current.play()
+        if (cancelled) {
+          return
+        }
 
         timer = setInterval(() => {
           const video = videoRef.current
@@ -56,7 +60,12 @@ export default function ScannerScreen() {
           const context = canvas.getContext('2d', { willReadFrequently: true })
           context.drawImage(video, 0, 0, canvas.width, canvas.height)
           const frame = context.getImageData(0, 0, canvas.width, canvas.height)
-          const code = jsQR(frame.data, frame.width, frame.height)
+          let code
+          try {
+            code = jsQR(frame.data, frame.width, frame.height)
+          } catch {
+            return
+          }
           if (code) redeem(code.data)
         }, 200)
       } catch (cause) {
