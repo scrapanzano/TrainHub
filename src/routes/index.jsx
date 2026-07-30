@@ -88,7 +88,12 @@ const router = createBrowserRouter([
           Component: (await import('../features/trainer/BrowseTrainersScreen.jsx')).default,
         }),
       },
-      { path: 'trainer/appointments', ...screen('My Appointments') },
+      {
+        path: 'trainer/appointments',
+        lazy: async () => ({
+          Component: (await import('../features/trainer/MemberAppointmentsScreen.jsx')).default,
+        }),
+      },
       {
         path: 'trainer/chat',
         lazy: async () => ({ Component: (await import('../features/chat/ThreadScreen.jsx')).default }),

@@ -43,6 +43,9 @@ export const queryPrefixes = {
   // Both `agendaOnDay` and `agendaRange` start with 'agenda', so one prefix
   // invalidates the home agenda and every loaded calendar month together.
   agenda: ['agenda'],
+  // `appointmentsOnDay` and `memberAppointments` are the member's mirror of
+  // the two keys above, both starting with 'appointments'.
+  appointments: ['appointments'],
   appointment: ['appointment'],
   nutritionPlan: ['nutritionPlan'],
   availability: ['availability'],

@@ -128,6 +128,12 @@ export function registerMutationDefaults(queryClient) {
     mutationFn: createAppointment,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.agenda })
+      // The professional's own sheet only ever needed `agenda`. Now the
+      // member's booking sheet calls this too, and the member's queries are
+      // `appointments`-prefixed -- without this the new booking would not
+      // show up until the 30s staleTime lapsed and something else triggered
+      // a refetch.
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.appointments })
     },
   })
 
