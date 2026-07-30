@@ -18,7 +18,7 @@ export default function SettingsScreen() {
 
   const onSubmit = async (event) => {
     event.preventDefault()
-    if (mismatch || password === '') return
+    if (mismatch || password === '' || status.phase === 'saving') return
 
     setStatus({ phase: 'saving', message: '' })
     const { error } = await supabase.auth.updateUser({ password })
@@ -59,17 +59,24 @@ export default function SettingsScreen() {
               autoComplete="new-password"
               required
               fullWidth
+              disabled={status.phase === 'saving'}
             />
             <TextField
               label="Confirm new password"
               type="password"
               value={confirm}
-              onChange={(event) => setConfirm(event.target.value)}
+              onChange={(event) => {
+                setConfirm(event.target.value)
+                // Same reasoning as the password field: a stale result must not
+                // sit above a form being filled in again.
+                if (status.phase !== 'idle') setStatus({ phase: 'idle', message: '' })
+              }}
               autoComplete="new-password"
               error={mismatch}
               helperText={mismatch ? 'The two passwords do not match' : ' '}
               required
               fullWidth
+              disabled={status.phase === 'saving'}
             />
 
             {status.phase === 'error' ? <Alert severity="error">{status.message}</Alert> : null}
