@@ -51,6 +51,13 @@ create policy checkin_tokens_select_self on checkin_tokens
 --
 -- `for update` locks the row for the length of the transaction, so two
 -- simultaneous scans of the same QR cannot both find it unused.
+--
+-- SECURITY: this function runs `security definer` and bypasses RLS. All
+-- relation references are schema-qualified and search_path is empty. Postgres
+-- searches pg_temp before search_path when resolving unqualified relations, so
+-- an authenticated professional could create a session-local temp table named
+-- `checkin_tokens` and shadow the real one, forging a check-in. Empty
+-- search_path + qualification closes that window.
 create or replace function redeem_checkin_token(p_token text)
 returns table (
   status              text,
@@ -61,17 +68,17 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
-  v_row checkin_tokens%rowtype;
+  v_row public.checkin_tokens%rowtype;
 begin
-  if not is_professional() then
+  if not public.is_professional() then
     raise exception 'only a professional may redeem a badge'
       using errcode = '42501';
   end if;
 
-  select * into v_row from checkin_tokens t
+  select * into v_row from public.checkin_tokens t
   where t.token = p_token
   for update;
 
@@ -90,13 +97,13 @@ begin
     return;
   end if;
 
-  update checkin_tokens set used_at = now() where id = v_row.id;
-  insert into checkins (member_id, scanned_by_id) values (v_row.member_id, auth.uid());
+  update public.checkin_tokens set used_at = now() where id = v_row.id;
+  insert into public.checkins (member_id, scanned_by_id) values (v_row.member_id, auth.uid());
 
   return query
     select 'ok'::text, p.id, p.full_name,
            p.subscription_status::text, p.subscription_until
-    from profiles p
+    from public.profiles p
     where p.id = v_row.member_id;
 end $$;
 
@@ -125,4 +132,10 @@ select 'member can insert',
   has_table_privilege('authenticated', 'public.checkin_tokens', 'insert')
 union all
 select 'member can select',
-  has_table_privilege('authenticated', 'public.checkin_tokens', 'select');
+  has_table_privilege('authenticated', 'public.checkin_tokens', 'select')
+union all
+select 'redeem runs with an empty search path',
+  (select 'search_path=' = any(p.proconfig)
+   from pg_proc p
+   join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'redeem_checkin_token');
