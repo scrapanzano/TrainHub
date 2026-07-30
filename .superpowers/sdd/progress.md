@@ -1336,3 +1336,8 @@ and seed.sql inserts its ten rows unguarded:
 Everything else seed.sql inserts unguarded belongs to the member and was already
 gone. patches/005 is idempotent and only needs re-running if a demo client was
 deleted too.
+
+PHASE 4A MERGED into main via pull request #2 (merge commit d6d4c08), after the
+device run above. Branch phase-4a-member-completion-and-chat is on origin.
+Remaining routes: /m/profile/badge and /p/scan, both still Placeholder -- they
+are Phase 4B, together with push notifications.
