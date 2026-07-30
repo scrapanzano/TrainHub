@@ -6,6 +6,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { fetchClients } from '../../data/clients.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
+import { slotToISO } from '../../lib/format.js'
 import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import { useAuth } from '../auth/useAuth.js'
 
@@ -16,16 +17,6 @@ const KINDS = [
 ]
 
 const DURATIONS = [30, 45, 60, 90, 120]
-
-/** `'2026-07-29'` + `'14:00'` + 60 → two ISO timestamps in the local zone. */
-function slotToISO(dayISO, timeHHMM, minutes) {
-  const [year, month, day] = dayISO.split('-').map(Number)
-  const [hour, minute] = timeHHMM.split(':').map(Number)
-  // Built from local parts so "14:00" means the professional's two o'clock.
-  const start = new Date(year, month - 1, day, hour, minute, 0, 0)
-  const end = new Date(start.getTime() + minutes * 60_000)
-  return { startsAt: start.toISOString(), endsAt: end.toISOString() }
-}
 
 export default function NewAppointmentSheet({ open, onClose, defaultDayISO }) {
   const { user } = useAuth()

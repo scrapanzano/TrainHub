@@ -6,7 +6,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import { useQuery } from '@tanstack/react-query'
 import { fetchMemberAppointmentsInRange } from '../../data/appointments.js'
 import { queryKeys } from '../../lib/queryKeys.js'
-import { formatDate, todayISO } from '../../lib/format.js'
+import { formatDate, localDayISO, todayISO } from '../../lib/format.js'
 import AppointmentCard from '../../components/AppointmentCard.jsx'
 import MonthGrid from '../../components/MonthGrid.jsx'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
@@ -31,10 +31,10 @@ export default function MemberAppointmentsScreen() {
     queryFn: () => fetchMemberAppointmentsInRange(user.id, rangeFrom, rangeTo),
   })
 
-  // `toLocaleDateString('sv-SE')` is ISO 8601 formatting of the LOCAL day.
-  // `toISOString().slice(0,10)` would give the UTC day and put a late-evening
-  // appointment on the wrong date east of Greenwich.
-  const dayOf = (appointment) => new Date(appointment.starts_at).toLocaleDateString('sv-SE')
+  // `localDayISO`, not `toISOString().slice(0, 10)`: the latter gives the UTC
+  // day and puts a late-evening appointment on the wrong date east of
+  // Greenwich. It is self-checked; an inline equivalent here would not be.
+  const dayOf = (appointment) => localDayISO(appointment.starts_at)
 
   const markers = {}
   for (const appointment of appointments.data ?? []) {

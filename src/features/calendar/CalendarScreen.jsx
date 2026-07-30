@@ -10,7 +10,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router'
 import { fetchAppointmentsInRange } from '../../data/appointments.js'
 import { queryKeys } from '../../lib/queryKeys.js'
-import { formatDate, todayISO } from '../../lib/format.js'
+import { formatDate, localDayISO, todayISO } from '../../lib/format.js'
 import AppointmentCard from '../../components/AppointmentCard.jsx'
 import MonthGrid from '../../components/MonthGrid.jsx'
 import WeekStrip from '../../components/WeekStrip.jsx'
@@ -46,12 +46,12 @@ export default function CalendarScreen() {
   // several kinds, and a 5px dot cannot say so -- the list below can.
   const markers = {}
   for (const appointment of appointments.data ?? []) {
-    const dayISO = new Date(appointment.starts_at).toLocaleDateString('sv-SE')
+    const dayISO = localDayISO(appointment.starts_at)
     if (!markers[dayISO]) markers[dayISO] = appointment.kind
   }
 
   const onDay = (appointments.data ?? []).filter(
-    (appointment) => new Date(appointment.starts_at).toLocaleDateString('sv-SE') === selected,
+    (appointment) => localDayISO(appointment.starts_at) === selected,
   )
 
   const step = (delta) => {

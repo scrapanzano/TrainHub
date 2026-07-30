@@ -1,6 +1,6 @@
 // Run with:  node src/lib/format.selfcheck.js
 import assert from 'node:assert/strict'
-import { formatDate, formatTimeRange, localDayISO, todayISO } from './format.js'
+import { formatDate, formatTimeRange, localDayISO, slotToISO, todayISO } from './format.js'
 
 // Times render in the viewer's local zone, so the fixtures carry an explicit
 // offset and the expectations are computed rather than hard-coded -- otherwise
@@ -52,5 +52,30 @@ assert.equal(localDayISO(lateEveningLocal.toISOString()), '2026-07-16')
 
 // todayISO delegates to localDayISO; keep them provably in sync.
 assert.equal(todayISO(), localDayISO(new Date()))
+
+// slotToISO must read "14:00" as the *user's* two o'clock, whatever zone they
+// are in, and must not fall into either date trap. Expectations are computed
+// through the local Date constructor for the same reason as above: a hard-coded
+// UTC string would pass only in Britain in winter.
+const slot = slotToISO('2026-07-29', '14:00', 60)
+assert.equal(slot.startsAt, new Date(2026, 6, 29, 14, 0).toISOString())
+assert.equal(slot.endsAt, new Date(2026, 6, 29, 15, 0).toISOString())
+
+// The local calendar day of the start must be the day that was asked for. This
+// is the assertion that fails if anyone reaches for `new Date(dayISO)` -- UTC
+// midnight plus 14 hours is still the 29th in Rome, but plus 00:30 is the 28th.
+assert.equal(localDayISO(slotToISO('2026-07-29', '00:30', 30).startsAt), '2026-07-29')
+assert.equal(localDayISO(slotToISO('2026-07-29', '23:30', 30).startsAt), '2026-07-29')
+
+// A duration that crosses midnight local must land on the next day, not wrap.
+assert.equal(localDayISO(slotToISO('2026-07-29', '23:30', 60).endsAt), '2026-07-30')
+
+// Single-digit month and day must not be mis-parsed (`'2026-01-05'` → January
+// the 5th, and January is month index 0, not 1).
+assert.equal(slotToISO('2026-01-05', '09:00', 30).startsAt, new Date(2026, 0, 5, 9, 0).toISOString())
+
+// 30 minutes is exactly 30 minutes, in milliseconds, not 30 of anything else.
+const half = slotToISO('2026-07-29', '10:00', 30)
+assert.equal(new Date(half.endsAt) - new Date(half.startsAt), 30 * 60_000)
 
 console.log('format: OK')
