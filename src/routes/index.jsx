@@ -105,7 +105,12 @@ const router = createBrowserRouter([
           Component: (await import('../features/profile/ProfileScreen.jsx')).default,
         }),
       },
-      { path: 'profile/badge', ...screen('Access Badge') },
+      {
+        path: 'profile/badge',
+        lazy: async () => ({
+          Component: (await import('../features/profile/BadgeScreen.jsx')).default,
+        }),
+      },
       {
         path: 'profile/subscription',
         lazy: async () => ({
