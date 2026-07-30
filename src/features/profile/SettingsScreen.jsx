@@ -3,6 +3,7 @@ import { Alert, Button, Card, CardContent, Divider, Stack, TextField, Typography
 import LogoutIcon from '@mui/icons-material/Logout'
 import { supabase } from '../../lib/supabase.js'
 import { useAuth } from '../auth/useAuth.js'
+import NotificationSwitch from './NotificationSwitch.jsx'
 
 export default function SettingsScreen() {
   const { user, signOut } = useAuth()
@@ -90,6 +91,12 @@ export default function SettingsScreen() {
               {status.phase === 'saving' ? 'Saving…' : 'Change password'}
             </Button>
           </Stack>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          <NotificationSwitch />
         </CardContent>
       </Card>
 
