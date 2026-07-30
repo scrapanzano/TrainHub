@@ -99,9 +99,19 @@ const router = createBrowserRouter([
         lazy: async () => ({ Component: (await import('../features/chat/ThreadScreen.jsx')).default }),
       },
 
-      { path: 'profile', ...screen('Profile') },
+      {
+        path: 'profile',
+        lazy: async () => ({
+          Component: (await import('../features/profile/ProfileScreen.jsx')).default,
+        }),
+      },
       { path: 'profile/badge', ...screen('Access Badge') },
-      { path: 'profile/subscription', ...screen('Subscription') },
+      {
+        path: 'profile/subscription',
+        lazy: async () => ({
+          Component: (await import('../features/profile/SubscriptionScreen.jsx')).default,
+        }),
+      },
       {
         path: 'profile/rewards',
         lazy: async () => ({
@@ -191,7 +201,12 @@ const router = createBrowserRouter([
 
       { path: 'scan', ...screen('Scan Access Badge') },
 
-      { path: 'profile', ...screen('Profile') },
+      {
+        path: 'profile',
+        lazy: async () => ({
+          Component: (await import('../features/profile/ProfileScreen.jsx')).default,
+        }),
+      },
       { path: 'profile/settings', ...screen('Settings') },
     ],
   },
