@@ -5,6 +5,7 @@ import { saveBodyMetric } from './progress.js'
 import { createAppointment, setAppointmentStatus } from './appointments.js'
 import { addAvailability, deleteAvailability } from './availability.js'
 import { ensureThread, markThreadRead, sendMessage } from './chat.js'
+import { chooseProfessional } from './profile.js'
 import { mutationKeys } from '../lib/mutationKeys.js'
 import { queryPrefixes } from '../lib/queryKeys.js'
 
@@ -178,6 +179,21 @@ export function registerMutationDefaults(queryClient) {
   queryClient.setMutationDefaults(mutationKeys.ensureThread, {
     mutationFn: ensureThread,
     onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.chat })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.chooseProfessional, {
+    mutationFn: chooseProfessional,
+    onSettled: () => {
+      // A different professional means a different thread, so the whole chat
+      // family is stale -- the member's thread lookup, its messages and the
+      // unread badge.
+      //
+      // What this canNOT refresh is the member's own profile: AuthProvider
+      // holds it outside the query cache, so `assigned_pro_id` in the shell
+      // stays stale until the app reloads. The call site does that reload; see
+      // the note there and in "Deferred beyond Phase 4".
       queryClient.invalidateQueries({ queryKey: queryPrefixes.chat })
     },
   })

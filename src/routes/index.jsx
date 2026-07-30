@@ -76,8 +76,18 @@ const router = createBrowserRouter([
         }),
       },
 
-      { path: 'trainer', ...screen('My Trainer') },
-      { path: 'trainer/browse', ...screen('Choose a Professional') },
+      {
+        path: 'trainer',
+        lazy: async () => ({
+          Component: (await import('../features/trainer/MyTrainerScreen.jsx')).default,
+        }),
+      },
+      {
+        path: 'trainer/browse',
+        lazy: async () => ({
+          Component: (await import('../features/trainer/BrowseTrainersScreen.jsx')).default,
+        }),
+      },
       { path: 'trainer/appointments', ...screen('My Appointments') },
       {
         path: 'trainer/chat',
