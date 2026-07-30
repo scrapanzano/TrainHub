@@ -250,7 +250,18 @@ select 'member can insert',
   has_table_privilege('authenticated', 'public.checkin_tokens', 'insert')
 union all
 select 'member can select',
-  has_table_privilege('authenticated', 'public.checkin_tokens', 'select');
+  has_table_privilege('authenticated', 'public.checkin_tokens', 'select')
+union all
+-- Catches a future edit that puts `search_path = public` back: with a schema on
+-- the path and unqualified names, a temp table can shadow the real one inside a
+-- definer function.  Postgres stores an empty search path as the bare string
+-- 'search_path=' in proconfig, which is why this compares against that and not
+-- against a value.
+select 'redeem runs with an empty search path',
+  (select 'search_path=' = any(p.proconfig)
+   from pg_proc p
+   join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'redeem_checkin_token');
 ```
 
 - [ ] **Step 2: Write the data module**
