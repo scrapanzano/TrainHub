@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase.js'
 import { AuthContext } from './AuthContext.js'
 
 const PROFILE_COLUMNS =
-  'id, role, specialty, full_name, avatar_url, assigned_pro_id, subscription_status'
+  'id, role, specialty, full_name, avatar_url, assigned_pro_id, subscription_status, subscription_until'
 
 // `forUserId` is the whole point of this shape: it records WHICH user the
 // profile belongs to, so readiness can be recomputed from current state on
