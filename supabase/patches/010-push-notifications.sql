@@ -98,6 +98,9 @@ begin
          else '/p/chat/' || new.thread_id::text
     end);
   return null;
+exception when others then
+  raise warning 'notify_on_message failed: %', sqlerrm;
+  return null;
 end $$;
 
 drop trigger if exists on_message_notify on messages;
@@ -119,6 +122,9 @@ begin
     to_char(new.starts_at, 'Dy DD Mon at HH24:MI'),
     '/m/trainer/appointments');
   return null;
+exception when others then
+  raise warning 'notify_on_appointment_status failed: %', sqlerrm;
+  return null;
 end $$;
 
 drop trigger if exists on_appointment_status_notify on appointments;
@@ -134,6 +140,9 @@ begin
   perform public.notify_user(new.member_id, 'New workout plan',
                       coalesce(new.name, 'Your plan is ready.'), '/m/workout');
   return null;
+exception when others then
+  raise warning 'notify_on_workout_plan failed: %', sqlerrm;
+  return null;
 end $$;
 
 drop trigger if exists on_workout_plan_notify on workout_plans;
@@ -146,6 +155,9 @@ language plpgsql security definer set search_path = '' as $$
 begin
   perform public.notify_user(new.member_id, 'New nutrition plan',
                       coalesce(new.name, 'Your plan is ready.'), '/m/nutrition');
+  return null;
+exception when others then
+  raise warning 'notify_on_nutrition_plan failed: %', sqlerrm;
   return null;
 end $$;
 
