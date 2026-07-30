@@ -63,8 +63,18 @@ const router = createBrowserRouter([
         }),
       },
 
-      { path: 'nutrition', ...screen('Nutrition') },
-      { path: 'nutrition/meal/:mealId', ...screen('Meal Details') },
+      {
+        path: 'nutrition',
+        lazy: async () => ({
+          Component: (await import('../features/nutrition/MemberNutritionScreen.jsx')).default,
+        }),
+      },
+      {
+        path: 'nutrition/meal/:mealId',
+        lazy: async () => ({
+          Component: (await import('../features/nutrition/MealDetailScreen.jsx')).default,
+        }),
+      },
 
       { path: 'trainer', ...screen('My Trainer') },
       { path: 'trainer/browse', ...screen('Choose a Professional') },
