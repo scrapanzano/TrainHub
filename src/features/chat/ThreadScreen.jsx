@@ -23,11 +23,18 @@ export default function ThreadScreen() {
   const { user, profile } = useAuth()
   const isMember = profile?.role === 'member'
 
+  const proId = profile?.assigned_pro_id ?? null
+
   // Only the member needs the lookup; the professional already has the id.
+  // Scoped to the assigned professional, not just the member: `threads` is
+  // unique per (member, pro) PAIR, and a member who switches professional ends
+  // up with two rows -- which a member-only `maybeSingle()` answers PGRST116,
+  // breaking the chat permanently. Disabled until the professional is known,
+  // since the lookup has no meaning without one.
   const memberThread = useQuery({
-    queryKey: queryKeys.memberThread(user.id),
-    queryFn: () => fetchMemberThread(user.id),
-    enabled: isMember,
+    queryKey: queryKeys.memberThread(user.id, proId),
+    queryFn: () => fetchMemberThread(user.id, proId),
+    enabled: isMember && Boolean(proId),
   })
 
   const threadId = isMember ? (memberThread.data?.id ?? null) : threadIdParam
@@ -65,13 +72,26 @@ export default function ThreadScreen() {
   // would let `mutate` fire again immediately -- an uncontrolled retry loop.
   useEffect(() => {
     if (!isMember) return
-    if (memberThread.isPending || memberThread.data || !profile?.assigned_pro_id) return
+    if (memberThread.isPending || memberThread.data || !proId) return
     if (createThread.isPending || createThread.isSuccess || createThread.isError) return
     createThread.mutate(
-      { memberId: user.id, proId: profile.assigned_pro_id },
+      { memberId: user.id, proId },
       { onSuccess: () => memberThread.refetch() },
     )
-  }, [isMember, memberThread, profile?.assigned_pro_id, user.id, createThread])
+  }, [isMember, memberThread, proId, user.id, createThread])
+
+  // A member with no professional has nobody to talk to. That is a real state,
+  // and the fix is a route, not an error. Checked before the pending gate
+  // below: the lookup is disabled without a professional, so it stays `pending`
+  // forever and would otherwise show an endless spinner.
+  if (isMember && !proId) {
+    return (
+      <EmptyState
+        title="No trainer yet"
+        description="Choose a professional from the Trainer tab and you can message them here."
+      />
+    )
+  }
 
   if (isMember && memberThread.isPending) return <LoadingState />
   if (isMember && memberThread.isError && memberThread.data === undefined) {
@@ -88,21 +108,10 @@ export default function ThreadScreen() {
         error={createThread.error}
         onRetry={() =>
           createThread.mutate(
-            { memberId: user.id, proId: profile.assigned_pro_id },
+            { memberId: user.id, proId },
             { onSuccess: () => memberThread.refetch() },
           )
         }
-      />
-    )
-  }
-
-  // A member with no professional has nobody to talk to. That is a real state,
-  // and the fix is a route, not an error.
-  if (isMember && !profile?.assigned_pro_id) {
-    return (
-      <EmptyState
-        title="No trainer yet"
-        description="Choose a professional from the Trainer tab and you can message them here."
       />
     )
   }
@@ -122,7 +131,16 @@ export default function ThreadScreen() {
         <Typography variant="h1">Chat</Typography>
       )}
 
-      {messages.isPending ? <LoadingState /> : null}
+      {/* The thread row does not exist yet and `ensureThread` is creating it.
+          Offline that write pauses indefinitely, so this is a lasting state and
+          not a momentary spinner -- say so rather than turning forever. */}
+      {!threadId ? (
+        <EmptyState
+          title="Setting up your chat"
+          description="This finishes as soon as you are back online."
+        />
+      ) : null}
+      {threadId && messages.isPending ? <LoadingState /> : null}
       {messages.isError && messages.data === undefined ? (
         <ErrorState error={messages.error} onRetry={messages.refetch} />
       ) : null}
@@ -140,24 +158,31 @@ export default function ThreadScreen() {
         ))}
       </Stack>
 
-      <Box sx={{ position: 'sticky', bottom: 0, bgcolor: 'background.default', pt: 1 }}>
-        <MessageComposer
-          paused={send.isPending && send.isPaused}
-          error={send.error}
-          onSend={(body) =>
-            send.mutate({
-              // Generated here, in the handler: this write can pause offline and
-              // replay, and the id is what makes the replay a no-op instead of a
-              // second message. A render-time call would be impure and would
-              // defeat it.
-              id: crypto.randomUUID(),
-              threadId,
-              senderId: user.id,
-              body,
-            })
-          }
-        />
-      </Box>
+      {/* Gated on the thread id, not merely hidden while loading: with
+          `threadId` still null a send queues `thread_id: null`, which fails the
+          not-null constraint on reconnect and loses the message. Online the
+          window is milliseconds; offline `ensureThread` never settles and it
+          would be permanent. */}
+      {threadId ? (
+        <Box sx={{ position: 'sticky', bottom: 0, bgcolor: 'background.default', pt: 1 }}>
+          <MessageComposer
+            paused={send.isPending && send.isPaused}
+            error={send.error}
+            onSend={(body) =>
+              send.mutate({
+                // Generated here, in the handler: this write can pause offline
+                // and replay, and the id is what makes the replay a no-op
+                // instead of a second message. A render-time call would be
+                // impure and would defeat it.
+                id: crypto.randomUUID(),
+                threadId,
+                senderId: user.id,
+                body,
+              })
+            }
+          />
+        </Box>
+      ) : null}
     </Stack>
   )
 }

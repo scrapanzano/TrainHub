@@ -42,9 +42,11 @@ export function useThreadMessages(threadId) {
             // Undefined means the first fetch has not landed; there is nothing
             // to append to, and the fetch will include this row anyway.
             if (!current) return current
-            // The sender already has this row from its own optimistic insert,
-            // and Realtime re-delivers on reconnect. Both make duplicates
-            // possible, and a duplicated message is a visible bug.
+            // The sender already has this row from `sendMessage`'s `onMutate`
+            // (registered in `src/data/mutations.js`, keyed on the same
+            // client-generated id), and Realtime re-delivers on reconnect. Both
+            // make duplicates possible, and a duplicated message is a visible
+            // bug.
             if (current.some((message) => message.id === payload.new.id)) return current
             return [...current, payload.new]
           })

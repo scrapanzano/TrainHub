@@ -27,16 +27,22 @@ export async function ensureThread({ memberId, proId }) {
 }
 
 /**
- * The member's thread, if one exists.
+ * The member's thread with one professional, if it exists.
  *
- * Returns null rather than throwing when the member has no professional or has
- * never messaged: both are ordinary states the screen renders as an empty one.
+ * Scoped to the pair, not to the member: `threads` is `unique (member_id,
+ * pro_id)`, so a member who switches professional owns two rows and a
+ * member-only filter makes `maybeSingle()` answer `PGRST116` -- a permanent
+ * error on a screen whose Retry can never clear it.
+ *
+ * Returns null rather than throwing when the pair has never messaged: that is
+ * an ordinary state the screen renders as an empty one.
  */
-export async function fetchMemberThread(memberId) {
+export async function fetchMemberThread(memberId, proId) {
   const { data, error } = await supabase
     .from('threads')
     .select('id, pro:profiles!threads_pro_id_fkey ( id, full_name, avatar_url )')
     .eq('member_id', memberId)
+    .eq('pro_id', proId)
     .maybeSingle()
     .retry(navigator.onLine)
 

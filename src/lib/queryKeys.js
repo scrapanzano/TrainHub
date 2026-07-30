@@ -20,7 +20,9 @@ export const queryKeys = {
   availability: (proId) => ['availability', proId],
   bodyMetrics: (memberId) => ['bodyMetrics', memberId],
   clientTraining: (memberId) => ['clientTraining', memberId],
-  memberThread: (memberId) => ['chat', 'memberThread', memberId],
+  // Keyed on the pair: `threads` is unique per (member, pro), so a member who
+  // switches professional has one thread per professional, not one thread.
+  memberThread: (memberId, proId) => ['chat', 'memberThread', memberId, proId],
   threads: (proId) => ['chat', 'threads', proId],
   threadMessages: (threadId) => ['chat', 'messages', threadId],
   unreadCount: (userId) => ['chat', 'unread', userId],

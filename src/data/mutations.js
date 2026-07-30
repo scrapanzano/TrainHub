@@ -7,7 +7,7 @@ import { addAvailability, deleteAvailability } from './availability.js'
 import { ensureThread, markThreadRead, sendMessage } from './chat.js'
 import { chooseProfessional } from './profile.js'
 import { mutationKeys } from '../lib/mutationKeys.js'
-import { queryPrefixes } from '../lib/queryKeys.js'
+import { queryKeys, queryPrefixes } from '../lib/queryKeys.js'
 
 /**
  * Teach the query client how to replay each mutation after a reload.
@@ -169,6 +169,42 @@ export function registerMutationDefaults(queryClient) {
     // the content: two queued sends replayed in parallel can land out of order
     // and the conversation reads wrong.
     scope: { id: 'chat' },
+
+    // Show the message the instant it is sent.  Offline the write pauses and
+    // never settles, so without this the composer clears and NOTHING appears --
+    // the message is invisible until reconnect, and a paused mutation survives a
+    // reload with nothing on screen representing it.  Registered here rather
+    // than at the call site so a replayed send is covered too.
+    //
+    // The caller already supplies the row's id, and the Realtime handler in
+    // `useThreadMessages.js` dedupes on that same id, so the server's echo of
+    // this row is a no-op rather than a duplicate.
+    //
+    // No rollback: a paused send that later fails permanently leaves this row
+    // behind until the next refetch drops it, which is the better trade than
+    // deleting a message a user believes they sent.
+    onMutate: ({ id, threadId, senderId, body }) => {
+      queryClient.setQueryData(queryKeys.threadMessages(threadId), (current) => {
+        // Undefined means the first fetch has not landed; there is nothing to
+        // append to, and that fetch will include this row anyway.
+        if (!current) return current
+        return [
+          ...current,
+          {
+            id,
+            thread_id: threadId,
+            sender_id: senderId,
+            body,
+            read_at: null,
+            // Local clock, unlike the real row, whose `created_at` is the column
+            // default -- close enough to keep this at the end of the list, which
+            // is all it is used for here.
+            created_at: new Date().toISOString(),
+          },
+        ]
+      })
+    },
+
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.chat })
     },
@@ -184,6 +220,9 @@ export function registerMutationDefaults(queryClient) {
 
   queryClient.setMutationDefaults(mutationKeys.ensureThread, {
     mutationFn: ensureThread,
+    // Same scope as its two siblings: the thread must exist before a queued send
+    // or read-receipt for it replays.
+    scope: { id: 'chat' },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.chat })
     },

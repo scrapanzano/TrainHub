@@ -21,7 +21,8 @@ export default function MessageComposer({ onSend, paused, error }) {
     // Cleared immediately rather than on success: offline the mutation pauses
     // and never resolves, and a composer that will not clear until reconnect
     // makes the app feel broken in exactly the case it was built for. The
-    // message is already queued and rendered.
+    // message is already queued and on screen -- `sendMessage`'s `onMutate` in
+    // `src/data/mutations.js` appends it to the thread before the write runs.
     setBody('')
   }
 
