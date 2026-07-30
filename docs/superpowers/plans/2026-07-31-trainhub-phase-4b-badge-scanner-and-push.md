@@ -772,6 +772,15 @@ alter table app_config enable row level security;
 revoke all on table app_config from anon, authenticated;
 
 -- Send one notification.  Never raises into its caller.
+--
+-- `search_path = ''` with fully qualified names, here and in every trigger
+-- function below, is a security boundary rather than a style: Postgres resolves
+-- an unqualified RELATION through the temporary schema first, and any signed-in
+-- role may create temp tables.  A `security definer` function reading an
+-- unqualified `app_config` could therefore be handed a forged one -- and this
+-- particular table holds the secret that authenticates the database to the Edge
+-- Function.  `now()` and the other built-ins need no qualification: pg_catalog
+-- is searched first whatever `search_path` says.
 create or replace function notify_user(
   p_user  uuid,
   p_title text,
@@ -780,14 +789,14 @@ create or replace function notify_user(
 ) returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   v_url    text;
   v_secret text;
 begin
-  select value into v_url    from app_config where key = 'notify_function_url';
-  select value into v_secret from app_config where key = 'notify_secret';
+  select value into v_url    from public.app_config where key = 'notify_function_url';
+  select value into v_secret from public.app_config where key = 'notify_secret';
 
   -- Unconfigured is not an error: the badge and the scanner must keep working
   -- on a database where the Edge Function was never deployed.
@@ -812,22 +821,22 @@ end $$;
 
 -- 1. A new chat message notifies the OTHER party.
 create or replace function notify_on_message() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = '' as $$
 declare
   v_target uuid;
   v_sender text;
 begin
   select case when t.member_id = new.sender_id then t.pro_id else t.member_id end
   into v_target
-  from threads t where t.id = new.thread_id;
+  from public.threads t where t.id = new.thread_id;
 
-  select full_name into v_sender from profiles where id = new.sender_id;
+  select full_name into v_sender from public.profiles where id = new.sender_id;
 
-  perform notify_user(
+  perform public.notify_user(
     v_target,
     coalesce(v_sender, 'New message'),
     left(new.body, 120),
-    case when v_target = (select member_id from threads where id = new.thread_id)
+    case when v_target = (select member_id from public.threads where id = new.thread_id)
          then '/m/trainer/chat'
          else '/p/chat/' || new.thread_id::text
     end);
@@ -841,13 +850,13 @@ create trigger on_message_notify
 
 -- 2. A change of appointment status notifies the member.
 create or replace function notify_on_appointment_status() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = '' as $$
 begin
   if new.status is not distinct from old.status then
     return null;
   end if;
 
-  perform notify_user(
+  perform public.notify_user(
     new.member_id,
     'Appointment ' || new.status,
     to_char(new.starts_at, 'Dy DD Mon at HH24:MI'),
@@ -863,9 +872,9 @@ create trigger on_appointment_status_notify
 -- 3 and 4. A newly assigned plan notifies the member.  Two tables, one event,
 -- and the copy names which kind arrived.
 create or replace function notify_on_workout_plan() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = '' as $$
 begin
-  perform notify_user(new.member_id, 'New workout plan',
+  perform public.notify_user(new.member_id, 'New workout plan',
                       coalesce(new.name, 'Your plan is ready.'), '/m/workout');
   return null;
 end $$;
@@ -876,9 +885,9 @@ create trigger on_workout_plan_notify
   for each row execute function notify_on_workout_plan();
 
 create or replace function notify_on_nutrition_plan() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = '' as $$
 begin
-  perform notify_user(new.member_id, 'New nutrition plan',
+  perform public.notify_user(new.member_id, 'New nutrition plan',
                       coalesce(new.name, 'Your plan is ready.'), '/m/nutrition');
   return null;
 end $$;
