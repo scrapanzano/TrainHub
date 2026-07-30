@@ -63,24 +63,67 @@ const router = createBrowserRouter([
         }),
       },
 
-      { path: 'nutrition', ...screen('Nutrition') },
-      { path: 'nutrition/meal/:mealId', ...screen('Meal Details') },
+      {
+        path: 'nutrition',
+        lazy: async () => ({
+          Component: (await import('../features/nutrition/MemberNutritionScreen.jsx')).default,
+        }),
+      },
+      {
+        path: 'nutrition/meal/:mealId',
+        lazy: async () => ({
+          Component: (await import('../features/nutrition/MealDetailScreen.jsx')).default,
+        }),
+      },
 
-      { path: 'trainer', ...screen('My Trainer') },
-      { path: 'trainer/browse', ...screen('Choose a Professional') },
-      { path: 'trainer/appointments', ...screen('My Appointments') },
-      { path: 'trainer/chat', ...screen('Chat') },
+      {
+        path: 'trainer',
+        lazy: async () => ({
+          Component: (await import('../features/trainer/MyTrainerScreen.jsx')).default,
+        }),
+      },
+      {
+        path: 'trainer/browse',
+        lazy: async () => ({
+          Component: (await import('../features/trainer/BrowseTrainersScreen.jsx')).default,
+        }),
+      },
+      {
+        path: 'trainer/appointments',
+        lazy: async () => ({
+          Component: (await import('../features/trainer/MemberAppointmentsScreen.jsx')).default,
+        }),
+      },
+      {
+        path: 'trainer/chat',
+        lazy: async () => ({ Component: (await import('../features/chat/ThreadScreen.jsx')).default }),
+      },
 
-      { path: 'profile', ...screen('Profile') },
+      {
+        path: 'profile',
+        lazy: async () => ({
+          Component: (await import('../features/profile/ProfileScreen.jsx')).default,
+        }),
+      },
       { path: 'profile/badge', ...screen('Access Badge') },
-      { path: 'profile/subscription', ...screen('Subscription') },
+      {
+        path: 'profile/subscription',
+        lazy: async () => ({
+          Component: (await import('../features/profile/SubscriptionScreen.jsx')).default,
+        }),
+      },
       {
         path: 'profile/rewards',
         lazy: async () => ({
           Component: (await import('../features/rewards/RewardsScreen.jsx')).default,
         }),
       },
-      { path: 'profile/settings', ...screen('Settings') },
+      {
+        path: 'profile/settings',
+        lazy: async () => ({
+          Component: (await import('../features/profile/SettingsScreen.jsx')).default,
+        }),
+      },
     ],
   },
 
@@ -150,13 +193,31 @@ const router = createBrowserRouter([
         }),
       },
 
-      { path: 'chat', ...screen('Chat') },
-      { path: 'chat/:threadId', ...screen('Thread') },
+      {
+        path: 'chat',
+        lazy: async () => ({
+          Component: (await import('../features/chat/ThreadListScreen.jsx')).default,
+        }),
+      },
+      {
+        path: 'chat/:threadId',
+        lazy: async () => ({ Component: (await import('../features/chat/ThreadScreen.jsx')).default }),
+      },
 
       { path: 'scan', ...screen('Scan Access Badge') },
 
-      { path: 'profile', ...screen('Profile') },
-      { path: 'profile/settings', ...screen('Settings') },
+      {
+        path: 'profile',
+        lazy: async () => ({
+          Component: (await import('../features/profile/ProfileScreen.jsx')).default,
+        }),
+      },
+      {
+        path: 'profile/settings',
+        lazy: async () => ({
+          Component: (await import('../features/profile/SettingsScreen.jsx')).default,
+        }),
+      },
     ],
   },
 

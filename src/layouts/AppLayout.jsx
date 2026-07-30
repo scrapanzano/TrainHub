@@ -1,10 +1,13 @@
+import { useQuery } from '@tanstack/react-query'
 import { Box, Button, Stack, Typography } from '@mui/material'
 import { Navigate, Outlet, useLocation } from 'react-router'
 import BottomNav from '../components/BottomNav.jsx'
 import OfflineBanner from '../components/OfflineBanner.jsx'
 import { LoadingState } from '../components/ScreenState.jsx'
 import TopHeader from '../components/TopHeader.jsx'
+import { fetchUnreadCount } from '../data/chat.js'
 import { useAuth } from '../features/auth/useAuth.js'
+import { queryKeys } from '../lib/queryKeys.js'
 
 /**
  * The signed-in shell for both roles.  The only difference between a member's
@@ -18,6 +21,20 @@ import { useAuth } from '../features/auth/useAuth.js'
 export default function AppLayout({ navItems, profileHref, requiredRole }) {
   const { user, profile, profileError, loading, signOut } = useAuth()
   const location = useLocation()
+
+  const unread = useQuery({
+    queryKey: queryKeys.unreadCount(user?.id),
+    queryFn: () => fetchUnreadCount(user.id),
+    // Nothing to count until somebody is signed in.
+    enabled: Boolean(user?.id),
+    // Polled rather than pushed: the chat's Realtime channel is filtered to one
+    // `thread_id` and lives on the conversation screen, so it cannot feed a
+    // badge that must count every thread. This layout never unmounts on inner
+    // navigation either, so without an interval the badge freezes at its
+    // page-load value. A shell-level subscription is the fuller answer and is
+    // not worth a second channel at this scale.
+    refetchInterval: 60_000,
+  })
 
   // Hold the shell until the session is known, otherwise a signed-in user is
   // briefly bounced to /login on every cold start.  A spinner rather than null:
@@ -81,7 +98,7 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
           persistent indicator; left in normal flow it scrolls away and is only
           visible at the top of the page. */}
       <Box sx={{ position: 'sticky', top: 0, zIndex: 'appBar' }}>
-        <TopHeader profileHref={profileHref} />
+        <TopHeader profileHref={profileHref} notificationCount={unread.data ?? 0} />
         <OfflineBanner />
       </Box>
       <Box component="main" sx={{ flexGrow: 1, pb: 2 }}>

@@ -20,6 +20,14 @@ export const queryKeys = {
   availability: (proId) => ['availability', proId],
   bodyMetrics: (memberId) => ['bodyMetrics', memberId],
   clientTraining: (memberId) => ['clientTraining', memberId],
+  // Keyed on the pair: `threads` is unique per (member, pro), so a member who
+  // switches professional has one thread per professional, not one thread.
+  memberThread: (memberId, proId) => ['chat', 'memberThread', memberId, proId],
+  threads: (proId) => ['chat', 'threads', proId],
+  threadMessages: (threadId) => ['chat', 'messages', threadId],
+  unreadCount: (userId) => ['chat', 'unread', userId],
+  professionals: () => ['professionals'],
+  memberAppointments: (memberId, fromISO, toISO) => ['appointments', memberId, 'range', fromISO, toISO],
 }
 
 // Prefixes, for invalidating a whole family at once.  `invalidateQueries`
@@ -37,8 +45,15 @@ export const queryPrefixes = {
   // Both `agendaOnDay` and `agendaRange` start with 'agenda', so one prefix
   // invalidates the home agenda and every loaded calendar month together.
   agenda: ['agenda'],
+  // `appointmentsOnDay` and `memberAppointments` are the member's mirror of
+  // the two keys above, both starting with 'appointments'.
+  appointments: ['appointments'],
   appointment: ['appointment'],
   nutritionPlan: ['nutritionPlan'],
   availability: ['availability'],
   bodyMetrics: ['bodyMetrics'],
+  // Every chat key starts with 'chat', so one prefix invalidates the thread
+  // list, the open conversation and the unread badge together.
+  chat: ['chat'],
+  professionals: ['professionals'],
 }

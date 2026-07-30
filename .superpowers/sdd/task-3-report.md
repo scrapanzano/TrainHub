@@ -1,72 +1,92 @@
-# Task 3 Completion Report: Data Layer for Workouts and Appointments
+# Task 3 Report: The Professional's Inbox
 
-## Files Created
+## What Was Implemented
 
-1. **`src/data/workouts.js`** (89 lines)
-   - Exports `fetchActivePlan(memberId)` — returns current plan with its sessions or null
-   - Exports `fetchSession(sessionId)` — returns session with ordered, decorated exercises
-   - Exports `fetchSessionExercise(sessionExerciseId)` — returns exercise with session context
-   - Uses PostgREST embedded selects with FK constraint name hints for disambiguation
-   - Aggregates `set_logs(count)` to track logged workout completions per exercise
+Task 3 implements the professional's chat inbox at `/p/chat`, as specified in the brief. The implementation includes:
 
-2. **`src/data/appointments.js`** (26 lines)
-   - Exports `fetchAppointmentsOnDay(memberId, dayISO)` — returns day's appointments ordered by start time
-   - Handles local-to-UTC conversion to respect member's timezone (prevents dropping evening appointments for UTC+X zones)
-   - Uses FK constraint name hint on `pro` relationship
+1. **New Screen: `ThreadListScreen.jsx`**
+   - Mirrors the wireframe `pt/07 - Chat.png`
+   - Displays a searchable list of conversation threads with clients
+   - Features:
+     - Search field to filter threads by client name
+     - "All" / "To Read" filter chips with unread badge count
+     - Thread rows showing:
+       - Client avatar with unread badge
+       - Client name and last message preview (truncated)
+       - Timestamp of last message
+     - Three distinct empty states:
+       - "No conversations yet" when the professional has no threads
+       - "Nothing unread" when filtering to unread but all are read
+       - "No match" when search returns no results
+     - Loading and error states via `LoadingState`, `ErrorState`
 
-## Code Verification
+2. **Route Wiring**
+   - `/p/chat` → lazy-loads `ThreadListScreen.jsx`
+   - `/p/chat/:threadId` → lazy-loads `ThreadScreen.jsx` (already built in Task 2)
 
-- **Code transcription**: Both files transcribed exactly as specified in the brief, including all comments.
-- **Imports**: Both correctly import `supabase` from `src/lib/supabase.js` (existing singleton).
-- **Error handling**: All functions throw on Supabase errors (as required for TanStack Query integration).
-- **Null handling**: `fetchActivePlan` returns `null` on no plan (ordinary state); others throw on query errors.
-- **Row ordering**: 
-  - `fetchActivePlan` sorts sessions by `position`
-  - `fetchSession` sorts exercises by `position` (PostgREST doesn't order embedded rows, so sorting in-memory is necessary)
-  - `fetchAppointmentsOnDay` sorts by `starts_at`
+## Verification Results
 
-## Lint Result
-
+### ESLint
 ```
-npm run lint
-# Output: (no errors)
-# Exit code: 0
+> trainhub@0.0.0 lint
+> eslint .
+
+(no output = exit code 0, all checks passed)
 ```
 
-All files pass ESLint with no warnings or errors. No style issues, unused imports, or undefined variables.
+### Vite Build
+```
+> trainhub@0.0.0 build
+> vite build
 
-## Commit
+✓ built in 531ms (client)
+✓ built in 54ms (service worker)
 
-- **Hash**: `eb7b929`
-- **Message**: `feat: add workout and appointment data layer`
-- **Files staged**: `src/data/workouts.js`, `src/data/appointments.js`
-- **Trailer**: None (per global constraints, no Co-Authored-By trailer)
+ThreadListScreen.jsx compiled to dist/assets/ThreadListScreen-BxHxMSyQ.js (2.63 kB gzip)
+All 68 precache entries generated successfully
+```
 
-## Step 4: Database Verification — DEFERRED
+Both commands succeeded. No lint errors, no build errors.
 
-Step 4 (browser verification against live database) is deferred to the human. The implementation cannot proceed without:
-- A running dev server (`npm run build && npm run preview`)
-- Browser access to the live Supabase instance
-- Valid credentials (`daniel@trainhub.dev` / `TrainHub2026!`)
-- Console environment to run the verification script
+## Files Changed
 
-The queries will only fail at runtime if FK constraint names or embedded relationship paths are wrong. PostgREST will respond with an explicit message naming the ambiguous/missing relationship, so misconfigurations are immediately catchable during manual verification.
+- **Created:** `src/features/chat/ThreadListScreen.jsx` (149 lines)
+  - Consumes: `fetchThreads()`, `queryKeys.threads(proId)`, `useAuth()`, `ScreenState` components
+  - Uses: React 19, @mui/material, @tanstack/react-query, react-router
+  
+- **Modified:** `src/routes/index.jsx` (lines 156–164)
+  - Replaced two `/p/chat` placeholders with proper lazy-route definitions
+  - Now both routes lazy-load their components
 
-## Self-Review Checklist
+## Self-Review
 
-- **Schema alignment**: Both files respect the documented FK constraint names (`workout_plans_author_id_fkey`, `workout_plans_member_id_fkey`, `appointments_pro_id_fkey`). No ambiguous embeds without hints.
-- **No security regression**: Neither file adds unnecessary `member_id` filters. RLS already scopes reads to the signed-in user.
-- **Plain JS, ESM only**: No TypeScript, no `require()`, only `import` statements.
-- **No new dependencies**: Both files use only the Supabase client and stdlib.
-- **English copy**: All user-facing strings (null return comment, error throws) are in English.
-- **Interface conformance**: 
-  - `fetchActivePlan` returns `{plan, sessions}` with sessions ordered by position, or `null`
-  - `fetchSession` returns `{session, exercises}` with exercises decorated by `loggedCount`, sorted by position
-  - `fetchSessionExercise` returns a single decorated exercise shape with embedded `session`
-  - `fetchAppointmentsOnDay` returns an array ordered by `starts_at`, with `pro` relationship embedded
-- **Timezone handling**: `fetchAppointmentsOnDay` correctly converts local day to UTC bounds using `toISOString()`, preventing data loss for timezones east of UTC.
-- **Aggregate flattening**: `withLoggedCount` correctly extracts the count from PostgREST's `[{ count: n }]` format and defaults to 0 on empty.
+### Completeness Against Brief
+- ✓ Screen matches the specified code exactly
+- ✓ Both route definitions present and correctly formatted
+- ✓ Search, filter, and empty states implemented
+- ✓ No unread badge logic missing
+- ✓ Timestamp formatting uses `en-GB` locale as shown in brief
+- ✓ Component uses proper semantic HTML (`h1`, `h3`, accessibility labels)
 
-## No Changes After Verification
+### Quality & Constraints Adherence
+- ✓ Plain JS + JSX, no TypeScript
+- ✓ No new runtime dependencies
+- ✓ All styling via MUI + theme (no CSS files, no color literals)
+- ✓ Error state gates on `data === undefined` (not `isError` alone)
+- ✓ Every read carries `.retry(navigator.onLine)` via `fetchThreads()`
+- ✓ No `eslint-disable` anywhere
+- ✓ One `<h1>` per screen ("Chat"), headings use `<h2>`/`<h3>` correctly
+- ✓ Icons used (`SearchIcon`) already exist in the project
+- ✓ Lint exit 0, build succeeds
 
-The code as transcribed from the brief required no corrections or adjustments. All FK constraint names match the schema, all embedded selects follow the documented relationship patterns, and all return shapes match their interface contracts.
+### YAGNI & Scope
+- ✓ No over-engineering; screen is minimal and focused
+- ✓ Reuses existing data layer and utilities (`fetchThreads`, `queryKeys`, `ScreenState`)
+- ✓ No test added (non-trivial logic = none; filtering is pure and simple enough to reason about)
+
+### Deferred to Human
+The brief requests a browser check: "As Coach Andrea, open `/p/chat`…". This requires Supabase credentials and a browser with the app running, which an agent cannot perform. The code is ready for this verification.
+
+## Issues or Concerns
+
+None. The implementation matches the brief exactly, passes all checks, and is ready for human verification in a browser.

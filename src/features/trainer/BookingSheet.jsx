@@ -1,13 +1,8 @@
 import { useState } from 'react'
-import {
-  Alert, Button, Drawer, MenuItem, Stack, TextField, Typography,
-} from '@mui/material'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { fetchClients } from '../../data/clients.js'
-import { queryKeys } from '../../lib/queryKeys.js'
+import { Alert, Button, Drawer, MenuItem, Stack, TextField, Typography } from '@mui/material'
+import { useMutation } from '@tanstack/react-query'
 import { mutationKeys } from '../../lib/mutationKeys.js'
 import { slotToISO } from '../../lib/format.js'
-import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import { useAuth } from '../auth/useAuth.js'
 
 const KINDS = [
@@ -18,30 +13,25 @@ const KINDS = [
 
 const DURATIONS = [30, 45, 60, 90, 120]
 
-export default function NewAppointmentSheet({ open, onClose, defaultDayISO }) {
-  const { user } = useAuth()
+export default function BookingSheet({ open, onClose, defaultDayISO }) {
+  const { user, profile } = useAuth()
 
-  const [memberId, setMemberId] = useState('')
   const [kind, setKind] = useState('training')
   const [day, setDay] = useState(defaultDayISO)
   const [time, setTime] = useState('09:00')
   const [minutes, setMinutes] = useState(60)
   const [notes, setNotes] = useState('')
 
-  // The sheet stays mounted -- only `open` toggles the Drawer -- so the
-  // initialisers above run once, at first mount, and never again.  Left alone,
-  // the day would go stale the moment the calendar's selection moves, and every
-  // field would carry the last booking into the next.  Correcting during render
-  // rather than in an effect is deliberate, same as `useLiveSession`: on the
-  // render where `open` flips, an effect fires in the same commit with stale
-  // state.  This is React's documented "adjust state when a prop changes"
-  // pattern -- state rather than a ref, because reading a ref during render is
-  // forbidden.
+  // The sheet is rendered whether open or not -- only the Drawer's `open`
+  // toggles visibility -- so it never unmounts and useState's initialiser runs
+  // exactly once. Without this reset the date silently keeps whatever day was
+  // selected on first mount, and the form keeps the previous booking's values.
+  // Compared during render rather than in an effect: on the render where `open`
+  // flips, an effect fires in the same commit with stale state.
   const [wasOpen, setWasOpen] = useState(open)
   if (open !== wasOpen) {
     setWasOpen(open)
     if (open) {
-      setMemberId('')
       setKind('training')
       setDay(defaultDayISO)
       setTime('09:00')
@@ -49,13 +39,6 @@ export default function NewAppointmentSheet({ open, onClose, defaultDayISO }) {
       setNotes('')
     }
   }
-
-  const clients = useQuery({
-    queryKey: queryKeys.clients(user.id),
-    queryFn: () => fetchClients(user.id),
-    // Nothing to book while the sheet is shut.
-    enabled: open,
-  })
 
   const create = useMutation({ mutationKey: mutationKeys.createAppointment })
   const savedOffline = create.isPending && create.isPaused
@@ -66,13 +49,16 @@ export default function NewAppointmentSheet({ open, onClose, defaultDayISO }) {
 
     create.mutate(
       {
-        // Generated here, not by the database: this write can pause offline and
-        // replay on reconnect, and the id is what makes the replay a no-op
+        // Generated in the handler, not during render: this write can pause
+        // offline and replay, and the id is what makes the replay a no-op
         // instead of a second booking.
         id: crypto.randomUUID(),
-        memberId,
-        proId: user.id,
+        memberId: user.id,
+        proId: profile.assigned_pro_id,
         kind,
+        // A member requests; the professional confirms. The professional's own
+        // sheet books straight to 'confirmed' because they own the diary.
+        status: 'pending',
         startsAt,
         endsAt,
         notes,
@@ -89,37 +75,15 @@ export default function NewAppointmentSheet({ open, onClose, defaultDayISO }) {
       slotProps={{
         paper: {
           role: 'dialog',
-          'aria-labelledby': 'new-appointment-title',
+          'aria-labelledby': 'new-booking-title',
           sx: { borderTopLeftRadius: 24, borderTopRightRadius: 24, p: 2 },
         },
       }}
     >
       <Stack component="form" spacing={2} onSubmit={onSubmit}>
-        <Typography id="new-appointment-title" variant="h2">
-          New appointment
+        <Typography id="new-booking-title" variant="h2">
+          New Booking
         </Typography>
-
-        {clients.isPending ? <LoadingState /> : null}
-        {clients.isError && clients.data === undefined ? (
-          <ErrorState error={clients.error} onRetry={clients.refetch} />
-        ) : null}
-
-        {clients.data ? (
-          <TextField
-            select
-            label="Client"
-            value={memberId}
-            onChange={(event) => setMemberId(event.target.value)}
-            required
-            fullWidth
-          >
-            {clients.data.map((client) => (
-              <MenuItem key={client.id} value={client.id}>
-                {client.full_name}
-              </MenuItem>
-            ))}
-          </TextField>
-        ) : null}
 
         <TextField
           select
@@ -176,6 +140,7 @@ export default function NewAppointmentSheet({ open, onClose, defaultDayISO }) {
           label="Notes"
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
+          placeholder="Focus on core and mobility"
           multiline
           minRows={2}
           fullWidth
@@ -183,23 +148,18 @@ export default function NewAppointmentSheet({ open, onClose, defaultDayISO }) {
 
         {savedOffline ? (
           <Alert severity="info">
-            You are offline. This booking is saved on your device and will sync when you reconnect.
+            You are offline. This request is saved on your device and will be sent when you
+            reconnect.
           </Alert>
         ) : null}
         {create.isError ? (
           <Alert severity="error">
-            {create.error?.message ?? 'The appointment could not be booked.'}
+            {create.error?.message ?? 'The appointment could not be requested.'}
           </Alert>
         ) : null}
 
-        <Button
-          type="submit"
-          variant="contained"
-          size="large"
-          fullWidth
-          disabled={!memberId || create.isPending}
-        >
-          {savedOffline ? 'Saved offline' : create.isPending ? 'Booking…' : 'Book appointment'}
+        <Button type="submit" variant="contained" size="large" fullWidth disabled={create.isPending}>
+          {savedOffline ? 'Saved offline' : create.isPending ? 'Requesting…' : 'Confirm booking'}
         </Button>
         <Button onClick={onClose}>Cancel</Button>
       </Stack>

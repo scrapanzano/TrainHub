@@ -1,83 +1,148 @@
-# Task 8 Report: Appointment and Session Cards
+# Task 8 Report: Profile and Subscription Screens
 
 ## Summary
-Successfully implemented two shared card components for appointment and workout session rendering.
 
-## Files Created
-1. `src/components/AppointmentCard.jsx` — Renders appointment data with time, type label, and trainer info
-2. `src/components/SessionCard.jsx` — Renders workout session card with name, exercise count, and status indicator
+Implemented the member and professional profile screens (`/m/profile` and `/p/profile`) and the member subscription detail screen (`/m/profile/subscription`). The ProfileScreen component serves both roles with conditional rendering of membership-specific links. Both screens are fully functional and integrated into the routing layer.
 
-## Implementation Details
+## What Was Implemented
 
-### AppointmentCard
-- Displays appointment time range using `formatTimeRange()`
-- Maps `appointment_kind` enum to human-readable labels
-- Shows completed/pending state via circle icons
-- Renders trainer info or "Unassigned" fallback
-- Uses custom `task.*` palette colours based on appointment kind and status
-- Cancelled and done appointments both use `task.done` colour
+### 1. ProfileScreen.jsx
+- **Path**: `src/features/profile/ProfileScreen.jsx`
+- **Functionality**:
+  - Displays user avatar (with fallback initial), full name, and email
+  - For members: shows Membership section with links to:
+    - Access Badge (placeholder until Phase 4B)
+    - Subscription (detail screen)
+    - Rewards (existing screen)
+  - For professionals: hides Membership section
+  - Account & Security section with Settings link (role-specific)
+  - Uses `useAuth()` hook for user/profile data
+  - Icons: `QrCode2Icon`, `InfoOutlineIcon`, `EmojiEventsIcon`, `SettingsIcon` (all available)
 
-### SessionCard
-- Renders session name and exercise count
-- Integrates `sessionStatusOf()` to fetch status label and colour
-- Uses a coloured dot (aria-hidden for accessibility) with adjacent status label
-- Wraps content in `CardActionArea` with React Router `Link` for navigation
-- Right chevron indicates it's a navigable element
+### 2. SubscriptionScreen.jsx
+- **Path**: `src/features/profile/SubscriptionScreen.jsx`
+- **Functionality**:
+  - Shows Annual Membership status with color-coded chip (using `subscriptionStateOf`)
+  - Displays subscription validity date (formatted via `formatDate`)
+  - Shows membership ID as first 8 characters of profile UUID
+  - Lists gym amenities (Gym Access, Locker Rooms, Sauna and Wellness Area)
+  - Reuses `subscriptionStateOf` utility function from `src/features/clients/subscription.js`
 
-## Code Quality
-- **Lint result:** Exit 0 ✓
-- No TypeScript, ESM syntax, no new dependencies
-- All MUI components and theme usage
-- Both files follow the exact specifications from task-8-brief.md
-- Proper use of MUI sx prop for theming and layout
-- Accessible markup (aria-hidden on decorative element)
+### 3. Routes Updated
+- **Path**: `src/routes/index.jsx`
+- **Changes**:
+  - `/m/profile` and `/m/profile/subscription` now use lazy imports
+  - `/p/profile` now uses lazy import
+  - Both ProfileScreen implementations share the same component (role check inside)
 
-## Verification Checklist
-- [x] Code follows task-8-brief.md exactly
-- [x] Uses `formatTimeRange` from `src/lib/format.js`
-- [x] Uses `sessionStatusOf` from `src/features/workout/status.js`
-- [x] Leverages custom `palette.task.*` colours from theme
-- [x] All user-facing copy in English
-- [x] No TypeScript, ESM only
-- [x] MUI + theme carries all styling (no CSS files)
-- [x] npm run lint exits 0
-- [x] Proper Conventional Commit (no Co-Authored-By trailer)
-- [x] No wiring to screens (as per requirements)
-- [x] Both files committed together
+## Verification Results
 
-## Commit Information
-- **Hash:** f739e5b
-- **Message:** feat: add appointment and session cards
-- **Author:** Davide
-- **Branch:** main
+### Lint Check
+```
+✓ ESLint passed with exit 0
+```
+No linting errors. Code complies with all project standards.
 
-## Fix: give the appointment status an accessible name
+### Build Check
+```
+✓ Vite build successful
+✓ Service worker built successfully
+✓ PWA manifest injected correctly
+```
+Key build outputs:
+- ProfileScreen: `dist/assets/ProfileScreen-D_Pf765E.js` (3.25 kB, gzip: 1.50 kB)
+- SubscriptionScreen: `dist/assets/SubscriptionScreen-T8N8q7up.js` (1.67 kB, gzip: 0.69 kB)
+- All dependencies resolved
+- No missing MUI icon glyphs
 
-### Changes Made
-Fixed two findings in `AppointmentCard.jsx`:
+## Files Changed
 
-1. **Accessibility (Critical):** Added `titleAccess` labels to both status icons so screen readers announce the appointment status. Previously only the visual icon conveyed state (CheckCircle for done, RadioButtonUnchecked for others), invisible to assistive technology.
+- **Created**: `src/features/profile/ProfileScreen.jsx` (85 lines)
+- **Created**: `src/features/profile/SubscriptionScreen.jsx` (70 lines)
+- **Modified**: `src/routes/index.jsx` (3 route definitions updated)
 
-2. **Visual Consistency (Minor):** Fixed `cancelled` status rendering. It now shows the unchecked icon (not checked) since a cancelled appointment is not actually done, while retaining the grey background to indicate it requires no action. The status label clarifies the distinction.
+## Commit
 
-### Status Rendering Table
+```
+18dbdd4 feat: add the profile and subscription screens
+```
 
-| Status | Background | Icon | Accessible Label |
-|--------|-----------|------|-------------------|
-| pending | task.pending (type colour) | RadioButtonUnchecked | "Not confirmed yet" |
-| confirmed | task.confirmed (type colour) | RadioButtonUnchecked | "Confirmed" |
-| cancelled | task.done (grey) | RadioButtonUnchecked | "Cancelled" |
-| done | task.done (grey) | CheckCircle | "Completed" |
+## Self-Review Findings
 
-### Code Quality
-- **Lint result:** Exit 0 ✓
-- No TypeScript, ESM syntax, no new dependencies
-- All MUI components and theme usage
-- Inline comment explains the accessibility rationale
-- Proper use of MUI `SvgIcon` `titleAccess` prop
+✓ **Completeness**: All requirements from brief implemented exactly as specified.
 
-### Commit Information
-- **Hash:** 268a4f4
-- **Message:** fix: add accessible labels to appointment status icons
-- **Author:** Davide
-- **Branch:** main
+✓ **Code Quality**:
+- Follows existing codebase patterns (lazy routes, component structure)
+- Proper use of MUI components and theme tokens only
+- Conditional rendering for role-specific content
+
+✓ **Reuse**:
+- ProfileScreen serves both member and professional roles (no duplication)
+- `subscriptionStateOf` utility correctly reused
+- Format utilities correctly imported and used
+
+✓ **Constraints Adherence**:
+- No new runtime dependencies added
+- All styling through MUI theme only (no palette literals)
+- Proper heading hierarchy (h1 > h2 > h3)
+- Icons confirmed available in installed `@mui/icons-material@9.2.0`
+- No `eslint-disable` comments
+
+✓ **Testing Note**:
+- No logic to test (pure presentation components)
+- Subscription state logic already tested in `subscription.selfcheck.js`
+- Browser verification of subscription display requires DB credentials (human task)
+
+---
+
+## Critical Fix: Add `subscription_until` to PROFILE_COLUMNS
+
+### Finding
+
+`SubscriptionScreen.jsx:40` reads `profile.subscription_until`, but `PROFILE_COLUMNS` in `AuthProvider.jsx:5-6` omitted the column, causing two bugs:
+
+1. "Valid until" always rendered as `—` (undefined).
+2. `subscriptionStateOf()` treated missing `until` as open-ended, incorrectly marking expired members as ACTIVE when `subscription_status` was still 'active'.
+
+### Root Cause
+
+The column was missing from the SELECT list in `AuthProvider.jsx` line 5-6. The column exists on the `profiles` table and is already used in `src/data/clients.js` for professional views.
+
+### Fix Applied
+
+**Commit**: `21956b3 fix(auth): select subscription_until with the profile`
+
+**Change**: Added `subscription_until` to `PROFILE_COLUMNS` in `src/features/auth/AuthProvider.jsx:5-6`
+
+Before:
+```
+const PROFILE_COLUMNS =
+  'id, role, specialty, full_name, avatar_url, assigned_pro_id, subscription_status'
+```
+
+After:
+```
+const PROFILE_COLUMNS =
+  'id, role, specialty, full_name, avatar_url, assigned_pro_id, subscription_status, subscription_until'
+```
+
+### Verification
+
+All commands executed successfully:
+
+1. **Lint**: `npm run lint`
+   ```
+   ✓ ESLint passed with exit 0
+   ```
+
+2. **Build**: `npm run build`
+   ```
+   ✓ Vite build successful (630ms)
+   ✓ Service worker built successfully (66ms)
+   ✓ PWA manifest injected correctly
+   ```
+
+3. **Self-check**: `node src/features/clients/subscription.selfcheck.js`
+   ```
+   subscription.selfcheck OK
+   ```

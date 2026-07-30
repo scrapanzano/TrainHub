@@ -1,161 +1,259 @@
-# Task 9 report: Member home screen
+# Task 9 report: Settings, password change and logout
 
-## Files
+## What was implemented
 
-- Created: `src/features/home/MemberHomeScreen.jsx` — transcribed verbatim from the
-  brief's code block, comments included. No deviations.
-- Modified: `src/routes/index.jsx` — added `import MemberHomeScreen from
-  '../features/home/MemberHomeScreen.jsx'` after the `ResetPasswordScreen` import, and
-  replaced `{ index: true, ...screen('Home') }` with `{ index: true, element:
-  <MemberHomeScreen /> }` inside the `/m` route's children. No other lines touched.
+- `src/features/profile/SettingsScreen.jsx` — created verbatim from the brief.
+  A single screen for both roles: a password-change form
+  (`supabase.auth.updateUser({ password })`, client-side mismatch check only,
+  server error message surfaced as-is, no invented rules) and a "Sign out"
+  button wired to `useAuth().signOut`.
+- `src/routes/index.jsx` — replaced the two `screen('Settings')` placeholders
+  at `/m/profile/settings` and `/p/profile/settings` with the same lazy import
+  of `SettingsScreen.jsx`, matching the existing lazy-route style used
+  throughout the file.
 
-Before writing, confirmed every consumed interface matches the brief's contract exactly
-by reading the source: `src/data/appointments.js` (`fetchAppointmentsOnDay`, throws on
-error), `src/data/workouts.js` (`fetchActivePlan`, returns `{plan, sessions}` or `null`,
-throws on error), `src/lib/queryKeys.js` (`appointmentsOnDay`, `activePlan`),
-`src/lib/format.js` (`todayISO`), `AppointmentCard.jsx`, `SessionCard.jsx`,
-`ScreenState.jsx` (named `LoadingState`/`ErrorState`/`EmptyState`), and
-`useAuth.js`. No changes were needed to any of them.
+## Investigation before writing code
 
-## Lint
+Per the "Before You Begin" instruction, I checked whether the brief's
+verbatim code (which only calls `signOut`, doing nothing to the persisted
+TanStack Query cache) contradicts the "logout must leave no usable state
+behind" concern raised in my task framing.
 
-`npm run lint` → exit 0, no output (clean).
+- `src/features/auth/AuthProvider.jsx`: `signOut` already removes the cached
+  profile (`localStorage` key `trainhub-profile`) *before* calling
+  `supabase.auth.signOut()`, so a failed network call still ends the local
+  session without a stale profile surviving it. The brief's instruction not
+  to reimplement this is correct — there is nothing left to add here.
+- `src/lib/queryKeys.js`: every query key that could carry one user's private
+  data is parameterized by that user's own id or by an opaque resource id
+  (`memberId`, `proId`, `clientId`, `appointmentId`, `sessionId`, `threadId`,
+  ...). The only unparameterized keys are `exerciseCatalogue()` and
+  `professionals()`, both shared, non-sensitive reference data. Because
+  Daniel and Andrea have different ids, Andrea signing in on the same device
+  cannot have Daniel's cached queries served to her screens — her queries use
+  different keys entirely, and RLS is the actual boundary regardless. Stale
+  entries for the previous user sit inert in IndexedDB until `gcTime` (one
+  week) evicts them; they are never read by the incoming user's screens.
+  I judged this not to contradict the brief and did not add a
+  `queryClient.clear()` call the brief does not specify — doing so would
+  also have been a bigger diff than the brief asked for, and Task 9's own
+  interface list names only `useAuth().signOut` and
+  `supabase.auth.updateUser`.
+- No new mutation is registered in `src/data/mutations.js` /
+  `src/lib/mutationKeys.js`: the password change calls
+  `supabase.auth.updateUser` directly (a security path against
+  `auth.users`, not a table write), not through `useMutation`, so the
+  mutation-registration rule does not apply — this matches the brief's
+  interface list, which does not mention a new mutation key.
+- Confirmed `@mui/icons-material/Logout` exists in
+  `node_modules/@mui/icons-material/` (`Logout.js`/`.mjs` present) before
+  using it.
+- Confirmed heading levels match the sibling `ProfileScreen.jsx`: one
+  `variant="h1"` per screen ("Settings"), `variant="h3"` for the card title
+  ("Change password"). No `<h2>` was needed — there is one card plus a
+  divider and a button, no intermediate section.
 
-## Commit
+## Verified
 
-- Hash: `ed89052156dc6721091b0be876c34bbb29a821da` (short: `ed89052`)
-- Message: `feat: add member home screen`
-- Both files committed together in one commit, as required.
-- No `Co-Authored-By` trailer present — verified with `git show --stat HEAD`, author is
-  `Davide <d.leone001@studenti.unibs.it>` only.
-- Only the two intended files were staged; the pre-existing unrelated `README.md`
-  modification from before this task was left untouched.
+`npm run lint` (exit 0, no output):
+```
+> trainhub@0.0.0 lint
+> eslint .
+```
 
-## Step 3 (browser verification)
+`npm run build` (succeeded, PWA precache generated, service worker built):
+```
+> trainhub@0.0.0 build
+> vite build
+...
+✓ built in 702ms
+PWA v1.3.0
+...
+✓ built in 67ms
+PWA v1.3.0
+mode      injectManifest
+format:   es
+precache  83 entries (1138.48 KiB)
+files generated
+  dist/sw.js
+```
 
-Deferred per instructions — no dev server was started, no browser interaction was
-performed. A human still needs to: sign in as `daniel@trainhub.dev`, open `/m`, and walk
-the verification table in the brief (today's appointments / empty state, appointment
-colours, "Leg Day" in-progress card, tap-through to `/m/workout/session/<id>`, confirm
-`trainhub-query-cache` appears in IndexedDB, and confirm the screen still renders from
-cache after going offline and reloading).
+All eight `*.selfcheck.js` scripts still pass (shared code was not touched,
+run anyway per the phase acceptance checklist):
+```
+format: OK
+resolveTokens: OK (22 tokens)
+timer: OK
+workout status: OK
+summary: OK
+subscription.selfcheck OK
+month.selfcheck OK
+progress.selfcheck OK
+```
 
-## Self-review
+**Not run — needs a human with database credentials / a browser**: the
+brief's manual browser check (mismatch message on two different passwords,
+sign out from `/m/profile/settings`, land on `/login`, sign in as Coach
+Andrea). I did not fake this; it is unverified. The rest of the Phase 4A
+acceptance checklist (chat round trip, offline round trips, `verify.sql`,
+etc.) is also outside what this task or agent can execute.
 
-**Independence of the two queries.** `appointments` and `plan` are two separate
-`useQuery` calls with independent query keys and query functions. Nothing in the
-component makes one wait on the other — each `Box` (Today / Workout) reads only its own
-query's `isPending`/`isError`/`isSuccess`/`data`. A slow or failing plan fetch does not
-block the appointments section from rendering, and vice versa.
+## Files changed
 
-**Today section, exhaustive states:**
-- Loading (`isPending`): `LoadingState` renders. Data is `undefined`, so the map over
-  `(appointments.data ?? []).map(...)` renders zero cards — no stale content, no crash.
-- Error (`isError`): `ErrorState` renders with `error` and a working `refetch` retry
-  handler. The card list below still evaluates `(appointments.data ?? [])`, which is
-  `[]` on error, so nothing extra renders under the error box.
-- Empty (`isSuccess`, `data.length === 0`): `EmptyState` renders with the "Nothing
-  booked today" copy. Card list is empty, consistent.
-- Populated (`isSuccess`, `data.length > 0`): none of the three state blocks render,
-  and the card list renders one `AppointmentCard` per appointment, keyed by
-  `appointment.id`.
-- These four conditions (`isPending`, `isError`, `isSuccess && empty`, `isSuccess &&
-  non-empty`) are mutually exclusive on a TanStack Query result, so exactly one of
-  {spinner, error box, empty box, cards} is visible at a time — never two competing for
-  the same space, never zero (never a blank screen).
+- `src/features/profile/SettingsScreen.jsx` (new)
+- `src/routes/index.jsx` (both `profile/settings` routes rewired to the lazy
+  import)
 
-**Workout section, exhaustive states:**
-- Loading: `LoadingState` renders; `current` is computed from `plan.data?.sessions ??
-  []`, which is `[]` while `plan.data` is `undefined`, so `current` is `undefined` and no
-  stray `SessionCard` renders alongside the spinner.
-- Error: `ErrorState` renders with retry. `current` is again `undefined` (no
-  `plan.data`), so no card renders under the error box.
-- Empty in the two senses the brief distinguishes: `plan.data` truthy but `current`
-  falsy (all sessions done) → "Plan complete"; `plan.data` is `null` (no plan assigned)
-  → "No plan yet". Both are covered by the single `plan.isSuccess && !current` branch,
-  which correctly reads `plan.data` (not `plan.data.sessions`) to decide the wording,
-  matching `fetchActivePlan`'s documented `null`-for-no-plan contract.
-- Populated (`current` found, either `in_progress` or first `todo`): `SessionCard`
-  renders, linking to `/m/workout/session/${current.id}`. The empty-state block's
-  condition (`plan.isSuccess && !current`) is false here, so no overlap.
-- Same mutual-exclusivity argument as above applies: never two Workout-section
-  renderables fighting for space, never a blank Workout section.
+## Self-review findings
 
-**Cross-section blank-screen check.** Even in the worst case (both queries still
-`isPending` right after mount), the screen shows two independent `LoadingState`
-spinners in their own sections, each under its own "Today" / "Workout" heading — never
-a fully blank page, and never two spinners stacked in the same box.
+- Code matches the brief verbatim; no deviations.
+- `screen()` placeholder helper in `src/routes/index.jsx` remains used by
+  `/m/profile/badge` and `/p/scan` (Phase 4B), so removing the two
+  `profile/settings` placeholder entries left no dead code.
+- Git status showed pre-existing unstaged changes under `.superpowers/sdd/*`
+  (progress ledger and prior task reports) that were already modified in the
+  working tree before this task started — not something I touched. Per the
+  working agreement these are scratch bookkeeping and must not enter a
+  feature commit; only `src/features/profile/SettingsScreen.jsx` and
+  `src/routes/index.jsx` were staged and committed.
+- No `eslint-disable` used. No new runtime dependency. No CSS files or colour
+  literals — styling is MUI + theme only, all colours via `color="error"` /
+  `color="text.secondary"` semantic props.
+- Password field values are cleared from state after a successful change
+  (`setPassword(''); setConfirm('')`), so the plaintext does not linger in
+  memory / React state longer than needed.
 
-**Interfaces:** no changes made to any consumed module; `MemberHomeScreen.jsx` exports
-only a default component, imported solely by `src/routes/index.jsx`, matching "Produces:
-nothing other modules import."
+## Issues or concerns
 
-No deviations from the brief. No new dependencies added.
+None found. This closes the last gap named in the working agreement: there
+is now a logout control in the UI, and the "clear `localStorage` by hand to
+switch demo accounts" workaround is no longer needed. This was the final
+task of Phase 4A; only the whole-branch review and the human-run acceptance
+checklist (browser checks, `supabase/verify.sql`, patch 007) remain.
 
-## Fix: do not bury cached data under an error banner
+## Review fixes (round 2)
 
-Follow-up fix addressing three review findings in
-`src/features/home/MemberHomeScreen.jsx`. Single file changed, exactly per the
-supplied diff — no changes to the two `useQuery` calls, imports, or any other
-file.
+Three findings came back from review. Fixed all three.
 
-**Finding 1 (Important).** Under `networkMode: 'offlineFirst'`
-(`src/lib/queryClient.js`), a background refetch can fail while `data` still
-holds the last good result restored from the persisted cache. Both the Today
-and Workout sections previously rendered `ErrorState` on `isError` alone,
-stacking a full "something broke" banner above perfectly usable cached
-content. Fixed by gating each `ErrorState` on `isError && data === undefined`
-— the banner now shows only when there is truly nothing to fall back on.
+### Finding 1 (Important) — double submit on the password form
 
-**Finding 2 (Minor).** The "Today" heading showed "• 0 activities" from the
-very first render, before the query had resolved, stating a count the screen
-did not yet know. Fixed by only rendering the count `Typography` when
-`appointments.data` is truthy (i.e., loaded).
+`onSubmit`'s early-return guard (`if (mismatch || password === '') return`)
+never checked `status.phase`, and neither `TextField` was disabled while
+`status.phase === 'saving'`. Typing a character mid-save reset `status` back
+to `idle` via the "New password" field's `onChange`, which re-enabled the
+submit button (`disabled={... || status.phase === 'saving'}` was now false
+again) and let a second `supabase.auth.updateUser` fire concurrently.
 
-**Finding 3 (Minor).** "Plan complete" / "Every session in your plan is done"
-was shown both when a plan had all sessions completed and when a plan existed
-but had zero sessions at all (trainer created the plan, hasn't filled it in
-yet) — the codebase only distinguished `plan.data` truthy/falsy, not the
-`sessions.length === 0` case. Added an `emptyPlanCopy` derivation that
-branches three ways: `plan.data == null` → "No plan yet"; `sessions.length ===
-0` → new "Plan not ready" / "Your trainer has created your plan but has not
-added any sessions yet."; otherwise → "Plan complete" (unchanged copy for the
-genuine all-done case).
+Fixed both halves in `src/features/profile/SettingsScreen.jsx`:
+- `onSubmit`'s guard now also bails on `status.phase === 'saving'`.
+- Both the "New password" and "Confirm new password" `TextField`s now carry
+  `disabled={status.phase === 'saving'}`, so neither can be edited (and so
+  neither `onChange` can reset `status` back to `idle`) while a save is in
+  flight.
 
-Also changed the Workout empty state's *visibility* condition from
-`plan.isSuccess && !current` to `plan.data !== undefined && !current` — an
-explicit check on `data` rather than the `isSuccess` flag, matching the
-`undefined`-means-not-loaded / `null`-means-no-plan distinction the finding
-calls out, and consistent with how the new `ErrorState` guards read `data`
-directly.
+The existing "clear a stale result when the user starts over" comment and
+behaviour on the idle/done/error phases is unchanged.
 
-### Lint
+### Finding 2 (Important) — the persisted query cache survives logout
 
-`npm run lint` → exit 0, no output (clean).
+`AuthProvider.signOut` cleared only the `trainhub-profile` `localStorage`
+key. Because `AppLayout` navigates client-side on sign-out with no page
+reload, the in-memory `QueryClient` and its IndexedDB mirror
+(`idb-keyval`, key `trainhub-query-cache`, written by the
+`createAsyncStoragePersister` in `src/lib/queryClient.js`) both survived
+sign-out untouched — the outgoing user's chat messages, nutrition plan,
+body metrics, appointments and session logs stayed readable in cleartext
+IndexedDB via DevTools for up to the one-week `gcTime`.
 
-### Commit
+Fixed at the root, in `signOut` itself (`src/features/auth/AuthProvider.jsx`),
+so both callers benefit — `SettingsScreen`'s "Sign out" button and
+`AppLayout`'s profile-failure "Sign out" button both call this same
+`useAuth().signOut`; grepped for `signOut` across `src/` to confirm there is
+no other call site.
 
-- Hash: `95c5119c98ae376b39e9c5fdb48eb76d571933e4` (short: `95c5119`)
-- Message: `fix(home): distinguish loading, empty, and offline states on member home`
-- No `Co-Authored-By` trailer.
-- Only `src/features/home/MemberHomeScreen.jsx` staged; the pre-existing
-  unrelated `README.md` modification was left untouched.
+- Imported `persister, queryClient` from `../../lib/queryClient.js` into
+  `AuthProvider.jsx`. Checked for an import cycle first: `queryClient.js`
+  only imports `@tanstack/react-query`, `@tanstack/query-async-storage-persister`
+  and `idb-keyval` — nothing under `src/features/`, so no cycle.
+- Added `queryClient.clear()` and `await persister.removeClient()` to the
+  same unconditional block that already clears the profile cache, still
+  *before* `await supabase.auth.signOut()` — so the clear does not depend on
+  the network call succeeding, matching the existing pattern's own reasoning.
+  `persister.removeClient()` (from `@tanstack/query-async-storage-persister`,
+  verified by reading its source in `node_modules`) calls
+  `storage.removeItem(key)` directly, i.e. `idb-keyval`'s `del()` on
+  `trainhub-query-cache` — this deletes the IndexedDB entry immediately
+  instead of waiting for the persist subscription's 1s throttle to notice the
+  now-empty client and rewrite it. Wrapped the `removeClient()` call in its
+  own `try/catch` (best-effort — the in-memory cache is already cleared
+  either way, so a storage failure here must not block sign-out).
+- Left a comment on the new code stating explicitly that this also discards
+  any paused mutations still queued for the outgoing user, and that on a
+  deliberate sign-out this is the correct trade-off, not something to "fix"
+  back later.
 
-### Seven cases, verified by re-reading the file
+### Finding 3 (Minor) — inconsistent status reset
 
-- (a) First load, nothing cached: both sections show `LoadingState`; no count,
-  no error, no empty state, no card.
-- (b) Loaded with data: count shown, `AppointmentCard`/`SessionCard` list
-  renders, no spinner/error/empty state.
-- (c) Loaded, genuinely empty (no appointments / `plan.data` has no `current`
-  and, for plan, either `null` or zero-session): `EmptyState` renders with the
-  correct copy per case.
-- (d) Refetch failed but cached data present: `data !== undefined` so
-  `ErrorState` is suppressed; stale cards/session still render normally.
-- (e) Refetch failed with nothing cached: `data === undefined` so `ErrorState`
-  renders with a working `refetch` retry, nothing else shown.
-- (f) Plan exists, zero sessions: `emptyPlanCopy` picks "Plan not ready" /
-  "Your trainer has created your plan but has not added any sessions yet."
-- (g) Plan exists, every session completed: `current` is `undefined`,
-  `sessions.length > 0`, `emptyPlanCopy` picks "Plan complete" / "Every
-  session in your plan is done. Nice work." (unchanged copy).
+The "Confirm new password" field's `onChange` set `confirm` but never reset
+`status`, so editing only that field after a done/error result left a stale
+`Alert` above a form being re-filled. Made it match the "New password"
+field: `onChange` now also resets `status` to idle when `status.phase !==
+'idle'`, with a short comment pointing at the sibling field's comment for the
+rationale.
+
+### Verified
+
+`npm run lint` (exit 0, no output):
+```
+> trainhub@0.0.0 lint
+> eslint .
+```
+
+`npm run build` (succeeded, PWA precache generated, service worker built):
+```
+> trainhub@0.0.0 build
+> vite build
+...
+✓ built in 648ms
+PWA v1.3.0
+...
+✓ built in 106ms
+PWA v1.3.0
+mode      injectManifest
+format:   es
+precache  83 entries (1138.65 KiB)
+files generated
+  dist/sw.js
+```
+
+All eight `*.selfcheck.js` scripts (run because this touches shared auth
+code):
+```
+format: OK
+resolveTokens: OK (22 tokens)
+timer: OK
+workout status: OK
+summary: OK
+subscription.selfcheck OK
+month.selfcheck OK
+progress.selfcheck OK
+```
+
+### Files changed (this round)
+
+- `src/features/profile/SettingsScreen.jsx` — guard + disabled state on both
+  password fields (Finding 1), consistent `onChange` reset on the confirm
+  field (Finding 3).
+- `src/features/auth/AuthProvider.jsx` — `signOut` now clears the TanStack
+  Query cache and its IndexedDB mirror (Finding 2).
+
+Only these two files were staged. `.superpowers/sdd/*` scratch bookkeeping
+(pre-existing unstaged changes from before this round, plus this report
+edit) was left out of the commit per the working agreement.
+
+### Anything found that the findings did not mention
+
+Nothing beyond what the three findings already named. Confirmed by grep that
+`signOut` has exactly two call sites in the UI (`SettingsScreen.jsx`,
+`AppLayout.jsx`) and one definition (`AuthProvider.jsx`) — the Finding 2 fix
+in the provider covers both without touching either call site.

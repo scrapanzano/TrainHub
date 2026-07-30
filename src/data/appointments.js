@@ -147,6 +147,37 @@ export async function createAppointment({
   return data
 }
 
+// The member's side of the range query. Same bounds arithmetic as the
+// professional's; the filter and the embed are the other way round.
+const MEMBER_AGENDA_COLUMNS =
+  'id, kind, status, starts_at, ends_at, notes, pro:profiles!appointments_pro_id_fkey ( id, full_name, avatar_url )'
+
+/**
+ * Every appointment the member has between two local calendar days, inclusive
+ * of both. Mirrors `fetchAppointmentsInRange`: same bounds arithmetic, but
+ * filtered on `member_id` and embedding the professional rather than the
+ * member.
+ */
+export async function fetchMemberAppointmentsInRange(memberId, fromISO, toISO) {
+  const [fy, fm, fd] = fromISO.split('-').map(Number)
+  const [ty, tm, td] = toISO.split('-').map(Number)
+  const from = new Date(fy, fm - 1, fd, 0, 0, 0, 0)
+  // One day past the end, so the last day's appointments are included.
+  const to = new Date(ty, tm - 1, td + 1, 0, 0, 0, 0)
+
+  const { data, error } = await supabase
+    .from('appointments')
+    .select(MEMBER_AGENDA_COLUMNS)
+    .eq('member_id', memberId)
+    .gte('starts_at', from.toISOString())
+    .lt('starts_at', to.toISOString())
+    .order('starts_at')
+    .retry(navigator.onLine)
+
+  if (error) throw error
+  return data ?? []
+}
+
 /** Move an appointment between `pending`, `confirmed`, `cancelled` and `done`. */
 export async function setAppointmentStatus({ appointmentId, status }) {
   const { data, error } = await supabase

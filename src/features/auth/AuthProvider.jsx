@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
+import { persister, queryClient } from '../../lib/queryClient.js'
 import { AuthContext } from './AuthContext.js'
 
 const PROFILE_COLUMNS =
-  'id, role, specialty, full_name, avatar_url, assigned_pro_id, subscription_status'
+  'id, role, specialty, full_name, avatar_url, assigned_pro_id, subscription_status, subscription_until'
 
 // `forUserId` is the whole point of this shape: it records WHICH user the
 // profile belongs to, so readiness can be recomputed from current state on
@@ -147,6 +148,25 @@ export function AuthProvider({ children }) {
     } catch {
       // Nothing to do -- signing out matters more than tidying storage.
     }
+
+    // Same reasoning applies to the query cache, and matters more: it holds
+    // this user's chat messages, nutrition plan, body metrics, appointments
+    // and session logs. AppLayout navigates on sign-out without a page
+    // reload, so nothing else would ever tear down the in-memory QueryClient
+    // or its IndexedDB mirror -- they would sit there in cleartext, readable
+    // via DevTools, for up to a week, on a device the next person may also
+    // use. `clear()` empties memory now; `removeClient()` deletes the
+    // IndexedDB entry directly instead of leaving it for the throttled
+    // persist subscription to notice and overwrite a moment later. This also
+    // discards any paused mutations still queued for this user -- on a
+    // deliberate sign-out that is the correct trade, not a bug to fix back.
+    queryClient.clear()
+    try {
+      await persister.removeClient()
+    } catch {
+      // Best-effort: the in-memory cache is already cleared either way.
+    }
+
     await supabase.auth.signOut()
   }, [])
 

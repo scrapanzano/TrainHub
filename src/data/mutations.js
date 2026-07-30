@@ -4,8 +4,10 @@ import { deleteMeal, saveMeal, saveNutritionPlan } from './nutrition.js'
 import { saveBodyMetric } from './progress.js'
 import { createAppointment, setAppointmentStatus } from './appointments.js'
 import { addAvailability, deleteAvailability } from './availability.js'
+import { ensureThread, markThreadRead, sendMessage } from './chat.js'
+import { chooseProfessional } from './profile.js'
 import { mutationKeys } from '../lib/mutationKeys.js'
-import { queryPrefixes } from '../lib/queryKeys.js'
+import { queryKeys, queryPrefixes } from '../lib/queryKeys.js'
 
 /**
  * Teach the query client how to replay each mutation after a reload.
@@ -126,6 +128,12 @@ export function registerMutationDefaults(queryClient) {
     mutationFn: createAppointment,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.agenda })
+      // The professional's own sheet only ever needed `agenda`. Now the
+      // member's booking sheet calls this too, and the member's queries are
+      // `appointments`-prefixed -- without this the new booking would not
+      // show up until the 30s staleTime lapsed and something else triggered
+      // a refetch.
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.appointments })
     },
   })
 
@@ -152,6 +160,96 @@ export function registerMutationDefaults(queryClient) {
     mutationFn: deleteAvailability,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.availability })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.sendMessage, {
+    mutationFn: sendMessage,
+    // Serialise replays.  Messages are the one thing in this app whose ORDER is
+    // the content: two queued sends replayed in parallel can land out of order
+    // and the conversation reads wrong.
+    scope: { id: 'chat' },
+
+    // Show the message the instant it is sent.  Offline the write pauses and
+    // never settles, so without this the composer clears and NOTHING appears --
+    // the message is invisible until reconnect.  Registered here, like every
+    // other write in this file, so the persister can find `mutationFn` again
+    // after a reload -- but the optimistic row surviving that reload is the
+    // persisted query cache's doing, not this hook's: a rehydrated pending
+    // mutation resumes through `retryer.continue()` and never re-enters
+    // `execute`, so `onMutate` does not run a second time for it (see
+    // `@tanstack/query-core`'s `mutation.js`, the `restored` branch of `execute`).
+    //
+    // The caller already supplies the row's id, and the Realtime handler in
+    // `useThreadMessages.js` dedupes on that same id, so the server's echo of
+    // this row is a no-op rather than a duplicate.
+    //
+    // No rollback: a paused send that later fails permanently leaves this row
+    // behind until the next refetch drops it, which is the better trade than
+    // deleting a message a user believes they sent.
+    onMutate: async ({ id, threadId, senderId, body }) => {
+      // `useThreadMessages.js` invalidates the whole `['chat']` prefix on every
+      // incoming Realtime message, so a `threadMessages` refetch is often in
+      // flight; without this a send inside that window has its optimistic row
+      // overwritten when the fetch resolves.
+      await queryClient.cancelQueries({ queryKey: queryKeys.threadMessages(threadId) })
+
+      queryClient.setQueryData(queryKeys.threadMessages(threadId), (current) => {
+        // Undefined means the first fetch has not landed; there is nothing to
+        // append to, and that fetch will include this row anyway.
+        if (!current) return current
+        return [
+          ...current,
+          {
+            id,
+            thread_id: threadId,
+            sender_id: senderId,
+            body,
+            read_at: null,
+            // Local clock, unlike the real row, whose `created_at` is the column
+            // default -- close enough to keep this at the end of the list, which
+            // is all it is used for here.
+            created_at: new Date().toISOString(),
+          },
+        ]
+      })
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.chat })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.markThreadRead, {
+    mutationFn: markThreadRead,
+    scope: { id: 'chat' },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.chat })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.ensureThread, {
+    mutationFn: ensureThread,
+    // Same scope as its two siblings: the thread must exist before a queued send
+    // or read-receipt for it replays.
+    scope: { id: 'chat' },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.chat })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.chooseProfessional, {
+    mutationFn: chooseProfessional,
+    onSettled: () => {
+      // A different professional means a different thread, so the whole chat
+      // family is stale -- the member's thread lookup, its messages and the
+      // unread badge.
+      //
+      // What this canNOT refresh is the member's own profile: AuthProvider
+      // holds it outside the query cache, so `assigned_pro_id` in the shell
+      // stays stale until the app reloads. The call site does that reload; see
+      // the note there and in "Deferred beyond Phase 4".
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.chat })
     },
   })
 }

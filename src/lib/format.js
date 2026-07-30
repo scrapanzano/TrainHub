@@ -46,3 +46,20 @@ export function localDayISO(timestamp) {
 export function todayISO() {
   return localDayISO(new Date())
 }
+
+/**
+ * `'2026-07-29'` + `'14:00'` + 60 → two ISO timestamps in the local zone.
+ *
+ * Both booking sheets -- the member's and the professional's -- turn a native
+ * `<input type="date">` plus `<input type="time">` into the `timestamptz` pair
+ * an appointment needs, and both must read "14:00" as the *user's* two o'clock.
+ * Built from local parts for that reason: `new Date('2026-07-29T14:00')` is
+ * implementation-dependent and `new Date('2026-07-29')` is UTC midnight.
+ */
+export function slotToISO(dayISO, timeHHMM, minutes) {
+  const [year, month, day] = dayISO.split('-').map(Number)
+  const [hour, minute] = timeHHMM.split(':').map(Number)
+  const start = new Date(year, month - 1, day, hour, minute, 0, 0)
+  const end = new Date(start.getTime() + minutes * 60_000)
+  return { startsAt: start.toISOString(), endsAt: end.toISOString() }
+}
