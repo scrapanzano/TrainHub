@@ -473,6 +473,22 @@ export default function BadgeScreen() {
 }
 ```
 
+**Amended after review — the code above is short two guards, and the shipped
+`src/features/profile/BadgeScreen.jsx` is the reference, not this listing:**
+
+- `mint` needs an **in-flight guard** it owns itself. As written above, `tick()`
+  calls `mint()` without awaiting it, and `badge.expiresAt` does not change
+  until the insert resolves — so every tick in between sees the same past expiry
+  and mints again, one extra row per second of latency. The guard belongs inside
+  `mint` so the mount effect, the expiry tick and the visibility handler are all
+  covered, and it must be cleared in a `finally` so an offline throw does not
+  latch it shut for the rest of the screen's life.
+- The **unmount guard must be re-armed on mount**, not only initialised. A ref
+  set to `false` in a cleanup and never back to `true` is permanently false
+  after `<StrictMode>`'s dev-time mount → cleanup → mount, which drops every
+  later `setBadge` and strands the screen on its spinner. `ResetPasswordScreen`
+  carries the same hazard and its comment names it.
+
 - [ ] **Step 3: Wire the route**
 
 In `src/routes/index.jsx`, replace `{ path: 'profile/badge', ...screen('Access Badge') }`:
