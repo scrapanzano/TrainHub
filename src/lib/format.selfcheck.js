@@ -62,8 +62,13 @@ assert.equal(slot.startsAt, new Date(2026, 6, 29, 14, 0).toISOString())
 assert.equal(slot.endsAt, new Date(2026, 6, 29, 15, 0).toISOString())
 
 // The local calendar day of the start must be the day that was asked for. This
-// is the assertion that fails if anyone reaches for `new Date(dayISO)` -- UTC
-// midnight plus 14 hours is still the 29th in Rome, but plus 00:30 is the 28th.
+// is the assertion that fails if anyone reaches for `new Date(dayISO)` and
+// treats the "14:00" clock time as UTC instead of local: the 00:30 fixture
+// below catches that in a west-of-Greenwich (negative-offset) zone, where the
+// UTC-frame instant lands before local midnight and rolls back to the 28th;
+// the 23:30 fixture catches it in an east-of-Greenwich (positive-offset) zone,
+// where it lands after local midnight and rolls forward to the 30th -- the
+// same either-direction coverage as the localDayISO fixtures above.
 assert.equal(localDayISO(slotToISO('2026-07-29', '00:30', 30).startsAt), '2026-07-29')
 assert.equal(localDayISO(slotToISO('2026-07-29', '23:30', 30).startsAt), '2026-07-29')
 

@@ -172,9 +172,13 @@ export function registerMutationDefaults(queryClient) {
 
     // Show the message the instant it is sent.  Offline the write pauses and
     // never settles, so without this the composer clears and NOTHING appears --
-    // the message is invisible until reconnect, and a paused mutation survives a
-    // reload with nothing on screen representing it.  Registered here rather
-    // than at the call site so a replayed send is covered too.
+    // the message is invisible until reconnect.  Registered here, like every
+    // other write in this file, so the persister can find `mutationFn` again
+    // after a reload -- but the optimistic row surviving that reload is the
+    // persisted query cache's doing, not this hook's: a rehydrated pending
+    // mutation resumes through `retryer.continue()` and never re-enters
+    // `execute`, so `onMutate` does not run a second time for it (see
+    // `@tanstack/query-core`'s `mutation.js`, the `restored` branch of `execute`).
     //
     // The caller already supplies the row's id, and the Realtime handler in
     // `useThreadMessages.js` dedupes on that same id, so the server's echo of
@@ -183,7 +187,13 @@ export function registerMutationDefaults(queryClient) {
     // No rollback: a paused send that later fails permanently leaves this row
     // behind until the next refetch drops it, which is the better trade than
     // deleting a message a user believes they sent.
-    onMutate: ({ id, threadId, senderId, body }) => {
+    onMutate: async ({ id, threadId, senderId, body }) => {
+      // `useThreadMessages.js` invalidates the whole `['chat']` prefix on every
+      // incoming Realtime message, so a `threadMessages` refetch is often in
+      // flight; without this a send inside that window has its optimistic row
+      // overwritten when the fetch resolves.
+      await queryClient.cancelQueries({ queryKey: queryKeys.threadMessages(threadId) })
+
       queryClient.setQueryData(queryKeys.threadMessages(threadId), (current) => {
         // Undefined means the first fetch has not landed; there is nothing to
         // append to, and that fetch will include this row anyway.
