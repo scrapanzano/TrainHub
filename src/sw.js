@@ -68,13 +68,17 @@ self.addEventListener('notificationclick', (event) => {
     // Keep the default.
   }
 
-  // Focus a window that is already open rather than stacking a second one.
-  // Compared by pathname: `String.includes` matched every open window whenever
-  // the target was '/'.
+  // Focus a window that is already open rather than stacking a second one,
+  // navigating it to the tap target first. Matching by pathname equality (the
+  // earlier fix for `String.includes` matching every open window whenever the
+  // target was '/') still opens a second window in the common case: the app
+  // sitting on '/m' does not equal a chat notification's '/m/trainer/chat', so
+  // no open window matched. Any open window is close enough — navigate it,
+  // then focus it — and only `openWindow` when there is no window at all.
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
-      const open = windows.find((client) => new URL(client.url).pathname === target.pathname)
-      if (open) return open.focus()
+      const [open] = windows
+      if (open) return open.navigate(target.href).then((client) => (client ?? open).focus())
       return self.clients.openWindow(target.href)
     }),
   )

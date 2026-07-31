@@ -74,8 +74,8 @@ export async function enablePush(userId) {
 export async function disablePush() {
   const subscription = await currentSubscription()
   if (!subscription) return
-  const { deletePushSubscription } = await import('../../data/push.js')
   try {
+    const { deletePushSubscription } = await import('../../data/push.js')
     await deletePushSubscription(subscription.endpoint)
   } finally {
     await subscription.unsubscribe()

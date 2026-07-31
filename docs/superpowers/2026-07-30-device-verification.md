@@ -281,7 +281,10 @@ a session of sending messages and watching nothing happen, with no clue why.
       open in the browser. Wait three minutes. Then `select count(*) from checkin_tokens where member_id = '<daniel>';`
       — the count has not grown by three.
 - [ ] **Badge offline.** Airplane mode, visit `/m/profile/badge`. It does not
-      render the QR; instead it says something about needing a connection.
+      render the QR; instead it shows the app's standard error state, with a
+      Retry button. Tap Retry while still offline — it fails again, same error
+      state. Reconnect without touching anything — the badge mints itself and
+      the QR appears with a fresh countdown, no reload or retry needed.
 - [ ] **Scan.** `/p/scan` as Andrea. Hold Daniel's phone in front of the camera:
       the badge QR scans, Andrea's screen shows the member's name and their
       subscription state (Lean Bulk, e.g.), and the database now holds a check-in
