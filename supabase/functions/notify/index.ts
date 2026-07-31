@@ -60,7 +60,32 @@ Deno.serve(async (request) => {
   )
   if (dead.length > 0) await admin.from('push_subscriptions').delete().in('id', dead)
 
-  return new Response(JSON.stringify({ sent: results.length, pruned: dead.length }), {
+  // Every failure that is NOT a dead endpoint, with what the push service said.
+  // `Promise.allSettled` never rejects, so counting its results would report a
+  // send that Apple or Google refused as a success -- and the caller is a
+  // Postgres trigger that ignores this response entirely, so the log is the
+  // only place a human can find out. A VAPID public key that does not match the
+  // one the device subscribed with shows up here as a 403, and nowhere else.
+  const failed = results.flatMap((result, index) =>
+    result.status === 'rejected'
+      ? [
+          {
+            endpoint: subscriptions![index].endpoint.slice(0, 60),
+            statusCode: (result.reason as { statusCode?: number })?.statusCode ?? null,
+            body: String(
+              (result.reason as { body?: string; message?: string })?.body ??
+                (result.reason as { message?: string })?.message ??
+                result.reason,
+            ).slice(0, 300),
+          },
+        ]
+      : [],
+  )
+  if (failed.length > 0) console.error('push send failed', failed)
+
+  const sent = results.filter((result) => result.status === 'fulfilled').length
+
+  return new Response(JSON.stringify({ sent, failed: failed.length, pruned: dead.length }), {
     headers: { 'Content-Type': 'application/json' },
   })
 })
