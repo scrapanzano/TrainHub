@@ -56,14 +56,26 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const target = event.notification.data?.url ?? '/'
+
+  // `openWindow` is not restricted to this worker's scope, so an absolute URL in
+  // the payload would open an attacker's page carrying TrainHub's icon. Resolve
+  // against our own origin and refuse anything that lands elsewhere.
+  let target = new URL('/', self.location.origin)
+  try {
+    const candidate = new URL(event.notification.data?.url ?? '/', self.location.origin)
+    if (candidate.origin === self.location.origin) target = candidate
+  } catch {
+    // Keep the default.
+  }
 
   // Focus a window that is already open rather than stacking a second one.
+  // Compared by pathname: `String.includes` matched every open window whenever
+  // the target was '/'.
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
-      const open = windows.find((client) => client.url.includes(target))
+      const open = windows.find((client) => new URL(client.url).pathname === target.pathname)
       if (open) return open.focus()
-      return self.clients.openWindow(target)
+      return self.clients.openWindow(target.href)
     }),
   )
 })

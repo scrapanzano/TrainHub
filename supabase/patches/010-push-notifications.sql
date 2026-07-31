@@ -76,6 +76,26 @@ exception when others then
   raise warning 'notify_user failed for %: %', p_user, sqlerrm;
 end $$;
 
+-- notify_user() must NOT be reachable from the browser.
+--
+-- Any non-trigger function in the exposed `public` schema that carries EXECUTE
+-- is a PostgREST endpoint: `POST /rest/v1/rpc/notify_user` with the publishable
+-- key -- which ships in the JS bundle -- would send a real Web Push to any user
+-- id, with an attacker-chosen title, body and tap URL.  That is precisely the
+-- forgery this database-raised design exists to prevent, so the whole scheme
+-- collapses without this revoke.
+--
+-- Postgres grants EXECUTE to PUBLIC on every new function, and `patches/006`
+-- adds explicit grants plus default privileges for `anon` and `authenticated`,
+-- so all three have to be named.  The four trigger functions below need no such
+-- treatment: PostgREST does not expose a function returning `trigger`, and
+-- Postgres refuses to call one outside a trigger context anyway.  They keep
+-- their EXECUTE right, which is what lets the triggers fire -- and they reach
+-- notify_user() regardless of this revoke, because a `security definer`
+-- function runs as its owner, who still holds EXECUTE.
+revoke execute on function public.notify_user(uuid,text,text,text)
+  from public, anon, authenticated;
+
 -- 1. A new chat message notifies the OTHER party.
 create or replace function notify_on_message() returns trigger
 language plpgsql security definer set search_path = '' as $$
@@ -171,6 +191,10 @@ create trigger on_nutrition_plan_notify
 -- `config unreadable by the app role` is the one that matters: if it reads
 -- FAIL, the shared secret that authenticates the database to the Edge Function
 -- is readable by anyone holding the publishable key.
+--
+-- `notify_user not callable by the app role` is the second: FAIL there means
+-- `/rest/v1/rpc/notify_user` is an open notification forge.  Re-running
+-- `patches/006` after this file undoes the revoke, so replay this file after it.
 select 'pg_net installed' as check,
   (select count(*) = 1 from pg_extension where extname = 'pg_net') as ok
 union all
@@ -183,4 +207,8 @@ select 'four triggers',
                     'on_workout_plan_notify', 'on_nutrition_plan_notify'))
 union all
 select 'config unreadable by the app role',
-  (not has_table_privilege('authenticated', 'public.app_config', 'select'));
+  (not has_table_privilege('authenticated', 'public.app_config', 'select'))
+union all
+select 'notify_user not callable by the app role',
+  (not has_function_privilege('authenticated',
+     'public.notify_user(uuid,text,text,text)', 'execute'));
