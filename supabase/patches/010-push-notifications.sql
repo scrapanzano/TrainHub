@@ -87,12 +87,15 @@ end $$;
 --
 -- Postgres grants EXECUTE to PUBLIC on every new function, and `patches/006`
 -- adds explicit grants plus default privileges for `anon` and `authenticated`,
--- so all three have to be named.  The four trigger functions below need no such
--- treatment: PostgREST does not expose a function returning `trigger`, and
--- Postgres refuses to call one outside a trigger context anyway.  They keep
--- their EXECUTE right, which is what lets the triggers fire -- and they reach
--- notify_user() regardless of this revoke, because a `security definer`
--- function runs as its owner, who still holds EXECUTE.
+-- so all three have to be named. `patches/006` also grants execute to
+-- `service_role`; that grant is deliberately left standing and is not a fourth
+-- name missing from this list -- the service role key never reaches a browser,
+-- so there is no forgery path through it to close. The four trigger functions
+-- below need no such treatment: PostgREST does not expose a function returning
+-- `trigger`, and Postgres refuses to call one outside a trigger context anyway.
+-- They keep their EXECUTE right, which is what lets the triggers fire -- and
+-- they reach notify_user() regardless of this revoke, because a `security
+-- definer` function runs as its owner, who still holds EXECUTE.
 revoke execute on function public.notify_user(uuid,text,text,text)
   from public, anon, authenticated;
 
@@ -193,8 +196,10 @@ create trigger on_nutrition_plan_notify
 -- is readable by anyone holding the publishable key.
 --
 -- `notify_user not callable by the app role` is the second: FAIL there means
--- `/rest/v1/rpc/notify_user` is an open notification forge.  Re-running
--- `patches/006` after this file undoes the revoke, so replay this file after it.
+-- `/rest/v1/rpc/notify_user` is an open notification forge, reachable either
+-- signed in or with no session at all -- both roles are asserted because the
+-- revoke names both.  Re-running `patches/006` after this file undoes the
+-- revoke, so replay this file after it.
 select 'pg_net installed' as check,
   (select count(*) = 1 from pg_extension where extname = 'pg_net') as ok
 union all
@@ -211,4 +216,6 @@ select 'config unreadable by the app role',
 union all
 select 'notify_user not callable by the app role',
   (not has_function_privilege('authenticated',
+     'public.notify_user(uuid,text,text,text)', 'execute')
+   and not has_function_privilege('anon',
      'public.notify_user(uuid,text,text,text)', 'execute'));

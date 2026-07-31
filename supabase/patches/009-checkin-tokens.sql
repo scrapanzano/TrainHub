@@ -135,7 +135,12 @@ select 'member can select',
   has_table_privilege('authenticated', 'public.checkin_tokens', 'select')
 union all
 select 'redeem runs with an empty search path',
-  (select 'search_path=' = any(p.proconfig)
+  -- `search_path` carries GUC_LIST_QUOTE: the empty value passed to
+  -- `set search_path = ''` is run through `quote_identifier()` before storage,
+  -- so `proconfig` holds `search_path=""`, not `search_path=`. An overlap
+  -- against both spellings is what a correctly patched database actually
+  -- produces; a literal equality against either alone reads FAIL here.
+  (select (p.proconfig && array['search_path=', 'search_path=""'])
    from pg_proc p
    join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'redeem_checkin_token');

@@ -86,10 +86,17 @@ $$;
 
 -- Every row must read PASS.
 --
--- Each row asserts the function's `proconfig` carries the EMPTY search path.
--- A FAIL means that function is still `set search_path = public` and is still
--- shadowable through pg_temp -- these rows fail against the pre-patch database
--- by construction, which is how you know they ran.
+-- Each row asserts the function's `proconfig` overlaps an empty search path,
+-- checking both spellings Postgres might have stored it under. `search_path`
+-- carries GUC_LIST_QUOTE, so the value passed to `set search_path = ''` is run
+-- through `quote_identifier()` before it is stored, and an empty string comes
+-- back quoted: the stored element is `search_path=""`, not `search_path=`. A
+-- literal equality against either spelling alone is false on a correctly
+-- patched database, which is why this is an overlap against both rather than
+-- an equality against one. A FAIL means the function is still `set
+-- search_path = public` and is still shadowable through pg_temp -- these rows
+-- fail against the pre-patch database by construction, which is how you know
+-- they ran.
 select
   check_name,
   actual,
@@ -98,17 +105,17 @@ select
 from (
   values
     ('is_professional runs with an empty search path',
-     (select ('search_path=' = any(p.proconfig))::text
+     (select (p.proconfig && array['search_path=', 'search_path=""'])::text
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.proname = 'is_professional'),
      'true'),
     ('owns_member runs with an empty search path',
-     (select ('search_path=' = any(p.proconfig))::text
+     (select (p.proconfig && array['search_path=', 'search_path=""'])::text
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.proname = 'owns_member'),
      'true'),
     ('handle_new_user runs with an empty search path',
-     (select ('search_path=' = any(p.proconfig))::text
+     (select (p.proconfig && array['search_path=', 'search_path=""'])::text
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.proname = 'handle_new_user'),
      'true'),
