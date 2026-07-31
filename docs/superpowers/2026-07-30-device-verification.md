@@ -31,10 +31,14 @@ Work top to bottom — the order matters in two places, both flagged.
 - [ ] Supabase → Authentication → URL Configuration: the ngrok origin appears
       under **Site URL** and **Redirect URLs**. Without it the password-reset
       email lands on the Site URL with no code and section 5 cannot pass.
-- [ ] `supabase/verify.sql`: the three security rows and the two grant rows read
-      PASS. The four seed-count rows read FAIL **by design** once `patches/005`
-      has run — the comment in the file explains why the expectations were not
-      bumped.
+- [ ] `supabase/verify.sql`, run **after** the patches in section 9's
+      prerequisites: the three security rows and the two grant rows read PASS.
+      Its counts expect `checkin_tokens` (`patches/009`) and `app_config`
+      (`patches/010`) to exist, so run it before those and the schema rows read
+      two short. Three rows read 17 against 18 tables on purpose — `app_config`
+      is deliberately policy-less and grant-less. The four seed-count rows read
+      FAIL **by design** once `patches/005` has run — the comment in the file
+      explains why the expectations were not bumped.
 
 Accounts: `daniel@trainhub.dev` (member), `andrea@trainhub.dev` (professional).
 Four extra demo clients exist as `auth.users` rows with no identity and cannot
@@ -235,10 +239,13 @@ minting badges and recording check-ins exactly as if push did not exist, with
 no error anywhere. Skipping any one of these turns the push checks below into
 a session of sending messages and watching nothing happen, with no clue why.
 
-- [ ] `supabase/patches/009-checkin-tokens.sql` and
-      `supabase/patches/010-push-notifications.sql` both applied, in that
+- [ ] `supabase/patches/009-checkin-tokens.sql`,
+      `supabase/patches/010-push-notifications.sql` and
+      `supabase/patches/011-harden-definer-functions.sql` all applied, in that
       order, in the Supabase SQL editor. Each prints its own PASS/FAIL block —
-      every row must read PASS.
+      every row must read PASS. `011` is a security fix to the three oldest
+      `security definer` functions and is worth applying even if push is not
+      being set up.
 - [ ] The `notify` Edge Function deployed:
       `npx supabase functions deploy notify --no-verify-jwt`
 - [ ] Its secrets set: `npx supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:... NOTIFY_SECRET=...`
@@ -251,6 +258,13 @@ a session of sending messages and watching nothing happen, with no clue why.
         ('notify_function_url', 'https://<project-ref>.functions.supabase.co/notify'),
         ('notify_secret', '<same value as NOTIFY_SECRET>')
       on conflict (key) do update set value = excluded.value;
+      ```
+- [ ] Where a notification that never arrived explains itself: `net.http_post`
+      is fire-and-forget, so a 403 from a mismatched `notify_secret` or a 500
+      from the Edge Function reaches nothing in the app and nothing above. It
+      lands here, and only here:
+      ```sql
+      select status_code, content from net._http_response order by created desc limit 10;
       ```
 
 - [ ] **Badge QR.** `/m/profile/badge` as Daniel: a QR code renders and the

@@ -163,11 +163,15 @@ credentials, so any schema work ends in a handoff to Davide.
 
 - `schema.sql`, `policies.sql`, `seed.sql` — a fresh install, in that order,
   after creating the two demo auth users with **Auto Confirm User** ticked.
-- `patches/001`…`010` — applied in order on top. They also carry their own
+- `patches/001`…`011` — applied in order on top. They also carry their own
   PASS/FAIL blocks. `009` (checkin tokens) and `010` (push notifications) are
-  what Phase 4B's badge, scanner and push features depend on.
-- `verify.sql` — run last. The three security rows and the two grant rows must
-  read PASS. **Four seed-count rows read FAIL by design** once
+  what Phase 4B's badge, scanner and push features depend on; `011` hardens the
+  three oldest `security definer` functions against pg_temp shadowing.
+- `verify.sql` — run last, **after the patches**: its five schema and security
+  counts expect `checkin_tokens` (`009`) and `app_config` (`010`) to exist. The
+  three security rows and the two grant rows must read PASS. Three of them read
+  17 against 18 tables on purpose — `app_config` is policy-less and grant-less
+  by design. **Four seed-count rows read FAIL by design** once
   `patches/005-demo-clients.sql` has run; the comment in the file explains why
   the expectations are deliberately not bumped.
 
