@@ -11,16 +11,25 @@ import { supabase } from '../lib/supabase.js'
  * Not registered in `src/data/mutations.js` on purpose: a token replayed on
  * reconnect, long after the member left the door, is worth nothing to anyone.
  * Offline this simply fails, and the screen says so.
+ *
+ * Returns `lifetimeMs` alongside the row: `expires_at - created_at`, two
+ * DATABASE timestamps, so the number never mixes clocks. Subtracting
+ * `Date.now()` from `expires_at` instead would make a phone a minute fast see
+ * every fresh token as already expired and re-mint in a loop, and a slow phone
+ * count down over a badge that died minutes ago.
  */
 export async function mintCheckinToken({ memberId, token }) {
   const { data, error } = await supabase
     .from('checkin_tokens')
     .insert({ member_id: memberId, token })
-    .select('token, expires_at')
+    .select('token, expires_at, created_at')
     .single()
 
   if (error) throw error
-  return data
+  return {
+    ...data,
+    lifetimeMs: new Date(data.expires_at).getTime() - new Date(data.created_at).getTime(),
+  }
 }
 
 /**

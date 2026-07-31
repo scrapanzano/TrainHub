@@ -60,13 +60,24 @@ export async function enablePush(userId) {
 /**
  * Unsubscribe this device and forget the row.
  *
- * The row goes first: a device that unsubscribed locally but stayed in the
- * table is a phone the Edge Function keeps pushing to until the endpoint rots.
+ * The local unsubscribe is in a `finally` so it happens even when the delete
+ * throws -- which offline it always does, and sign-out swallows that by design.
+ * Row-first-only left the departed user's phone still receiving their
+ * notifications, the exact failure this call exists to prevent, and blocked the
+ * next person to sign in on it: `enablePush` reuses the live subscription and
+ * the upsert then collides with an `endpoint` row that `push_subscriptions_all`
+ * makes neither visible nor writable to them.
+ *
+ * The orphaned row is self-cleaning: a dead endpoint answers 410 and the Edge
+ * Function prunes it.
  */
 export async function disablePush() {
   const subscription = await currentSubscription()
   if (!subscription) return
   const { deletePushSubscription } = await import('../../data/push.js')
-  await deletePushSubscription(subscription.endpoint)
-  await subscription.unsubscribe()
+  try {
+    await deletePushSubscription(subscription.endpoint)
+  } finally {
+    await subscription.unsubscribe()
+  }
 }

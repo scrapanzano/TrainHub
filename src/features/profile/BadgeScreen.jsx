@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Box, Card, CardContent, Stack, Typography } from '@mui/material'
+import { Box, Card, CardContent, Stack, Typography } from '@mui/material'
 import QRCode from 'qrcode'
 import { mintCheckinToken } from '../../data/checkin.js'
-import { LoadingState } from '../../components/ScreenState.jsx'
+import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import { useAuth } from '../auth/useAuth.js'
 
 /** mm:ss, from a count of seconds. */
@@ -44,7 +44,11 @@ export default function BadgeScreen() {
       const row = await mintCheckinToken({ memberId: user.id, token: crypto.randomUUID() })
       const dataUrl = await QRCode.toDataURL(row.token, { width: 320, margin: 1 })
       if (aliveRef.current) {
-        setBadge({ expiresAt: row.expires_at, dataUrl })
+        // The deadline is the server-side LIFETIME counted from the moment the
+        // response landed, never `expires_at` minus this device's clock: that
+        // subtraction mixes two clocks, and a phone a minute fast would find
+        // every fresh token already expired and mint in a loop.
+        setBadge({ expiresAt: Date.now() + row.lifetimeMs, dataUrl })
         setError(null)
       }
     } catch (cause) {
@@ -64,11 +68,21 @@ export default function BadgeScreen() {
     init()
   }, [mint])
 
+  // The mint effect runs once, and a failed mint leaves `badge` null, so the
+  // countdown effect below returns before it starts an interval. Without this
+  // listener the error state is a dead end until the member navigates away and
+  // back; with it the badge appears on its own the moment the phone reconnects.
   useEffect(() => {
-    if (!badge) return
+    if (!error) return undefined
+    window.addEventListener('online', mint)
+    return () => window.removeEventListener('online', mint)
+  }, [error, mint])
+
+  useEffect(() => {
+    if (!badge) return undefined
 
     const tick = () => {
-      const remaining = new Date(badge.expiresAt).getTime() - Date.now()
+      const remaining = badge.expiresAt - Date.now()
       setSecondsLeft(Math.max(0, Math.ceil(remaining / 1000)))
       // Minting stops while the page is hidden. A phone locked with the badge
       // open would otherwise write one row a minute for as long as it sat in a
@@ -97,11 +111,7 @@ export default function BadgeScreen() {
           is the second write in the app, after the password change, where the
           offline queue is the wrong tool -- a token replayed on reconnect is
           worth nothing to anyone. */}
-      {error ? (
-        <Alert severity="warning">
-          Your badge needs a connection. Reconnect and it will appear.
-        </Alert>
-      ) : null}
+      {error ? <ErrorState error={error} onRetry={mint} /> : null}
 
       {!badge && !error ? <LoadingState /> : null}
 
