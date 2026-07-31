@@ -348,22 +348,33 @@ a session of sending messages and watching nothing happen, with no clue why.
       the device is back online, succeeds, replacing the error with the
       check-in card. That confirms the retry actually fired rather than the
       cooldown silently swallowing it.
-- [ ] **Push notifications, Android.** Phone running Android, app installed as a
-      PWA from Chrome. Close the app (not just backgrounded: swipe it away from
-      the switcher). As Andrea send Daniel a message → the Android notification
-      appears. Tap it → the app opens and shows the chat thread, not the home
-      screen. Return to home and tap the Settings icon. **Push Notifications** is
-      on by default; toggle it **off** → send another message → no notification.
-      Toggle it back on. (If the toggle is already off, this is the correct
-      default and the next two checks cover the disabling path.)
-- [ ] **Push notifications, iPhone.** Phone running iOS 16.4+, app installed to
-      the Home Screen **from Safari** (not Chrome, not a shortcut in a folder —
-      Safari's "Add to Home Screen" is the only path that grants Web Push). Close
-      the app. As Andrea send a message, confirm the appointment change by
-      accepting a booking request, and assign a plan to Daniel → **three**
-      notifications, one for each, appear. Tap one → the app opens to the right
-      thread or screen (message tap opens chat, appointment tap opens the
-      calendar, plan tap opens nutrition).
+**Android is not verified, and that is a device shortage rather than a gap in
+the code.** Only an iPhone was available for this phase, so every push check
+below runs on iOS — the stricter of the two platforms by some distance. The
+report says Android is supported and untested, not that it works.
+
+- [ ] **Subscribe the device.** Install to the Home Screen **from Safari** on
+      iOS 16.4+ — not Chrome, not a bookmark: Safari's *Add to Home Screen* is
+      the only path that grants Web Push. Launch it from the icon.
+      **The installed app has its own storage**: the Safari session does not
+      carry over, so sign in again as Daniel inside it. That is not a defect.
+      Then Settings → the notifications switch. It starts **off** — it reflects
+      whether this device holds a subscription, and a fresh install holds none.
+      Tap it and accept the iOS dialog.
+- [ ] **The subscription reached the database.**
+      ```sql
+      select user_id, endpoint from push_subscriptions;
+      ```
+      One row, and on iOS the endpoint begins `https://web.push.apple.com/`. No
+      row means the browser never subscribed — on iOS that is almost always one
+      of the four install requirements above, not the database.
+- [ ] **A notification arrives with the app closed.** Close it properly — swipe
+      it out of the app switcher, do not merely background it. As Andrea send a
+      message, confirm one of Daniel's booking requests, and assign him a plan
+      → **three** notifications, one per event. Tapping each opens the right
+      screen: the chat, the appointments list, the plan.
+      If a notification does not appear while `sent` reads 1, look at iOS
+      Settings → Notifications → TrainHub, and at any Focus mode.
 - [ ] **Push notification opt-out, iOS.** Settings → toggle **Push
       Notifications** off → in the iOS settings for the app itself (Settings →
       TrainHub → Notifications), confirm it is no longer registered. Assign

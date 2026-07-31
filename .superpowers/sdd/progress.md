@@ -1659,3 +1659,18 @@ row, no error anywhere. The failure-isolation the reviews asked for is right,
 and this is its cost: the only way back is reading the config value rather than
 checking the row exists. Both the read-back and a device-free smoke test are now
 steps in the checklist's push prerequisites.
+
+Device reality, 2026-07-31: only an iPhone is available, so the spec's decision 6
+("Android and iPhone") is amended to iPhone only. iOS is the stricter platform --
+it needs 16.4+, installation from Safari specifically, and refuses a permission
+request that is not the direct result of a gesture -- so passing there is the
+stronger claim; Android is recorded as supported and untested, which is what the
+report will say. Web Push is one standard and the code does not branch on
+platform.
+Consequence for the scan check: it needs two cameras only if both ends are
+phones. With one device, the badge goes on the iPhone and /p/scan runs in desktop
+Chrome against the webcam -- which is exactly why BarcodeDetector was dropped for
+jsqr in decision 2, since the native decoder does not exist in Chrome on Windows.
+Also corrected in the checklist: it claimed the notifications switch is "on by
+default". It is not -- NotificationSwitch reads currentSubscription(), so a fresh
+install starts off.

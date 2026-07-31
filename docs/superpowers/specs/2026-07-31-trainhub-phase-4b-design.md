@@ -60,9 +60,13 @@ makes them reviewable later.
    token belonging to someone else without ever being able to *read* the token
    table, which a policy-based design would require and which is exactly the
    permission that lets an attacker enumerate valid badges.
-6. **Push is verified on Android and on iPhone.** iOS 16.4+ with the PWA
-   installed **from Safari** — Web Push does not exist for a site open in an
-   iOS browser tab, and Chrome for iOS cannot install it.
+6. **Push is verified on iPhone.** iOS 16.4+ with the PWA installed **from
+   Safari** — Web Push does not exist for a site open in an iOS browser tab,
+   and Chrome for iOS cannot install it. The decision when this spec was
+   written was "Android and iPhone"; only an iPhone turned out to be
+   available, and iOS is the stricter of the two by some distance, so Android
+   is claimed as supported and untested rather than working. The code is the
+   same either way — Web Push is one standard.
 
 ## Data model and security
 
@@ -227,9 +231,10 @@ does and it is right for this demo, but it is a choice, and the report says so.
   writes a check-in, naming the member and their subscription state. The same QR
   scanned twice says *already used*. A QR older than a minute says *expired*. A
   denied camera permission still leaves the manual field working.
-- **Push, on Android and on iPhone**, PWA installed, app closed: a notification
+- **Push, on iPhone**, PWA installed from Safari, app closed: a notification
   arrives for each of the three events, the tap opens the right route, the
   Settings switch stops them, and signing out stops them on that device.
+  Android is supported and untested — see decision 6.
 - `npm run lint` exits 0, `npm run build` succeeds, and all self-checks pass.
 - `verify.sql` still reads PASS on its three security rows and two grant rows.
 
