@@ -259,6 +259,27 @@ a session of sending messages and watching nothing happen, with no clue why.
         ('notify_secret', '<same value as NOTIFY_SECRET>')
       on conflict (key) do update set value = excluded.value;
       ```
+- [ ] **Read back what you actually inserted**, before trusting it:
+      ```sql
+      select key, value from app_config;
+      ```
+      This caught a real one on 2026-07-31: the row held the literal
+      `https://<project-ref>.supabase.co/...`, pasted from the instructions
+      without substituting. `net.http_post` refuses a malformed host,
+      `notify_user`'s exception handler turns that into a warning, and the SQL
+      editor does not surface warnings — so the symptom was **nothing at all**:
+      no queued request, no response row, no error. Check the value, not the
+      presence of the row.
+- [ ] **Smoke-test the whole chain before touching a phone.** In the SQL editor
+      you run as the owner, so the `revoke` does not apply to you:
+      ```sql
+      select id, full_name from profiles;
+      select notify_user('<daniel>', 'Test', 'Chain check', '/m');
+      ```
+      It writes nothing and sends nothing yet — no device is subscribed — but it
+      exercises the config lookup, `pg_net`, and the Edge Function's secret
+      check. `200` with `{"sent":0,"pruned":0}` in the response below means the
+      chain is complete.
 - [ ] Where a notification that never arrived explains itself: `net.http_post`
       is fire-and-forget, so a 403 from a mismatched `notify_secret` or a 500
       from the Edge Function reaches nothing in the app and nothing above. It

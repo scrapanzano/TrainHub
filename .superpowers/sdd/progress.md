@@ -1647,3 +1647,15 @@ Open Minor, deferred with reasons: a redeem() in flight at unmount can leave a
   lacks the is_professional() guard its nutrition sibling has, which predates
   this branch; and the badge's local deadline includes the round trip, so it
   trails the server's true expiry by a few hundred milliseconds.
+
+Push chain verified end to end from the SQL editor, 2026-07-31, before any
+device: notify_user -> pg_net -> Edge Function answers 200.
+One real incident on the way, worth keeping: the app_config row held the
+LITERAL `https://<project-ref>.supabase.co/...`, pasted from the handoff without
+substituting. net.http_post refuses a malformed host, notify_user's own
+exception handler turns that into a `raise warning`, and the SQL editor does not
+surface warnings -- so the symptom was NOTHING: no queued request, no response
+row, no error anywhere. The failure-isolation the reviews asked for is right,
+and this is its cost: the only way back is reading the config value rather than
+checking the row exists. Both the read-back and a device-free smoke test are now
+steps in the checklist's push prerequisites.
