@@ -1674,3 +1674,32 @@ jsqr in decision 2, since the native decoder does not exist in Chrome on Windows
 Also corrected in the checklist: it claimed the notifications switch is "on by
 default". It is not -- NotificationSwitch reads currentSubscription(), so a fresh
 install starts off.
+
+PUSH VERIFIED END TO END ON IPHONE, 2026-07-31. notify_user -> pg_net -> Edge
+Function -> Apple -> the device. Patches 009, 010 and 011 are applied, the
+Edge Function is deployed, app_config carries both rows, and a push_subscriptions
+row exists with a web.push.apple.com endpoint.
+Two things were fixed on the way there, both diagnostic rather than functional:
+  - the app_config URL held the literal <project-ref> placeholder (see above);
+  - the Edge Function reported `sent: results.length`, counting every SETTLED
+    result, so a batch the push service refused outright still read as success --
+    and the caller is a trigger that ignores the response, so nothing anywhere
+    contradicted it. Now it counts fulfilled sends, returns a failure count, and
+    logs each rejection with its status code and body (commit f01da9f). A VAPID
+    public key that does not match the one the device subscribed with is a 403
+    and appears nowhere else.
+
+RESUME HERE. The branch is phase-4b-badge-scanner-and-push, not merged, not
+pushed. Everything in the code is done and reviewed; what is left is the device
+walk in docs/superpowers/2026-07-30-device-verification.md section 9, minus the
+push-chain steps which are now done:
+  - badge: QR, countdown, rotation, no minting while the screen is locked,
+    ErrorState with Retry offline and the self-heal on reconnect;
+  - scan: badge on the iPhone, /p/scan in desktop Chrome against the webcam --
+    valid, already used (reload /p/scan between the two scans), expired (read an
+    unscanned expired token out of checkin_tokens and type it into the manual
+    field), unknown, camera denied, retry cooldown;
+  - the three push EVENTS through the app rather than through notify_user: a
+    message from Andrea, a booking she confirms, a plan she assigns;
+  - the switch turning push off, and sign-out stopping them on that device.
+Then: PR #3 into main, following the Phase 3 and 4A precedent.
