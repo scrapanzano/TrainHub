@@ -1341,3 +1341,309 @@ PHASE 4A MERGED into main via pull request #2 (merge commit d6d4c08), after the
 device run above. Branch phase-4a-member-completion-and-chat is on origin.
 Remaining routes: /m/profile/badge and /p/scan, both still Placeholder -- they
 are Phase 4B, together with push notifications.
+
+# Phase 4B — Access Badge, Scanner and Push
+Spec: docs/superpowers/specs/2026-07-31-trainhub-phase-4b-design.md
+Plan: docs/superpowers/plans/2026-07-31-trainhub-phase-4b-badge-scanner-and-push.md
+Base commit: 60d15ba
+Branch: phase-4b-badge-scanner-and-push
+Status: starting.
+
+Decisions taken with Davide before planning (spec carries the reasoning):
+  - The badge ROTATES every 60s, one row per token, redeemable once. A token
+    per day or a static token means a forwarded screenshot is a working key.
+  - BarcodeDetector DROPPED. jsqr only -- one code path, and the only one that
+    works in Chrome on Windows, where the native decoder does not exist and the
+    two-path version would leave its native branch untestable on the dev machine.
+  - Three notification EVENTS, four triggers (a plan spans two tables).
+  - The notification is raised by the database, not the sender's client.
+  - A token is redeemed through a security definer function; a professional
+    never receives read access to checkin_tokens, which is the permission that
+    would let someone enumerate valid badges.
+  - Push verified on Android AND iPhone (iOS 16.4+, installed from Safari).
+Pre-flight plan scan: clean. The two Global Constraints that look like
+  contradictions -- two writes not registered in mutations.js, and one
+  TypeScript file -- are both carved out explicitly in that section.
+Task 1: complete (commits f3ed4fd..7446465 plus the plan fix, re-review clean)
+  ONE IMPORTANT, and it was the plan's -- mine. redeem_checkin_token is
+  `security definer`, so it bypasses RLS, and it was declared
+  `set search_path = public` with unqualified relation names. Postgres resolves
+  an unqualified RELATION through pg_temp BEFORE anything on the search path,
+  and any signed-in role may create temp tables: a professional -- who
+  legitimately passes the is_professional() gate -- could create a session-local
+  temp table named checkin_tokens holding a forged row and have the function
+  read the forgery, recording a check-in for a member who never scanned.
+  Fixed with `set search_path = ''` and every relation, %rowtype and function
+  reference schema-qualified. auth.uid() was already qualified; now() and the
+  casts need no qualification because pg_catalog is searched first whatever the
+  search path says, and pg_temp shadows only RELATIONS, never functions or
+  types. The patch gained a PASS/FAIL row asserting the empty search path, so a
+  future edit that puts `search_path = public` back fails when the patch runs.
+  The same shape was in the plan's Task 4 SQL, which had not been implemented
+  yet -- corrected there too, before it could be inherited. That mattered more
+  than it looks: notify_user reads app_config, which holds the secret that
+  authenticates the database to the Edge Function.
+  Re-review caught that the plan's PASS/FAIL block had not received the new
+  assertion even though its function body had. Fixed.
+  PRE-EXISTING, for the final review to triage: is_professional() and
+  owns_member() in policies.sql, and handle_new_user() in schema.sql, carry the
+  same `search_path = public` + unqualified pattern. Not a regression from this
+  branch, and hardening them means re-running a policies-level patch.
+  PENDING DAVIDE: run supabase/patches/009-checkin-tokens.sql. Seven rows, all
+  must read PASS.
+Task 2: complete (commits b275ece..9206c65, third review clean)
+  TWO IMPORTANT in the plan's own code, then ONE CRITICAL introduced by the fix
+  for them. Worth recording in full, because the second is the more instructive.
+  1. IMPORTANT: one expiry could mint SEVERAL tokens. tick() called mint()
+     without awaiting it and with no in-flight guard, and badge.expiresAt does
+     not change until the insert resolves -- so every tick during the round trip
+     saw the same past expiry and minted again. One extra database row per
+     second of latency; a 3s insert wrote four badges for one expiry.
+  2. IMPORTANT: the async mint could settle after unmount and set state on a
+     screen the member had already left.
+  Fixed with a mintingRef owned by mint itself (so the mount effect, the expiry
+  tick and the visibility handler are all covered rather than one call site) and
+  an aliveRef unmount guard.
+  3. CRITICAL, introduced BY that fix: aliveRef was set false in a cleanup and
+     never back to true. main.jsx wraps the app in StrictMode, and React 19
+     double-invokes effects in dev -- mount, cleanup, mount -- so the flag was
+     permanently false and every setBadge/setError was dropped. The badge sat on
+     its spinner forever under `npm run dev`, recoverable only by a reload. The
+     screen's own verification step is a dev browser check, so this would have
+     been found by Davide as "the badge never appears" with no clue why.
+     Fixed by re-arming the flag at the top of the effect body. ResetPasswordScreen
+     carries the same hazard and its comment already named it -- the house
+     precedent existed and the fix had not followed it.
+  Reviewer then traced the StrictMode double-invoke through BOTH guards and
+  confirmed one network call, one state update, badge rendered; that mintingRef
+  cannot latch because every throw routes through its finally; and that the
+  visibility gate and the countdown wiring were byte-untouched by both fixes.
+  The plan's Task 2 listing now carries an amendment naming both guards, so the
+  next reader does not copy the version without them.
+Task 3: complete (commits 4e5b576..6dc1b96, third review clean)
+  ONE IMPORTANT, then a second one created by its fix -- the same shape as
+  Task 2, and worth naming as a pattern: a guard added to stop something
+  happening too often is one line away from stopping it happening at all, and
+  vice versa.
+  1. IMPORTANT: `redeem` latched lastToken unconditionally, including when the
+     call THREW. A dropped connection is exactly the case where the check-in did
+     not happen and must be retried, and instead the screen swallowed every
+     further attempt at that badge for its whole lifetime -- through the manual
+     form too, since it calls the same function. The submit button cleared and
+     nothing happened; the only way out was leaving /p/scan and returning.
+  2. IMPORTANT, from that fix: clearing the guard on a throw put the retry back
+     in the hands of the 200ms decode loop. A badge left in frame during a
+     sustained outage was resubmitted FIVE TIMES A SECOND, with no backoff,
+     hitting the backend hardest exactly while it was already failing.
+     Fixed with a 3s cooldown held in a ref, cancelled when a new attempt
+     starts (so a cooldown scheduled for badge A cannot clear badge B's guard)
+     and cleared by the camera effect's cleanup. unknown/used/expired still
+     latch permanently -- repeating them returns the same answer.
+  Also fixed on the way: an interval could be created after unmount, because
+  `cancelled` was checked before `await video.play()` and not after; and the
+  jsQR decode was unguarded against a throw inside a timer callback.
+  Reviewer confirmed independently that redeemCheckinToken throws ONLY on a
+  transport/RPC failure -- the four status values all resolve -- which is what
+  makes "cooldown on throw, latch on status" the right split.
+  Two Minor carried to the final review: a redeem() still in flight at unmount
+  can create a cooldown timer that cleanup can no longer reach (inert -- no
+  camera, no DOM, no observed state); and src/components/Placeholder.jsx is now
+  dead repo-wide, since /p/scan was the last route using the screen() helper.
+  The helper and its import are gone; the component file is still there.
+Task 4: complete (commits 98a6f94..50df01d, re-review clean)
+  ONE IMPORTANT, plan-mandated and mine: the patch's own header states that
+  inserting a message can never fail because of a notification, but only
+  notify_user() carried an exception handler. The four TRIGGER functions run
+  their own lookups first -- threads, profiles -- and anything raised there
+  propagates and ABORTS the INSERT or UPDATE that fired it. A member's message
+  would have been lost because a notification could not be built, which is the
+  exact outcome the comment forbids. Each trigger function now has its own
+  handler in notify_user's shape.
+  Reviewer verified against schema.sql that every column each trigger touches
+  exists; that all five functions carry `security definer set search_path = ''`
+  with every relation qualified (the Task 1 hole, not reintroduced); that
+  messages_insert's RLS forces sender_id = auth.uid(), which is what makes the
+  "other party" CASE always correct; that both notification URLs are real routes
+  in routes/index.jsx; and that app_config's revoke genuinely counters patch
+  006's default privileges rather than trusting RLS alone.
+  Three Minor carried to the final review: notify_on_workout_plan fires on ANY
+  insert, and workout_plans_write permits a member to insert their own plan, so
+  a member using the builder push-notifies themselves about their own action
+  (nutrition_plans_write_pro has the is_professional() guard that
+  workout_plans_write lacks -- the two plan tables are inconsistent, and that
+  predates this branch); notify_on_message queries threads twice to derive a URL
+  it already had; and to_char(starts_at, 'Dy DD Mon ...') renders day and month
+  names per the database's lc_time, which is not guaranteed to be English.
+Task 5: complete (commit 0957798, review clean, approved)
+  Reviewer verified the three things that fail SILENTLY if wrong: the auth check
+  runs before any work and compares against Deno.env, so a missing NOTIFY_SECRET
+  cannot make it pass (undefined never equals a header string); the body field
+  names match exactly what notify_user() posts and the selected columns match
+  push_subscriptions in schema.sql -- a mismatch there is a notification that is
+  simply never delivered, with nothing in any log; and the dead-subscription
+  pruning indexes results against the same array in the same order, so it cannot
+  delete a live device's row.
+  ONE IMPORTANT, and it was in the REPORT rather than the code: the implementer
+  claimed ESLint "correctly ignores supabase/functions". It does not -- the file
+  escapes linting only because no `files` glob matches `.ts`. The brief had
+  asked for exactly that distinction and it was conflated anyway. Made true
+  rather than left incidental: eslint.config.js now names the directory in
+  globalIgnores, so a future config that does match .ts fails loudly instead of
+  quietly pulling in a Deno file this project never builds.
+  One Minor carried: `await request.json()` is unguarded, so a malformed body
+  becomes an uncaught 500. The only caller is notify_user(), which builds the
+  JSON itself and ignores the response.
+Task 6: complete (commit c02c806, review clean, approved)
+  One disclosed deviation from the plan's code, and the reviewer judged it the
+  right call: pushSubscription.js imports data/push.js DYNAMICALLY inside
+  enablePush/disablePush rather than at the top. The static version pulls in
+  lib/supabase.js, which throws at module evaluation under plain `node` because
+  import.meta.env does not exist there -- so the plan's own self-check step,
+  `node src/features/profile/pushSubscription.selfcheck.js`, could not run as
+  written. The dynamic import leaves the module with zero top-level imports,
+  which is exactly what makes the self-check runnable, and changes nothing the
+  browser sees beyond one more tiny chunk.
+  Reviewer traced the four invariants that fail silently if wrong: the permission
+  request is reached from the switch's change event with NO await in between
+  (iOS refuses a request that is not the direct result of a gesture, and refuses
+  it silently); disablePush deletes the row BEFORE unsubscribing locally, so a
+  device cannot linger in the table; the sign-out cleanup is wrapped so it can
+  never block the sign-out; and the push handler still shows a notification when
+  the payload will not parse, because Chrome otherwise substitutes its own "this
+  site was updated in the background" notice. Also confirmed onConflict targets
+  the real unique column, and that no import cycle reaches AuthProvider.
+  One Minor carried: if savePushSubscription throws after the browser-level
+  subscribe() succeeded, the switch shows Off while the device holds a live
+  subscription. Self-healing -- a retry reuses the existing subscription and
+  only re-attempts the save.
+Task 7: complete (commits 7875724..ccb374a plus the expired-step fix, re-review clean)
+  ONE CRITICAL and seven Important, all in the checklist rather than in code --
+  and that is the point of the task: a verification document that describes the
+  plan instead of the shipped screens sends the person holding the phone hunting
+  for behaviour that does not exist.
+  CRITICAL: the push section never stated its prerequisites. notify_user()
+  SILENTLY RETURNS when app_config is unconfigured -- deliberately, so badge and
+  scanner work without the Edge Function -- so a tester following it would have
+  got no notifications, no error and no clue why. It now opens with the two
+  patches, the deploy command, the secret names and the app_config insert, and
+  says they are Davide's.
+  The rest were claims the code contradicts: the badge does NOT survive a
+  refresh (every mount mints a new token); the "expired" answer cannot be
+  reached by reusing a scanned badge, because redeem_checkin_token checks
+  used_at BEFORE expires_at, so a used-and-expired token always answers `used`;
+  "already used" needed /p/scan reloaded between the two scans, because
+  ScannerScreen's own lastToken guard swallows a same-session rescan; section 4
+  still called both new routes placeholders; section 0 still said eight
+  self-checks while CLAUDE.md, edited in the same commit, said nine; and nothing
+  exercised the scanner's `unknown` answer or the three-second retry cooldown.
+  CLAUDE.md's database section still said patches 001-007; it now says 001-010
+  and names 009 and 010 as what this phase depends on.
+  The re-review then caught that the rewritten expired step, though honest, asked
+  the tester to win a sub-second race between unlocking a phone and a re-mint.
+  Replaced with the deterministic path the document already uses elsewhere: read
+  an expired, never-scanned token out of checkin_tokens and type it into the
+  manual-entry field.
+
+ALL SEVEN TASKS COMPLETE. Next: whole-branch review.
+
+## Phase 4B whole-branch review (base d6d4c08, 22 commits at review time)
+ONE CRITICAL, five Important. The Critical is the fifth phase running where the
+whole-branch review found something no single task owned -- and this one no task
+COULD have owned, because it lives in the seam between this branch's new
+function and a patch written two phases ago.
+
+CRITICAL, security: notify_user() was a PUBLIC RPC. patches/006 grants execute
+  on all routines in `public` to anon and authenticated, and sets default
+  privileges that do the same for routines created later; Postgres also grants
+  EXECUTE to PUBLIC by default. A non-trigger function in the exposed schema
+  with EXECUTE *is* a PostgREST endpoint. So POST /rest/v1/rpc/notify_user with
+  the publishable key from the JS bundle sent a real Web Push to any user id,
+  with an attacker-chosen title, body and TAP URL -- and sw.js passed that URL
+  straight to clients.openWindow, which is not scope-restricted. A notification
+  carrying TrainHub's own icon could open anyone's page. This is verbatim the
+  forgery the spec's Decision 4 chose the database-raised design to prevent; the
+  plan assumed the function unreachable ("nothing in src/ calls these") instead
+  of making it so.
+  Fixed at both layers: `revoke execute ... from public, anon, authenticated`
+  with a PASS row asserting it for BOTH app roles, and a same-origin clamp in
+  the service worker. service_role keeps its grant deliberately -- that key
+  never reaches a browser -- and the comment now says so.
+  Re-review confirmed the two claims this rests on: the four trigger functions
+  need no revoke (PostgREST excludes returns-trigger from its RPC cache, and
+  plpgsql refuses the call outside a trigger with 0A000), and the revoke does
+  not break them, because inside a security definer function every later
+  privilege check uses the OWNER's id, whose entry a revoke naming other
+  grantees never touches.
+IMPORTANT 1: the branch silently broke verify.sql. Its five security and grant
+  rows hard-code '16' tables; this branch adds two, so every one of them read
+  FAIL -- while the spec, CLAUDE.md and the device checklist all still claimed
+  they pass. The cost is not cosmetic: the next reader sees nine FAILs where
+  four were documented and learns that FAIL is normal, which is how the only
+  automated check the database has stops working. Bumped to 18/18/17/17/17, with
+  the comment block explaining why 17 and not 18 on the last three (app_config
+  is deliberately policy-less and grant-less, so its absence IS the assertion).
+IMPORTANT 2: redeem_checkin_token was hardened in Task 1 and its first statement
+  called is_professional(), which was not. A hardened function whose gate is
+  unhardened is hardened on paper. patches/011 rewrites is_professional(),
+  owns_member() and handle_new_user() with an empty search path and qualified
+  relations, and policies.sql and schema.sql carry the same fix so a fresh
+  install is not born with the hole -- patch 008's precedent.
+IMPORTANT 3: BadgeScreen's failure path was a dead end. The mint effect runs
+  once, so on failure nothing retried, nothing listened for `online`, and the
+  copy promised a recovery that could not happen. Now the app's standard
+  ErrorState with Retry, plus an online listener that heals it.
+IMPORTANT 4: the countdown subtracted the DEVICE clock from a SERVER timestamp.
+  A phone more than a minute fast saw remaining <= 0 on the first tick and minted
+  a row per round trip for as long as the screen stayed visible; a slow phone
+  showed a comfortable countdown over a badge that died minutes ago. The device
+  clock is now out of the calculation entirely: the lifetime is expires_at minus
+  created_at, both server-side, counted down locally from receipt.
+IMPORTANT 5: disablePush deleted the row and THEN unsubscribed, so an offline
+  sign-out left the device subscribed to the departed user's notifications --
+  the exact failure that call was added to prevent -- and blocked the next user,
+  whose upsert would conflict on an endpoint row that push_subscriptions_all
+  makes neither visible nor updatable to them. The unsubscribe is now in a
+  finally, with the import inside the try so a rejected chunk still reaches it.
+Then the re-review of the fix wave found ONE MORE, and it is the kind this
+  project keeps producing: the three new PASS rows in patches/011, and the one
+  patches/009 has carried since Task 1, asserted `'search_path=' = any(proconfig)`.
+  Postgres stores that GUC quoted -- `search_path=""` -- so a CORRECTLY applied
+  patch would have reported FAIL to the only person able to apply it. Now an
+  array overlap against both spellings, which is right either way.
+Also fixed: Placeholder.jsx deleted (dead since /p/scan was the last route using
+  the screen() helper); the notification tap now navigates an open window to the
+  target instead of opening a second one; and the device checklist gained the
+  net._http_response query, which is where a notification that never arrived
+  explains itself -- pg_net is fire-and-forget, so a 403 from a secret mismatch
+  leaves no trace anywhere else.
+
+Verdict after fixes: READY TO MERGE. lint 0, build ok, all 9 self-checks OK.
+
+EVERYTHING BELOW NEEDS A HUMAN, in this order:
+  1. Run patches/009-checkin-tokens.sql, 010-push-notifications.sql and
+     011-harden-definer-functions.sql. Every row of each must read PASS.
+  2. Insert the two app_config rows by hand -- notify_function_url and
+     notify_secret. The patches leave the places empty on purpose so the values
+     never enter the repository. Until they exist notify_user returns silently
+     and nothing else is affected, which is deliberate: badge and scanner work
+     on a database where the Edge Function was never deployed.
+  3. Generate the VAPID pair, put the public key in .env.local as
+     VITE_VAPID_PUBLIC_KEY, and set the four secrets on the function.
+  4. npx supabase login / link, then deploy the notify function with
+     --no-verify-jwt. This is the step that can block; if it does, badge and
+     scanner are unaffected.
+  5. Re-run verify.sql. Five rows PASS at their NEW counts, four seed rows FAIL
+     by design.
+  6. The device walk in docs/superpowers/2026-07-30-device-verification.md,
+     section 9 -- including push on BOTH phones, with the iPhone installed from
+     Safari on iOS 16.4+.
+Open Minor, deferred with reasons: a redeem() in flight at unmount can leave a
+  cooldown timer nothing clears (inert); the Edge Function's request.json() is
+  unguarded, reachable only by a caller who already knows the secret;
+  notify_on_message queries threads twice; to_char renders day and month names
+  per the database's lc_time, which is not guaranteed English; a
+  savePushSubscription that throws after subscribe() succeeded shows the switch
+  Off over a live subscription (self-healing on retry); workout_plans_write
+  lacks the is_professional() guard its nutrition sibling has, which predates
+  this branch; and the badge's local deadline includes the round trip, so it
+  trails the server's true expiry by a few hundred milliseconds.
