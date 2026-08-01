@@ -1,5 +1,22 @@
 import { supabase } from '../lib/supabase.js'
 
+// Crockford-style alphabet -- no 0/O, 1/I/L -- so a code read aloud or typed
+// by hand rarely trips on a lookalike character. 256 is divisible by 32, so
+// `byte % 32` is uniform, no modulo bias.
+const BADGE_CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ'
+
+/**
+ * A short, unpredictable badge code: 8 characters from a 32-symbol alphabet is
+ * 40 bits, far more than an authenticated professional could brute-force
+ * through the scanner within the token's sixty-second lifetime -- and only an
+ * authenticated professional can call `redeem_checkin_token` at all. Traded
+ * down from a full UUID because nobody can read 36 characters to a front desk.
+ */
+export function generateBadgeCode() {
+  const bytes = crypto.getRandomValues(new Uint8Array(8))
+  return Array.from(bytes, (byte) => BADGE_CODE_ALPHABET[byte % BADGE_CODE_ALPHABET.length]).join('')
+}
+
 /**
  * Mint one badge token.
  *

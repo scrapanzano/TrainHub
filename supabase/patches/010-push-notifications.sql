@@ -131,11 +131,24 @@ create trigger on_message_notify
   after insert on messages
   for each row execute function notify_on_message();
 
--- 2. A change of appointment status notifies the member.
+-- 2. An appointment reaching 'confirmed' or 'cancelled' notifies the member.
+--
+-- Two different writes can put a row there. A member's request INSERTs at
+-- 'pending' and the professional later UPDATEs its status -- that path this
+-- trigger always covered. But the professional's own booking sheet INSERTs
+-- straight to 'confirmed' (no pending step: they own the diary), and an
+-- UPDATE-only trigger never fires for a row that arrives already confirmed.
+-- Fixed for already-migrated databases in patches/012.
 create or replace function notify_on_appointment_status() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
-  if new.status is not distinct from old.status then
+  if tg_op = 'UPDATE' and new.status is not distinct from old.status then
+    return null;
+  end if;
+
+  -- 'pending' is not news to anyone yet -- only a row that reaches
+  -- 'confirmed', 'cancelled' or 'done' is.
+  if new.status = 'pending' then
     return null;
   end if;
 
@@ -152,7 +165,7 @@ end $$;
 
 drop trigger if exists on_appointment_status_notify on appointments;
 create trigger on_appointment_status_notify
-  after update of status on appointments
+  after insert or update of status on appointments
   for each row execute function notify_on_appointment_status();
 
 -- 3 and 4. A newly assigned plan notifies the member.  Two tables, one event,

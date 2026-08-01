@@ -143,8 +143,19 @@ won't scan — cracked glass, glare, a broken desk camera. The member reads it
 aloud or it's typed into the scanner's manual field
 (`ScannerScreen.jsx`'s "Enter a code by hand"), which already existed for the
 scanner-side half of this pairing but had nothing on the member's side to
-feed it. No new entropy or expiry: it is the exact string the QR carries,
-same one-minute lifetime, same one-time redemption.
+feed it.
+
+The token itself is no longer a UUID. Device-tested 2026-08-01: 36 characters
+is not something a person reads aloud at a front desk. `generateBadgeCode()`
+(`src/data/checkin.js`) makes an 8-character code from a 32-symbol
+Crockford-style alphabet (no `0/O/1/I/L`) instead — 40 bits, displayed grouped
+as `XXXX XXXX` for readability (display only; the QR and the stored token are
+the ungrouped 8 characters). `redeem_checkin_token` only accepts a call from
+an authenticated professional, so the threat model is an insider guessing
+within a sixty-second window, not an open brute force — 40 bits is
+comfortably more margin than that needs. The scanner's manual field
+uppercases and strips whitespace from what's typed before comparing, since the
+alphabet is uppercase-only.
 
 ### `/p/scan` — the scanner
 
@@ -187,9 +198,19 @@ on that URL or opens one. The existing precache logic is untouched.
 
 **From the database to the phone.** One plpgsql function
 `notify_user(target, title, body, url)` and four triggers that call it: after
-insert on `messages`, after update of `status` on `appointments`, and after
-insert on `workout_plans` and on `nutrition_plans`. It posts to the Edge
-Function through `pg_net`.
+insert on `messages`, after insert or update of `status` on `appointments`,
+and after insert on `workout_plans` and on `nutrition_plans`. It posts to the
+Edge Function through `pg_net`.
+
+The appointments trigger fires on INSERT as well as UPDATE OF status —
+device-tested 2026-08-01: a member's booking request INSERTs at 'pending' and
+a later UPDATE moves it to 'confirmed', which the original UPDATE-only
+trigger caught; but the professional's own booking sheet INSERTs straight to
+'confirmed' with no pending step (they own the diary), and that row's status
+column is never UPDATEd, so it went unnoticed. The trigger function itself
+guards on the row's status rather than comparing to `old`, since INSERT has no
+`old`: a 'pending' row never notifies (nobody has acted on it), anything else
+does. See `patches/012-appointment-insert-notifies.sql`.
 
 Two properties make this safe rather than fragile:
 

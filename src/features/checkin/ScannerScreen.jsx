@@ -148,7 +148,9 @@ export default function ScannerScreen() {
         spacing={1}
         onSubmit={(event) => {
           event.preventDefault()
-          const token = manual.trim()
+          // The badge code is uppercase-only with no whitespace; normalise a
+          // hand-typed entry the same way before it's compared.
+          const token = manual.trim().toUpperCase().replace(/\s+/g, '')
           if (token === '') return
           setManual('')
           redeem(token)
