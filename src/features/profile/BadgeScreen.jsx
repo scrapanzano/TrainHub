@@ -48,7 +48,7 @@ export default function BadgeScreen() {
         // response landed, never `expires_at` minus this device's clock: that
         // subtraction mixes two clocks, and a phone a minute fast would find
         // every fresh token already expired and mint in a loop.
-        setBadge({ expiresAt: Date.now() + row.lifetimeMs, dataUrl })
+        setBadge({ expiresAt: Date.now() + row.lifetimeMs, dataUrl, token: row.token })
         setError(null)
       }
     } catch (cause) {
@@ -136,6 +136,21 @@ export default function BadgeScreen() {
               {secondsLeft > 0
                 ? `Valid for ${clock(secondsLeft)} — it renews on its own`
                 : 'Renewing…'}
+            </Typography>
+          </Stack>
+
+          {/* Same token the QR encodes, as text: the way in when the code on
+              screen won't scan -- cracked glass, glare, a broken desk camera --
+              read aloud or typed into the scanner's manual field. */}
+          <Stack spacing={0.5}>
+            <Typography variant="body2" color="text.secondary">
+              QR won't scan? Read this code to the front desk:
+            </Typography>
+            <Typography
+              variant="body1"
+              sx={{ fontFamily: 'monospace', wordBreak: 'break-all', userSelect: 'all' }}
+            >
+              {badge.token}
             </Typography>
           </Stack>
         </>

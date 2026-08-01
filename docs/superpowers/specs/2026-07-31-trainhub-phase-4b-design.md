@@ -137,6 +137,15 @@ Three properties that are defects if missed:
   checked by `redeem_checkin_token`; a phone with a wrong clock shows a wrong
   countdown and still cannot extend its badge by a second.
 
+**Text fallback.** The same token the QR encodes is also shown as plain text
+beneath it, monospace and `userSelect: 'all'`, for when the code on screen
+won't scan — cracked glass, glare, a broken desk camera. The member reads it
+aloud or it's typed into the scanner's manual field
+(`ScannerScreen.jsx`'s "Enter a code by hand"), which already existed for the
+scanner-side half of this pairing but had nothing on the member's side to
+feed it. No new entropy or expiry: it is the exact string the QR carries,
+same one-minute lifetime, same one-time redemption.
+
 ### `/p/scan` — the scanner
 
 No wireframe exists for this screen. `getUserMedia({ video: { facingMode:
