@@ -1689,6 +1689,15 @@ Two things were fixed on the way there, both diagnostic rather than functional:
     public key that does not match the one the device subscribed with is a 403
     and appears nowhere else.
 
+GAP FOUND AND FIXED, 2026-08-01: the spec's manual-entry field
+(ScannerScreen.jsx, "Enter a code by hand") was designed only for the
+scanner-side camera failing during a demo -- there was nothing on the
+member's side to feed it if the QR itself couldn't be read (cracked screen,
+glare, dead desk camera). BadgeScreen now shows the same token as plain
+monospace text beneath the QR ("QR won't scan? Read this code to the front
+desk"), selectable, same string the QR encodes, no new expiry or entropy.
+Spec amended in place under `/m/profile/badge`. Lint 0, build clean.
+
 RESUME HERE. The branch is phase-4b-badge-scanner-and-push, not merged, not
 pushed. Everything in the code is done and reviewed; what is left is the device
 walk in docs/superpowers/2026-07-30-device-verification.md section 9, minus the
