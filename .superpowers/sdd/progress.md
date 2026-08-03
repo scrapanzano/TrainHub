@@ -1815,6 +1815,17 @@ implementation straight away.
 Still open and NOT yet fixed, independent of the workout redesign:
   - the header bell badge's live-update gap (section 3 above) -- small,
     unrelated to workout, root cause not yet found.
+  - the bell has never been clickable at all (TopHeader.jsx: the IconButton
+    wrapping NotificationsIcon carries no onClick and no Link, unlike the
+    profile avatar next to it). Noticed 2026-08-03, while looking at the badge
+    bug above -- not a regression, it was built this way from the start.
+    Davide wants tapping it to open an actual notifications view, the way
+    every other mobile app's bell works. No screen for that exists yet
+    (checkins have no history view either, by the same "not built" reasoning
+    as the Phase 4B spec's out-of-scope list) -- this is new scope, not a bug
+    fix, and needs its own design pass: a dropdown, a screen, what it lists
+    (unread threads only, or the same three events push notifies on).
+    Deliberately not scoped further here -- queued behind the workout redesign.
   - Lighthouse re-run + report screenshots (Lighthouse panel, DevTools
     Application Manifest/Service Workers) for chapter 5 -- blocked on nothing,
     just not done yet.
