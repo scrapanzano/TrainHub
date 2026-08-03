@@ -1748,8 +1748,76 @@ scanner's manual field uppercases and strips whitespace before comparing.
 `checkin_tokens.token` is `text`, no format constraint -- no SQL change
 needed. Spec amended in place. Lint 0, build clean.
 
-RESUME HERE. The branch is phase-4b-badge-scanner-and-push, not merged, not
-pushed. Before anything else: run patches/012-appointment-insert-notifies.sql
-in the SQL editor (Davide's database already has 009/010/011; 012 is the only
-one still outstanding) and re-test the professional-books-directly case above.
-Then: PR #3 into main, following the Phase 3 and 4A precedent.
+patches/012 applied, professional-books-directly case re-tested and PASSES.
+
+PHASE 4B MERGED into main via pull request #3 (merge commit fac023d,
+2026-08-03). Branch phase-4b-badge-scanner-and-push is on origin, kept per
+Davide's standing instruction to not delete branches. Every route in
+src/routes/index.jsx now renders real content; Placeholder.jsx deleted.
+
+All of the original schedule's phases 0-4 (design spec section 7) are done,
+roughly three weeks ahead of the 20-24 Aug date phase 4 was scheduled for.
+Next per the schedule is phase 5, hardening + report.
+
+# Phase 5 — Hardening (started)
+
+Cross-checked docs/superpowers/2026-07-30-device-verification.md against what
+had an actual on-device confirmation in this ledger, rather than assume a
+generic "walked the app" pass covered every itemised check. Sections 0, 1, 2
+(minus a Lighthouse re-run and report screenshots, still pending), 5, 6, and 9
+already had one. Sections 3, 4, 7 and 8 did not -- Davide ran them 2026-08-03:
+
+Section 3 (chat) -- confirmed working except: the header bell badge does NOT
+update within its 60s poll; Daniel had to reload manually. AppLayout.jsx:36 has
+`refetchInterval: 60_000` on `queryKeys.unreadCount`, and the query itself
+(fetchUnreadCount, src/data/chat.js:118) looks correct -- counts messages where
+`sender_id != you and read_at is null`, which is right. NOT YET ROOT-CAUSED;
+candidates not yet checked: AppLayout remounting on navigation (resetting the
+interval's clock before it fires), or the interval pausing on
+`document.visibilityState` in a way that doesn't match how Davide was actually
+holding the phone. Left open, deliberately not touched this session.
+
+Section 4 (rest of the member's app) -- everything confirmed correct: meal
+detail, specialty filters (untestable with only one seeded professional, but
+present and not broken), the month-boundary calendar jump, offline booking
+replay on reconnect, subscription renewal date.
+
+Section 7 (Phase 2, workout) -- confirmed: timer survives a live-session
+reload; log-set double-tap guard. TWO REAL DEFECTS found, not yet fixed:
+  - the timer does NOT reset navigating from one live session to another --
+    the checklist's expected behaviour (queue-item: "resets to the new
+    session's clock") does not hold; the old session's elapsed time carries
+    over.
+  - a session completes and AWARDS A REWARD even when zero exercises were
+    logged. The checklist expected finishing offline with no data to refuse
+    to render a summary (and it does, correctly) but finishing ONLINE with no
+    sets logged should arguably be the same refusal, or at least not mint a
+    reward for nothing done.
+Davide's own assessment, unprompted: this whole section was built against
+wireframes that were not well thought through, and needs a real refactor of
+the live workout session's functionality and logic -- not just these two
+bugs patched in place. He is writing a prompt describing how live workout
+should actually work and wants to brainstorm the redesign together before any
+code changes, design included.
+
+Section 8 (Phase 1 core) -- confirmed correct in full: home screen content,
+greeting, today's appointments, week strip, bell.
+
+RESUME HERE. Hardening is paused on purpose: Davide wants to redesign the live
+workout session (Phase 2's weakest part, built against under-specified
+wireframes) BEFORE finishing the hardening/report pass, since a redesign would
+invalidate device-walk results and report screenshots taken against the old
+flow. He is about to share a prompt describing the intended live-workout
+behaviour. Use superpowers:brainstorming for that discussion -- he explicitly
+asked to design it together, design included, not to receive an
+implementation straight away.
+
+Still open and NOT yet fixed, independent of the workout redesign:
+  - the header bell badge's live-update gap (section 3 above) -- small,
+    unrelated to workout, root cause not yet found.
+  - Lighthouse re-run + report screenshots (Lighthouse panel, DevTools
+    Application Manifest/Service Workers) for chapter 5 -- blocked on nothing,
+    just not done yet.
+Once the workout redesign is scoped and built, the remaining hardening item is
+re-verifying section 7 against the NEW flow rather than the old checklist
+wording, plus everything above.
