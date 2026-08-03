@@ -1,14 +1,10 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 import AppLayout from '../layouts/AppLayout.jsx'
 import PublicLayout from '../layouts/PublicLayout.jsx'
-import Placeholder from '../components/Placeholder.jsx'
 import LoginScreen from '../features/auth/LoginScreen.jsx'
 import ForgotPasswordScreen from '../features/auth/ForgotPasswordScreen.jsx'
 import ResetPasswordScreen from '../features/auth/ResetPasswordScreen.jsx'
 import { memberNav, professionalNav } from './navItems.js'
-
-// Every screen starts as a placeholder; phases 1-4 replace them one by one.
-const screen = (name) => ({ element: <Placeholder name={name} /> })
 
 const router = createBrowserRouter([
   {
@@ -105,7 +101,12 @@ const router = createBrowserRouter([
           Component: (await import('../features/profile/ProfileScreen.jsx')).default,
         }),
       },
-      { path: 'profile/badge', ...screen('Access Badge') },
+      {
+        path: 'profile/badge',
+        lazy: async () => ({
+          Component: (await import('../features/profile/BadgeScreen.jsx')).default,
+        }),
+      },
       {
         path: 'profile/subscription',
         lazy: async () => ({
@@ -204,7 +205,12 @@ const router = createBrowserRouter([
         lazy: async () => ({ Component: (await import('../features/chat/ThreadScreen.jsx')).default }),
       },
 
-      { path: 'scan', ...screen('Scan Access Badge') },
+      {
+        path: 'scan',
+        lazy: async () => ({
+          Component: (await import('../features/checkin/ScannerScreen.jsx')).default,
+        }),
+      },
 
       {
         path: 'profile',

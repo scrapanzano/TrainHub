@@ -19,7 +19,7 @@ paths; Vite does, at build time. A MUI icon glyph the installed
 
 No test runner is configured and none is being added. Non-trivial pure logic
 ships an `assert`-based `*.selfcheck.js` beside it, run with plain
-`node <path>`. There are eight; run them all after touching shared code:
+`node <path>`. There are nine; run them all after touching shared code:
 
 ```bash
 node src/lib/format.selfcheck.js
@@ -30,6 +30,7 @@ node src/features/workout/summary.selfcheck.js
 node src/features/clients/subscription.selfcheck.js
 node src/features/calendar/month.selfcheck.js
 node src/features/progress/progress.selfcheck.js
+node src/features/profile/pushSubscription.selfcheck.js
 ```
 
 ## What this is
@@ -44,8 +45,11 @@ builder, rewards) and the professional's whole side (agenda, clients, plan and
 nutrition editors, progress, calendar, availability).
 
 Phase 4A — the member's nutrition, trainer and profile sections, booking,
-settings with logout, and realtime chat — is **in progress** on the branch
-`phase-4a-member-completion-and-chat`.
+settings with logout, and realtime chat — is merged into `main`.
+
+Phase 4B — the member's QR access badge, the professional's scanner, and push
+notifications end to end — is **in progress** on the branch
+`phase-4b-badge-scanner-and-push`.
 
 ## Where the project's memory lives
 
@@ -159,10 +163,15 @@ credentials, so any schema work ends in a handoff to Davide.
 
 - `schema.sql`, `policies.sql`, `seed.sql` — a fresh install, in that order,
   after creating the two demo auth users with **Auto Confirm User** ticked.
-- `patches/001`…`007` — applied in order on top. They also carry their own
-  PASS/FAIL blocks.
-- `verify.sql` — run last. The three security rows and the two grant rows must
-  read PASS. **Four seed-count rows read FAIL by design** once
+- `patches/001`…`011` — applied in order on top. They also carry their own
+  PASS/FAIL blocks. `009` (checkin tokens) and `010` (push notifications) are
+  what Phase 4B's badge, scanner and push features depend on; `011` hardens the
+  three oldest `security definer` functions against pg_temp shadowing.
+- `verify.sql` — run last, **after the patches**: its five schema and security
+  counts expect `checkin_tokens` (`009`) and `app_config` (`010`) to exist. The
+  three security rows and the two grant rows must read PASS. Three of them read
+  17 against 18 tables on purpose — `app_config` is policy-less and grant-less
+  by design. **Four seed-count rows read FAIL by design** once
   `patches/005-demo-clients.sql` has run; the comment in the file explains why
   the expectations are deliberately not bumped.
 

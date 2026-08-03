@@ -21,18 +21,27 @@ alter table push_subscriptions enable row level security;
 
 -- SECURITY DEFINER so the helper can read `profiles` without recursing back
 -- through the very policies it is being used to evaluate.
+--
+-- `search_path = ''` with `public.`-qualified relations, not `= public`.
+-- Postgres resolves an unqualified relation through pg_temp BEFORE it walks
+-- search_path, and any signed-in role may create temp tables -- so a member who
+-- creates a temp `profiles` with their own id and `role = 'professional'` makes
+-- these helpers, which run as their owner and bypass RLS, agree.
+-- `is_professional()` gates every professional-only policy here and
+-- `redeem_checkin_token()` in `patches/009`.  See `patches/011`, which repairs
+-- databases created before this line was fixed.
 create function is_professional() returns boolean
-language sql security definer stable set search_path = public as $$
+language sql security definer stable set search_path = '' as $$
   select exists (
-    select 1 from profiles where id = auth.uid() and role = 'professional'
+    select 1 from public.profiles where id = auth.uid() and role = 'professional'
   );
 $$;
 
 create function owns_member(target uuid) returns boolean
-language sql security definer stable set search_path = public as $$
+language sql security definer stable set search_path = '' as $$
   select target = auth.uid()
       or exists (
-           select 1 from profiles
+           select 1 from public.profiles
            where id = target and assigned_pro_id = auth.uid()
          );
 $$;

@@ -40,3 +40,6 @@ dist-ssr
 
 # Build artefact of the LaTeX sources
 Relazione/main.pdf
+
+# Written by the Supabase CLI on `link` -- project ref and local state.
+supabase/.temp/

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
 import { persister, queryClient } from '../../lib/queryClient.js'
+import { disablePush } from '../profile/pushSubscription.js'
 import { AuthContext } from './AuthContext.js'
 
 const PROFILE_COLUMNS =
@@ -141,6 +142,16 @@ export function AuthProvider({ children }) {
   }, [sessionReady, userId])
 
   const signOut = useCallback(async () => {
+    // Whoever signs in next on this device must not keep receiving the previous
+    // user's notifications. Best effort: a failure here must not prevent the
+    // sign-out itself, which is the same reasoning that already clears the
+    // profile mirror before the network call.
+    try {
+      await disablePush()
+    } catch {
+      // Ignored on purpose.
+    }
+
     // Drop the cached profile first: if the network call fails, the local
     // session is still cleared and the stale copy must not outlive it.
     try {

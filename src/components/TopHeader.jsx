@@ -1,5 +1,6 @@
 import { AppBar, Avatar, Badge, Box, IconButton, Toolbar, Typography } from '@mui/material'
 import NotificationsIcon from '@mui/icons-material/Notifications'
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner'
 import { Link } from 'react-router'
 import { useAuth } from '../features/auth/useAuth.js'
 
@@ -9,7 +10,7 @@ function greeting(hour) {
   return 'Good Evening'
 }
 
-export default function TopHeader({ profileHref, notificationCount = 0 }) {
+export default function TopHeader({ profileHref, notificationCount = 0, scanHref }) {
   const { profile } = useAuth()
 
   return (
@@ -23,6 +24,12 @@ export default function TopHeader({ profileHref, notificationCount = 0 }) {
             {profile?.full_name ?? ''}
           </Typography>
         </Box>
+
+        {scanHref ? (
+          <IconButton component={Link} to={scanHref} aria-label="Scan an access badge">
+            <QrCodeScannerIcon />
+          </IconButton>
+        ) : null}
 
         <IconButton
           aria-label={

@@ -98,7 +98,11 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
           persistent indicator; left in normal flow it scrolls away and is only
           visible at the top of the page. */}
       <Box sx={{ position: 'sticky', top: 0, zIndex: 'appBar' }}>
-        <TopHeader profileHref={profileHref} notificationCount={unread.data ?? 0} />
+        <TopHeader
+          profileHref={profileHref}
+          notificationCount={unread.data ?? 0}
+          scanHref={requiredRole === 'professional' ? '/p/scan' : undefined}
+        />
         <OfflineBanner />
       </Box>
       <Box component="main" sx={{ flexGrow: 1, pb: 2 }}>

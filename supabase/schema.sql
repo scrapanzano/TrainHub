@@ -208,14 +208,18 @@ create index on push_subscriptions (user_id);
 
 -- Supabase creates the auth user; this mirrors it into `profiles` so the app
 -- never has to deal with a signed-in user that has no profile row.
+-- `search_path = ''` with everything qualified, not `= public`: pg_temp is
+-- resolved before search_path, so an unqualified `profiles` in a
+-- `security definer` function is shadowable by any role that can create a temp
+-- table.  See `patches/011`, which repairs databases created before this fix.
 create function handle_new_user() returns trigger
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = '' as $$
 begin
   insert into public.profiles (id, full_name, role)
   values (
     new.id,
     coalesce(new.raw_user_meta_data->>'full_name', new.email),
-    coalesce((new.raw_user_meta_data->>'role')::user_role, 'member')
+    coalesce((new.raw_user_meta_data->>'role')::public.user_role, 'member')
   );
   return new;
 end;

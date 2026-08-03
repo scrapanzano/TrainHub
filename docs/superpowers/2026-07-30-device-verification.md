@@ -18,22 +18,27 @@ Work top to bottom — the order matters in two places, both flagged.
 ## 0. Setup
 
 - [ ] `npm run lint` exits 0, `npm run build` succeeds.
-- [ ] All eight self-checks pass:
+- [ ] All nine self-checks pass:
       `node src/lib/format.selfcheck.js`, `src/theme/resolveTokens.selfcheck.js`,
       `src/features/workout/timer.selfcheck.js`, `.../status.selfcheck.js`,
       `.../summary.selfcheck.js`, `src/features/clients/subscription.selfcheck.js`,
       `src/features/calendar/month.selfcheck.js`,
-      `src/features/progress/progress.selfcheck.js`.
+      `src/features/progress/progress.selfcheck.js`,
+      `src/features/profile/pushSubscription.selfcheck.js`.
 - [ ] `npm run preview` (port 4173). **Not `npm run dev`** — the service worker
       is not generated in dev, so every PWA check below would be meaningless.
 - [ ] `ngrok http 4173 --url=wrinkly-mankind-doodle.ngrok-free.dev`
 - [ ] Supabase → Authentication → URL Configuration: the ngrok origin appears
       under **Site URL** and **Redirect URLs**. Without it the password-reset
       email lands on the Site URL with no code and section 5 cannot pass.
-- [ ] `supabase/verify.sql`: the three security rows and the two grant rows read
-      PASS. The four seed-count rows read FAIL **by design** once `patches/005`
-      has run — the comment in the file explains why the expectations were not
-      bumped.
+- [ ] `supabase/verify.sql`, run **after** the patches in section 9's
+      prerequisites: the three security rows and the two grant rows read PASS.
+      Its counts expect `checkin_tokens` (`patches/009`) and `app_config`
+      (`patches/010`) to exist, so run it before those and the schema rows read
+      two short. Three rows read 17 against 18 tables on purpose — `app_config`
+      is deliberately policy-less and grant-less. The four seed-count rows read
+      FAIL **by design** once `patches/005` has run — the comment in the file
+      explains why the expectations were not bumped.
 
 Accounts: `daniel@trainhub.dev` (member), `andrea@trainhub.dev` (professional).
 Four extra demo clients exist as `auth.users` rows with no identity and cannot
@@ -124,8 +129,7 @@ Daniel and desktop Chrome as Andrea.
 
 ## 4. Phase 4A — the rest of the member's app
 
-- [ ] Every route renders real content except `/m/profile/badge` and `/p/scan`,
-      which are Phase 4B placeholders.
+- [ ] Every route renders real content.
 - [ ] `/m/nutrition` as Daniel: "Lean Bulk", 2600 kcal, three macros, four meal
       cards. Tap Breakfast: Oats / Whey / Banana with quantities.
 - [ ] The nutrition empty state (wireframe 03B) — needs a member with no
@@ -224,10 +228,168 @@ the course requirements.
 
 ---
 
+## 9. Phase 4B — badge, scanner, and push notifications
+
+### Prerequisites — Davide's, applied once before this section is testable
+
+The badge and scanner checks below need only `patches/009` and a signed-in
+member/professional pair. **Push needs the full stack**, and `notify_user()`
+was written to fail silent when it is missing: an unconfigured database keeps
+minting badges and recording check-ins exactly as if push did not exist, with
+no error anywhere. Skipping any one of these turns the push checks below into
+a session of sending messages and watching nothing happen, with no clue why.
+
+- [ ] `supabase/patches/009-checkin-tokens.sql`,
+      `supabase/patches/010-push-notifications.sql` and
+      `supabase/patches/011-harden-definer-functions.sql` all applied, in that
+      order, in the Supabase SQL editor. Each prints its own PASS/FAIL block —
+      every row must read PASS. `011` is a security fix to the three oldest
+      `security definer` functions and is worth applying even if push is not
+      being set up.
+- [ ] The `notify` Edge Function deployed:
+      `npx supabase functions deploy notify --no-verify-jwt`
+- [ ] Its secrets set: `npx supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:... NOTIFY_SECRET=...`
+      (`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected by the
+      platform and need no setting).
+- [ ] The matching config rows inserted into `app_config` by hand, in the SQL
+      editor — `notify_secret` must equal the `NOTIFY_SECRET` secret above:
+      ```sql
+      insert into app_config (key, value) values
+        ('notify_function_url', 'https://<project-ref>.functions.supabase.co/notify'),
+        ('notify_secret', '<same value as NOTIFY_SECRET>')
+      on conflict (key) do update set value = excluded.value;
+      ```
+- [ ] **Read back what you actually inserted**, before trusting it:
+      ```sql
+      select key, value from app_config;
+      ```
+      This caught a real one on 2026-07-31: the row held the literal
+      `https://<project-ref>.supabase.co/...`, pasted from the instructions
+      without substituting. `net.http_post` refuses a malformed host,
+      `notify_user`'s exception handler turns that into a warning, and the SQL
+      editor does not surface warnings — so the symptom was **nothing at all**:
+      no queued request, no response row, no error. Check the value, not the
+      presence of the row.
+- [ ] **Smoke-test the whole chain before touching a phone.** In the SQL editor
+      you run as the owner, so the `revoke` does not apply to you:
+      ```sql
+      select id, full_name from profiles;
+      select notify_user('<daniel>', 'Test', 'Chain check', '/m');
+      ```
+      It writes nothing and sends nothing yet — no device is subscribed — but it
+      exercises the config lookup, `pg_net`, and the Edge Function's secret
+      check. `200` with `{"sent":0,"pruned":0}` in the response below means the
+      chain is complete.
+- [ ] Where a notification that never arrived explains itself: `net.http_post`
+      is fire-and-forget, so a 403 from a mismatched `notify_secret` or a 500
+      from the Edge Function reaches nothing in the app and nothing above. It
+      lands here, and only here:
+      ```sql
+      select status_code, content from net._http_response order by created desc limit 10;
+      ```
+
+- [ ] **Badge QR.** `/m/profile/badge` as Daniel: a QR code renders and the
+      countdown to expiry runs. Refresh the page: the countdown does **not**
+      pick up where it was. `BadgeScreen` mints a brand-new token on every
+      mount, so a refresh always restarts the countdown from about 0:59 on a
+      different QR — that is the shipped behaviour, not something to chase as
+      a bug.
+- [ ] **Badge regeneration.** Wait for the countdown to reach zero. It expires,
+      then a new QR appears with a full countdown. Compare tokens in the
+      database before and after: `select count(*) from checkin_tokens where member_id = '<daniel>';`
+      the count grows by one.
+- [ ] **Badge stops minting while hidden.** Lock the phone with `/m/profile/badge`
+      open in the browser. Wait three minutes. Then `select count(*) from checkin_tokens where member_id = '<daniel>';`
+      — the count has not grown by three.
+- [ ] **Badge offline.** Airplane mode, visit `/m/profile/badge`. It does not
+      render the QR; instead it shows the app's standard error state, with a
+      Retry button. Tap Retry while still offline — it fails again, same error
+      state. Reconnect without touching anything — the badge mints itself and
+      the QR appears with a fresh countdown, no reload or retry needed.
+- [ ] **Scan.** `/p/scan` as Andrea. Hold Daniel's phone in front of the camera:
+      the badge QR scans, Andrea's screen shows the member's name and their
+      subscription state (Lean Bulk, e.g.), and the database now holds a check-in
+      (`select * from checkins order by created_at desc limit 5;` names the pair).
+      Nothing in the app displays it; this is SQL verification only.
+- [ ] **Already used.** Scan the badge currently on screen — Andrea's screen
+      shows the check-in. Reload `/p/scan` (the scanner only blocks redeeming
+      the identical token twice within the same page load, so a reload is
+      needed to get a second attempt past that client-side guard and onto the
+      database) and scan the same still-valid badge again, inside its sixty
+      seconds. This time it reaches `redeem_checkin_token` and answers
+      *already used*.
+- [ ] **Expired.** `redeem_checkin_token` checks `used_at` before `expires_at`,
+      so a token has to go **unscanned** past its minute — reusing a scanned one
+      always answers *already used* instead. Chasing that with a camera is a
+      race against `BadgeScreen`'s re-mint, so take the deterministic path: the
+      badge steps above have already left expired, never-scanned tokens in the
+      table. Pick one up in the SQL editor —
+
+      ```sql
+      select token from checkin_tokens
+      where member_id = '<daniel>' and used_at is null and expires_at < now()
+      order by expires_at desc limit 1;
+      ```
+
+      — and type it into `/p/scan`'s manual-entry field as Andrea. The screen
+      says *expired*, every time, with no timing to get right.
+- [ ] **Unknown badge.** `/p/scan` as Andrea: type a made-up string (e.g.
+      `not-a-real-badge`) into the manual-entry field and submit. The screen
+      says the badge is not one of ours.
+- [ ] **Camera denied.** Restart the app or clear permissions, then open `/p/scan`.
+      When the permission prompt appears, tap Deny. The camera input is gone, but
+      the text field for manual entry still accepts input and can submit.
+- [ ] **Retry cooldown.** As Andrea on `/p/scan`, put the device in airplane
+      mode and scan any badge (or submit a code by hand). The RPC call fails
+      and the error alert appears. Scan or resubmit the same code again
+      immediately — nothing happens; the client is still cooling down for
+      three seconds and never calls the RPC. Wait past three seconds,
+      reconnect, and scan it again — a new RPC attempt goes out and, now that
+      the device is back online, succeeds, replacing the error with the
+      check-in card. That confirms the retry actually fired rather than the
+      cooldown silently swallowing it.
+**Android is not verified, and that is a device shortage rather than a gap in
+the code.** Only an iPhone was available for this phase, so every push check
+below runs on iOS — the stricter of the two platforms by some distance. The
+report says Android is supported and untested, not that it works.
+
+- [ ] **Subscribe the device.** Install to the Home Screen **from Safari** on
+      iOS 16.4+ — not Chrome, not a bookmark: Safari's *Add to Home Screen* is
+      the only path that grants Web Push. Launch it from the icon.
+      **The installed app has its own storage**: the Safari session does not
+      carry over, so sign in again as Daniel inside it. That is not a defect.
+      Then Settings → the notifications switch. It starts **off** — it reflects
+      whether this device holds a subscription, and a fresh install holds none.
+      Tap it and accept the iOS dialog.
+- [ ] **The subscription reached the database.**
+      ```sql
+      select user_id, endpoint from push_subscriptions;
+      ```
+      One row, and on iOS the endpoint begins `https://web.push.apple.com/`. No
+      row means the browser never subscribed — on iOS that is almost always one
+      of the four install requirements above, not the database.
+- [ ] **A notification arrives with the app closed.** Close it properly — swipe
+      it out of the app switcher, do not merely background it. As Andrea send a
+      message, confirm one of Daniel's booking requests, and assign him a plan
+      → **three** notifications, one per event. Tapping each opens the right
+      screen: the chat, the appointments list, the plan.
+      If a notification does not appear while `sent` reads 1, look at iOS
+      Settings → Notifications → TrainHub, and at any Focus mode.
+- [ ] **Push notification opt-out, iOS.** Settings → toggle **Push
+      Notifications** off → in the iOS settings for the app itself (Settings →
+      TrainHub → Notifications), confirm it is no longer registered. Assign
+      another plan as Andrea. No notification. Toggle the app's push back on in
+      app settings. iOS Notifications in iOS Settings shows it registered again.
+- [ ] **Push stops on sign-out.** As Daniel, Settings → Sign Out. As Andrea,
+      send a message and assign a plan. Open the device's notification log (pull
+      down the notification shade on Android, swipe down on iOS). No new
+      notifications for Daniel's device — they landed on Andrea's, not Daniel's,
+      because the subscription was unregistered when Daniel left.
+
+---
+
 ## Not testable here
 
-- `/m/profile/badge`, `/p/scan` and push notifications are **Phase 4B** — the QR
-  badge, the scanner and the Edge Function do not exist yet.
 - Two members sharing a professional, or a member switching professional: the
   seed ships one professional, so the switch path stays unreachable until a
   second `profiles` row with `role = 'professional'` exists. The code was fixed
