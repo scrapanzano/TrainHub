@@ -8,8 +8,10 @@ import { supabase } from '../lib/supabase.js'
 // deliberately do NOT -- they are meant to pause and be replayed by
 // `resumePausedMutations`.
 
+// `pct` arrives with patches/014.  Until that patch is applied every read here
+// answers "column workout_runs.pct does not exist" -- 013 alone is not enough.
 const RUN_COLUMNS =
-  'id, session_id, member_id, started_at, paused_at, paused_total_ms, ended_at, outcome, note'
+  'id, session_id, member_id, started_at, paused_at, paused_total_ms, ended_at, outcome, pct, note'
 
 /**
  * The member's open workout, if there is one.
@@ -144,13 +146,21 @@ export async function resumeRun({ id, pausedTotalMs }) {
  * what releases the partial unique index and lets the member start something
  * else, so it is never left null on a run the member has finished with.
  *
+ * `pct` is stamped here rather than derived later, from the same ratio the
+ * points come from, so the plan card and the reward cannot tell opposite
+ * stories about the same workout.
+ *
+ * The note is NOT written here -- it is asked for afterwards, on the summary,
+ * and has its own `saveRunNote`.  Sending it from here would mean a screen that
+ * only knows what the member typed also re-sending the outcome.
+ *
  * Idempotent by nature: closing an already-closed run writes the same values,
  * which is what makes it safe to replay after a reconnect.
  */
-export async function endRun({ id, endedAt, outcome, note }) {
+export async function endRun({ id, endedAt, outcome, pct }) {
   const { data, error } = await supabase
     .from('workout_runs')
-    .update({ ended_at: endedAt, outcome, note: note ?? null })
+    .update({ ended_at: endedAt, outcome, pct: pct ?? null })
     .eq('id', id)
     .select(RUN_COLUMNS)
     .single()

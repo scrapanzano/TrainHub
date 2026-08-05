@@ -1,7 +1,8 @@
 // Run with:  node src/features/workout/summary.selfcheck.js
 import assert from 'node:assert/strict'
 import {
-  POINTS, countsByExercise, pointsForRun, pointsForWorkout, rewardProgress, summariseSession,
+  POINTS, completionPct, countsByExercise, pointsForRun, pointsForWorkout, rewardProgress,
+  runComplete, summariseSession,
 } from './summary.js'
 
 const exercises = [
@@ -121,5 +122,46 @@ assert.equal(pointsForRun([{ id: 'a', target_sets: 0 }], { a: 2 }), 0)
 // Missing arguments must yield 0, not NaN: NaN points would be written to the
 // rewards table and poison every later total.
 assert.equal(pointsForRun(undefined, undefined), 0)
+
+// --- completionPct --------------------------------------------------------
+assert.equal(completionPct(two, {}), 0)
+assert.equal(completionPct(two, { a: 3, b: 3 }), 100)
+assert.equal(completionPct(two, { a: 3, b: 0 }), 50)
+// Extra sets cannot push it past 100.
+assert.equal(completionPct(two, { a: 9, b: 9 }), 100)
+assert.equal(completionPct([], {}), 0)
+
+// The percentage and the points come from one ratio, so they can never tell
+// opposite stories: no points without progress, no full award without a full
+// session, and neither can move while the other stands still.  They are NOT
+// required to agree to the unit -- a whole percentage is a lossy carrier, and
+// one set of six is 16% but floor(30 * 1/6) = 5 rather than floor(30 * 0.16).
+// Deriving the points from the rounded percentage instead would lose real work
+// to rounding, which is the worse trade.
+let lastPct = -1
+let lastPoints = -1
+for (const counts of [{}, { a: 1 }, { a: 2 }, { a: 3 }, { a: 3, b: 1 }, { a: 3, b: 2 }, { a: 3, b: 3 }]) {
+  const pct = completionPct(two, counts)
+  const points = pointsForRun(two, counts)
+
+  assert.equal(pct === 0, points === 0, `pct and points disagree about zero: ${JSON.stringify(counts)}`)
+  assert.equal(pct === 100, points === POINTS.workout, `pct and points disagree about full: ${JSON.stringify(counts)}`)
+  assert.ok(pct >= lastPct && points >= lastPoints, 'more work must never be worth less')
+
+  lastPct = pct
+  lastPoints = points
+}
+
+// --- runComplete ----------------------------------------------------------
+assert.equal(runComplete(two, { a: 3, b: 3 }), true)
+assert.equal(runComplete(two, { a: 3, b: 2 }), false)
+assert.equal(runComplete(two, {}), false)
+// Extra sets still count as complete.
+assert.equal(runComplete(two, { a: 4, b: 4 }), true)
+// Finishing nothing is not finishing: an empty session must never raise the
+// congratulations dialog.
+assert.equal(runComplete([], {}), false)
+// An exercise prescribing zero sets is trivially met.
+assert.equal(runComplete([{ id: 'a', target_sets: 0 }], {}), true)
 
 console.log('summary: OK')

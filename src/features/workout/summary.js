@@ -33,6 +33,16 @@ export function countsByExercise(logs) {
  * Floor, not round: the award may understate the work, never overstate it.
  */
 export function pointsForRun(exercises, counts) {
+  return Math.floor(POINTS.workout * completionRatio(exercises, counts))
+}
+
+/**
+ * How much of the prescription was actually done, 0 to 1.
+ *
+ * The single source both the points and the stored `pct` are derived from, so
+ * a run can never be worth 22 points and claim to be 80% done.
+ */
+function completionRatio(exercises, counts) {
   let done = 0
   let target = 0
 
@@ -42,8 +52,27 @@ export function pointsForRun(exercises, counts) {
     done += Math.min(counts?.[exercise.id] ?? 0, prescribed)
   }
 
-  if (target === 0) return 0
-  return Math.floor(POINTS.workout * (done / target))
+  // An empty session, and one whose exercises prescribe nothing, are both real
+  // states.  Returning 0 rather than dividing keeps NaN out of `rewards.points`
+  // and out of `workout_runs.pct`, where it would poison every later total.
+  return target === 0 ? 0 : done / target
+}
+
+/** The same ratio as a whole percentage, for `workout_runs.pct`. */
+export function completionPct(exercises, counts) {
+  return Math.floor(100 * completionRatio(exercises, counts))
+}
+
+/**
+ * Has every exercise met its prescription?
+ *
+ * What raises the congratulations dialog.  An empty session is never complete:
+ * finishing nothing is not finishing.
+ */
+export function runComplete(exercises, counts) {
+  const all = exercises ?? []
+  if (all.length === 0) return false
+  return all.every((exercise) => (counts?.[exercise.id] ?? 0) >= (exercise.target_sets ?? 0))
 }
 
 /**

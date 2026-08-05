@@ -2,73 +2,107 @@ import { useState } from 'react'
 import {
   Box, Card, CardActionArea, CardContent, Chip, IconButton, Stack, Typography,
 } from '@mui/material'
-import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew'
-import PlayArrowIcon from '@mui/icons-material/PlayArrow'
-import PauseIcon from '@mui/icons-material/Pause'
-import StopIcon from '@mui/icons-material/Stop'
-import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
+import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew'
+import CheckCircleIcon from '@mui/icons-material/CheckCircle'
+import PauseIcon from '@mui/icons-material/Pause'
+import PlayArrowIcon from '@mui/icons-material/PlayArrow'
+import StopIcon from '@mui/icons-material/Stop'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, Navigate, useNavigate, useParams } from 'react-router'
 import { fetchSession } from '../../data/workouts.js'
+import { fetchOpenRun, fetchRunLogs } from '../../data/runs.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
 import { formatElapsed } from './timer.js'
 import { setProgress } from './status.js'
+import { completionPct, countsByExercise, pointsForRun, runComplete } from './summary.js'
 import { useLiveSession } from './useLiveSession.js'
-import LogSetSheet from './LogSetSheet.jsx'
+import CongratsDialog from './CongratsDialog.jsx'
+import EndRunSheet from './EndRunSheet.jsx'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
-import { pointsForWorkout } from './summary.js'
 import { useAuth } from '../auth/useAuth.js'
 
 export default function LiveSessionScreen() {
   const { sessionId } = useParams()
-  const navigate = useNavigate()
-  const live = useLiveSession(sessionId)
-  const [openExerciseId, setOpenExerciseId] = useState(null)
   const { user } = useAuth()
+  const navigate = useNavigate()
+  const [ending, setEnding] = useState(false)
+
+  const openRun = useQuery({
+    queryKey: queryKeys.openRun(user.id),
+    queryFn: () => fetchOpenRun(user.id),
+  })
 
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: queryKeys.session(sessionId),
     queryFn: () => fetchSession(sessionId),
   })
 
-  const setStatus = useMutation({ mutationKey: mutationKeys.setSessionStatus })
+  const run = openRun.data?.session_id === sessionId ? openRun.data : null
+
+  const logs = useQuery({
+    queryKey: queryKeys.runLogs(run?.id),
+    queryFn: () => fetchRunLogs(run.id),
+    enabled: Boolean(run?.id),
+  })
+
+  const live = useLiveSession(run, user.id)
+  const end = useMutation({ mutationKey: mutationKeys.endRun })
   const award = useMutation({ mutationKey: mutationKeys.awardReward })
 
-  if (isPending) return <LoadingState />
+  if (isPending || openRun.isPending) return <LoadingState />
   // `data === undefined` means it never loaded.  With `offlineFirst` a refetch
   // can fail while the persisted cache still holds the session, and an error
   // screen instead of the workout is the wrong call in a gym basement.
   if (isError && data === undefined) return <ErrorState error={error} onRetry={refetch} />
 
-  const { session, exercises } = data
-  const remaining = exercises.filter(
-    (item) => !setProgress(item.loggedCount, item.target_sets).complete,
-  ).length
-  const openExercise = exercises.find((item) => item.id === openExerciseId) ?? null
-  // The first unfinished exercise is the one being worked on.
-  const currentId = exercises.find(
-    (item) => !setProgress(item.loggedCount, item.target_sets).complete,
-  )?.id
-
-  const onStart = () => {
-    live.start()
-    setStatus.mutate({ sessionId, status: 'in_progress' })
+  // No run open for this session: there is nothing live to show.  Sending them
+  // to the session screen is better than an empty clock, because that is where
+  // the play button is.
+  if (!run && openRun.data !== undefined) {
+    return <Navigate to={`/m/workout/session/${sessionId}`} replace />
   }
 
-  const onStop = () => {
-    setStatus.mutate({ sessionId, status: 'completed' })
-    // Per-session code, so finishing twice -- or replaying this write after a
-    // reconnect -- awards once.  See the unique constraint on `rewards`.
-    award.mutate({
-      memberId: user.id,
-      code: `workout:${sessionId}`,
-      title: `Completed ${session.name}`,
-      points: pointsForWorkout(),
-    })
-    live.clear()
-    navigate(`/m/workout/session/${sessionId}/summary`, { replace: true })
+  const { session, exercises } = data
+  const counts = countsByExercise(logs.data)
+  const setCount = (logs.data ?? []).length
+  const remaining = exercises.filter(
+    (item) => !setProgress(counts[item.id], item.target_sets).complete,
+  ).length
+  const allDone = runComplete(exercises, counts)
+  const pct = completionPct(exercises, counts)
+  const points = pointsForRun(exercises, counts)
+
+  /**
+   * Close the run and leave.
+   *
+   * The reward code is the RUN's id, not the session's.  `rewards` carries
+   * `unique (member_id, code)` and `awardReward` ignores duplicates, so a
+   * per-session code silently awarded nothing the second week the member
+   * trained the same session -- invisible until sessions began repeating.
+   */
+  const finish = (outcome) => {
+    end.mutate({ id: run.id, endedAt: new Date().toISOString(), outcome, pct })
+
+    // Nothing earned, nothing minted: a zero-point row would clutter the
+    // rewards list with sessions the member walked out of.
+    if (outcome !== 'abandoned' && points > 0) {
+      award.mutate({
+        memberId: user.id,
+        code: `workout:${run.id}`,
+        title: `Completed ${session.name}`,
+        points,
+      })
+    }
+
+    // Navigated now rather than in `onSuccess`: offline the write pauses and
+    // `onSuccess` never fires, which would strand the member on a workout they
+    // have already ended.
+    navigate(
+      outcome === 'abandoned' ? '/m/workout' : `/m/workout/run/${run.id}/summary`,
+      { replace: true },
+    )
   }
 
   return (
@@ -91,35 +125,27 @@ export default function LiveSessionScreen() {
               </Typography>
               <Typography color="text.secondary">{exercises.length} exercises</Typography>
               <Typography color="primary" sx={{ fontWeight: 700 }}>
-                {!live.started
-                  ? 'GET READY'
-                  : live.paused
-                    ? 'PAUSED'
-                    : remaining === 0
-                      ? 'ALL DONE'
-                      : `${remaining}/${exercises.length} to go`}
+                {live.paused ? 'PAUSED' : remaining === 0 ? 'ALL DONE' : `${remaining} to go`}
               </Typography>
             </Box>
 
+            {/* The overflow menu is gone while a run is open: editing the
+                session you are standing inside is not on offer. */}
             <Stack direction="row" spacing={0.5} alignItems="center">
-              {!live.started ? (
-                <IconButton onClick={onStart} aria-label="Start session" color="primary" size="large">
-                  <PlayArrowIcon fontSize="large" />
-                </IconButton>
-              ) : (
-                <>
-                  <IconButton
-                    onClick={live.paused ? live.resume : live.pause}
-                    aria-label={live.paused ? 'Resume session' : 'Pause session'}
-                    color="primary"
-                  >
-                    {live.paused ? <PlayArrowIcon /> : <PauseIcon />}
-                  </IconButton>
-                  <IconButton onClick={onStop} aria-label="Finish session" color="primary">
-                    <StopIcon />
-                  </IconButton>
-                </>
-              )}
+              <IconButton
+                onClick={live.paused ? live.resume : live.pause}
+                aria-label={live.paused ? 'Resume session' : 'Pause session'}
+                color="primary"
+              >
+                {live.paused ? <PlayArrowIcon /> : <PauseIcon />}
+              </IconButton>
+              <IconButton
+                onClick={() => setEnding(true)}
+                aria-label="End session"
+                color="primary"
+              >
+                <StopIcon />
+              </IconButton>
             </Stack>
           </Stack>
 
@@ -128,9 +154,7 @@ export default function LiveSessionScreen() {
             {/* No aria-label: Typography renders a <p>, whose `generic` role
                 prohibits name-from-author, so the label is dropped by several
                 screen readers.  The visible text is the accessible content. */}
-            <Typography>
-              {formatElapsed(live.elapsed)}
-            </Typography>
+            <Typography>{formatElapsed(live.elapsed)}</Typography>
           </Stack>
         </CardContent>
       </Card>
@@ -143,30 +167,23 @@ export default function LiveSessionScreen() {
         {exercises.length === 0 ? (
           <EmptyState
             title="No exercises yet"
-            description="Your trainer has not added any exercises to this session."
+            description="This session has nothing in it to train."
           />
         ) : (
           <Stack spacing={2}>
             {exercises.map((item) => {
-              const progress = setProgress(item.loggedCount, item.target_sets)
-              const isCurrent = item.id === currentId && live.started && !live.paused
+              const progress = setProgress(counts[item.id], item.target_sets)
 
               return (
                 <Card
                   key={item.id}
-                  sx={{
-                    // The wireframe outlines the exercise in progress and fades
-                    // the finished ones.  Opacity alone would carry that by sight
-                    // only, so the tick and the pill say it too.
-                    borderColor: isCurrent ? 'primary.main' : 'divider',
-                    borderWidth: isCurrent ? 2 : 1,
-                    opacity: progress.complete ? 0.6 : 1,
-                  }}
+                  // No "current exercise" outline any more.  It imposed an
+                  // order the gym does not respect: a machine is occupied, you
+                  // do the next thing and come back.  Finished ones fade; none
+                  // is singled out as the one you ought to be doing.
+                  sx={{ opacity: progress.complete ? 0.6 : 1 }}
                 >
-                  <CardActionArea
-                    onClick={() => setOpenExerciseId(item.id)}
-                    disabled={!live.started || live.paused}
-                  >
+                  <CardActionArea component={Link} to={`/m/workout/exercise/${item.id}`}>
                     <CardContent>
                       <Stack direction="row" spacing={2} alignItems="center">
                         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
@@ -182,7 +199,7 @@ export default function LiveSessionScreen() {
                         </Box>
 
                         {progress.complete ? (
-                          <CheckCircleIcon color="success" titleAccess="Completed" />
+                          <CheckCircleIcon color="success" titleAccess="Done" />
                         ) : (
                           <Chip label={progress.label} size="small" color="primary" />
                         )}
@@ -196,11 +213,30 @@ export default function LiveSessionScreen() {
         )}
       </Box>
 
-      <LogSetSheet
-        open={openExercise !== null}
-        onClose={() => setOpenExerciseId(null)}
-        exercise={openExercise}
-        sessionId={sessionId}
+      <EndRunSheet
+        open={ending}
+        onClose={() => setEnding(false)}
+        pct={pct}
+        points={points}
+        setCount={setCount}
+        onFinish={() => finish('partial')}
+        onAbandon={() => {
+          if (
+            setCount === 0 ||
+            window.confirm('Abandon this workout? Today’s sets will count for nothing.')
+          ) {
+            finish('abandoned')
+          }
+        }}
+        pending={end.isPending && !end.isPaused}
+      />
+
+      <CongratsDialog
+        open={allDone && !ending}
+        sessionName={session.name}
+        setCount={setCount}
+        onFinish={() => finish('completed')}
+        pending={end.isPending && !end.isPaused}
       />
     </Stack>
   )

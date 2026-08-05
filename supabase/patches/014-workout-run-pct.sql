@@ -18,8 +18,13 @@
 -- "Stopped early" with no figure, which is what `SessionCard` prints when `pct`
 -- is null. Inventing a number for those rows would be worse than omitting one.
 --
--- Written once, by `endRun`, at the moment the run closes -- the same instant
--- the points are computed from the same ratio, so the two can never disagree.
+-- Written once, by `endRun`, at the moment the run closes, from the same ratio
+-- the points are computed from. They are not equal to the unit -- a whole
+-- percentage is a lossy carrier, and one set of six is 16% while the award is
+-- floor(30/6) = 5 rather than floor(30 * 0.16) = 4 -- but they can never tell
+-- opposite stories: no points without progress, no full award without a full
+-- session, and neither moves while the other stands still. The self-check
+-- beside `summary.js` pins exactly that.
 --
 -- ORDERING
 --
