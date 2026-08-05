@@ -1900,9 +1900,26 @@ day if missed:
      onto three new columns on `workout_runs`; only where the state is read
      from changes.
 
-RESUME HERE. The spec is written and committed (e01ec52); no code has been
-touched. Next step is `superpowers:writing-plans` against the spec to produce
-the implementation plan, then execution task by task with a review each.
+The plan is `docs/superpowers/plans/2026-08-05-phase-5a-workout-redesign.md`
+(95b9a2c), eleven tasks. Tasks 1 to 3 are done:
+
+  - b4ad1d8  task 1  `week.js` + self-check. `mondayOf`, `runStatusOf`.
+  - d733f6d  task 2  `pointsForRun`, `countsByExercise`, the `partial` status,
+                     and `planProgress` counting partials. Self-checks extended.
+  - af91589  task 3  `supabase/patches/013-workout-runs.sql` + `verify.sql`
+                     counts moved 18->19 and 17->18.
+
+Three cases were added during task 1 that the plan had not foreseen, and the
+middle one changed the implementation: `mondayOf` accepts a full ISO instant,
+`runStatusOf` compares on the LOCAL day rather than the raw ISO string (a run
+started 23:30 on Sunday carries a UTC timestamp dated Monday and would
+otherwise be filed under the week that had not begun yet), and it sorts by
+`Date.parse` rather than lexically.
+
+RESUME HERE, BUT BLOCKED. Task 4 onward is dead until Davide applies
+`supabase/patches/013-workout-runs.sql` in the Supabase SQL editor and reports
+its eight-row PASS/FAIL block. Do not start task 4 before that confirmation --
+every read and write it adds targets a table that does not exist yet.
 
 HUMAN HANDOFF, blocking everything: `supabase/patches/013-workout-runs.sql`
 does not exist yet -- it is written as part of task 1 -- and once written must
