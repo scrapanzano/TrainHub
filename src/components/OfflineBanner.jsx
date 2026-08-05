@@ -36,8 +36,9 @@ export default function OfflineBanner() {
 
   // A write that genuinely failed -- not one merely waiting for a network, and
   // not one still retrying, which stays `pending` until its retries run out.
-  // `LogSetSheet` rolls its optimistic count back on error, so without this the
-  // set simply vanishes and the member believes it was recorded.
+  // The exercise screen's log panel rolls its optimistic row back on error, so
+  // without this the set simply vanishes and the member believes it was
+  // recorded.
   const failedIds = useMutationState({
     filters: { status: 'error' },
     select: (mutation) => mutation.mutationId,

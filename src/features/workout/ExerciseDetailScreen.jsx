@@ -106,9 +106,24 @@ function LogPanel({ item, runId, sessionId, logs, memberId }) {
 
   if (progress.complete) {
     return (
-      <Alert severity="success" icon={<CheckCircleIcon />}>
-        All {item.target_sets} sets done. Nothing left to log here.
-      </Alert>
+      <Stack spacing={2}>
+        <Alert severity="success" icon={<CheckCircleIcon />}>
+          All {item.target_sets} sets done. Nothing left to log here.
+        </Alert>
+        {/* The congratulations dialog lives on the session screen, because only
+            that screen knows whether the WHOLE workout is finished.  Without a
+            way back that is one obvious tap, a member who logs their last set
+            from here is left wondering whether the app noticed. */}
+        <Button
+          component={Link}
+          to={`/m/workout/session/${sessionId}/live`}
+          variant="contained"
+          size="large"
+          fullWidth
+        >
+          Back to the session
+        </Button>
+      </Stack>
     )
   }
 

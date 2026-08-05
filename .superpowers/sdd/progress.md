@@ -1916,10 +1916,86 @@ started 23:30 on Sunday carries a UTC timestamp dated Monday and would
 otherwise be filed under the week that had not begun yet), and it sorts by
 `Date.parse` rather than lexically.
 
-RESUME HERE, BUT BLOCKED. Task 4 onward is dead until Davide applies
-`supabase/patches/013-workout-runs.sql` in the Supabase SQL editor and reports
-its eight-row PASS/FAIL block. Do not start task 4 before that confirmation --
-every read and write it adds targets a table that does not exist yet.
+patches/013 applied 2026-08-06, all eight rows PASS. `verify.sql` re-run: the
+five schema/security rows PASS at 19/19/18/18/18. Seven seed rows read FAIL --
+the four documented ones (005-demo-clients) plus `messages`, `rewards` and
+`checkins`, which have simply grown from the Phase 4B device walks. Not a
+defect.
+
+STILL OWED from that handoff: the anonymous-client RLS probe on `workout_runs`.
+`verify.sql` runs as the dashboard's privileged role and bypasses RLS, so it
+proves the policies exist and not that they are right. Not treated as blocking
+because both policies are verbatim copies of `set_logs`', already in service --
+but it is owed before the phase closes.
+
+Tasks 4 to 11 are done, all eleven committed:
+
+  - 2372431  task 4   `src/data/runs.js`, run-scoped counting, run writes
+                      registered, keys added.
+  - 34b9685  task 5   `PlanForm` extracted, `CreatePlanFlow` shared by both
+                      roles, `WorkoutBuilderScreen` deleted.
+  - ed80fa0  task 6   plan screen: weekly states, overflow menu, edit mode,
+                      empty-state fork. Plus `AddSessionScreen` and patch 014.
+  - 0e9fe08  task 7   session screen: weekly state, guarded play, edit mode,
+                      `AddExerciseScreen`, `OpenRunSheet`.
+  - 2ec53ac  task 8   live session driven by the run; `EndRunSheet`,
+                      `CongratsDialog`; reward code is now `workout:${runId}`.
+  - 0f8ddb9  task 9   exercise screen grew the logging half; `RestTimer`;
+                      `LogSetSheet` deleted.
+  - 04371b0  task 10  `LiveSessionBar` mini-player mounted in `AppLayout`.
+  - b3d65c4  task 11  summary keyed on the run, member's note, dead code out.
+
+FIVE THINGS THE PLAN GOT WRONG, all found while building and all corrected:
+
+  1. `week.js` was to live in `src/features/workout/`. Having `data/workouts.js`
+     import it inverted the layering CLAUDE.md fixes (`features/` calls `data/`).
+     It is pure date logic like `format.js`, so it moved to `src/lib/week.js`.
+     The documented self-check list is now TEN, and CLAUDE.md says so.
+  2. The plan computed "the previous Monday" through `Date.now() - 7*86_400_000`
+     and `toISOString()`. Both wrong: millisecond arithmetic breaks across a DST
+     boundary (one day a year is 23 hours, another 25) and `toISOString()`
+     converts to UTC, reintroducing the very off-by-one-day `week.js` exists to
+     prevent. Replaced by `daysBefore()`, with the 2026 DST Sundays pinned in
+     the self-check.
+  3. `CreatePlanFlow` was to chain `createPlan` then `createSession` through
+     `onSuccess`. Per-call callbacks ARE NOT PERSISTED: offline, the plan queues,
+     and if the member closes the app before reconnecting the replay creates the
+     plan with no callback left to create its session -- an empty plan, which is
+     defect 8 walking back in through the side door. Both writes now fire
+     together, ordered by a shared `planWrite` scope.
+  4. `patches/013` shipped without a `pct` column, though the spec requires the
+     card to read "Stopped at 60%". Deriving it would mean loading every run's
+     logs to draw four cards. Fixed by `patches/014` plus the source file, the
+     008/011/012 convention.
+  5. Deleting `WorkoutBuilderScreen` also deleted the only way to ADD a session
+     to an existing plan, not just to create one. Reborn as `AddSessionScreen`,
+     with its route placed BEFORE `:sessionId` or "new" parses as an id.
+
+Two claims were also walked back for being false rather than merely imprecise.
+The self-check asserted that `pct` and the points can never disagree; they can
+differ by one, because a whole percentage is a lossy carrier (one set of six is
+16%, while the award is floor(30/6)=5 rather than floor(30*0.16)=4). The
+assertion now pins what is actually true -- no points without progress, no full
+award without a full session, neither moving while the other stands still --
+and the comment in `patches/014` was corrected to match.
+
+SCOPE CHANGE, Davide's call 2026-08-06: the professional's side becomes its own
+spec after the member's side is finished. Task 11's third step -- surfacing the
+member's note in `ClientProgressScreen` -- is therefore OUT of this phase.
+CONSEQUENCE, recorded rather than hidden: `workout_runs.note` is written and
+never read until that spec lands. `ClientWorkoutScreen` was still touched here,
+but only as far as the shared extraction forced (it held `NewPlanForm`, and it
+read the dead `status` column).
+
+RESUME HERE. All eleven tasks are built; `npm run lint` and `npm run build` pass
+and all ten self-checks are green. NOTHING has been exercised in a browser --
+lint and build cannot catch a wrong query or a broken flow, so treat every
+screen as unverified.
+
+BLOCKING, first thing: apply `supabase/patches/014-workout-run-pct.sql`. From
+commit 2ec53ac the run reads select `pct`, so until 014 lands EVERY run query
+answers "column workout_runs.pct does not exist" and the whole workout half is
+dark. 013 alone is not enough any more.
 
 HUMAN HANDOFF, blocking everything: `supabase/patches/013-workout-runs.sql`
 does not exist yet -- it is written as part of task 1 -- and once written must
