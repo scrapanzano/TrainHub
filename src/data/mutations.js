@@ -119,8 +119,20 @@ export function registerMutationDefaults(queryClient) {
     },
   })
 
+  // `createPlan` and `createSession` share a scope so a replay cannot land a
+  // session before the plan it belongs to -- `CreatePlanFlow` fires both at
+  // once precisely so neither depends on a per-call callback surviving a
+  // reload, and only an ordered replay makes that safe.
+  //
+  // It serialises two adds to the same plan as a bonus: `position` is
+  // `Math.max(...) + 1` read from cache, so two sessions added in parallel
+  // would compute the same position and the second would be rejected by
+  // `unique (plan_id, position)`.
+  const planWriteScope = { id: 'planWrite' }
+
   queryClient.setMutationDefaults(mutationKeys.createSession, {
     mutationFn: createSession,
+    scope: planWriteScope,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
     },
@@ -128,6 +140,7 @@ export function registerMutationDefaults(queryClient) {
 
   queryClient.setMutationDefaults(mutationKeys.createPlan, {
     mutationFn: createPlan,
+    scope: planWriteScope,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
       // `fetchClients` derives each roster row's `goal` from the client's
