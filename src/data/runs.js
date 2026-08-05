@@ -38,6 +38,25 @@ export async function fetchOpenRun(memberId) {
 }
 
 /**
+ * One run by id, with enough of its session to title a screen.
+ *
+ * `maybeSingle`, not `single`: a member reloading the summary of a run whose
+ * session has since been deleted should meet an empty state, not a thrown
+ * error on a screen that exists to celebrate something.
+ */
+export async function fetchRun(runId) {
+  const { data, error } = await supabase
+    .from('workout_runs')
+    .select(`${RUN_COLUMNS}, session:workout_sessions ( id, name, plan_id )`)
+    .eq('id', runId)
+    .maybeSingle()
+    .retry(navigator.onLine)
+
+  if (error) throw error
+  return data
+}
+
+/**
  * Every run this member started on or after `sinceISO`, newest first.
  *
  * One read for the whole plan rather than one per session: a plan holds a

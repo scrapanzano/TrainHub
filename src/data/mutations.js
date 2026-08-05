@@ -1,6 +1,5 @@
 import {
   addSessionExercise, createPlan, createSession, deleteSession, deleteSessionExercise, logSet,
-  setSessionStatus,
 } from './workouts.js'
 import { endRun, pauseRun, resumeRun, saveRunNote, startRun } from './runs.js'
 import { awardReward } from './rewards.js'
@@ -43,7 +42,6 @@ export function registerMutationDefaults(queryClient) {
     // defeated by a caller that omits the id, and at this cache size -- one
     // member's own sessions -- the extra refetches are negligible.
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryPrefixes.sessionLogs })
       queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
       // The pills, the plan bar and the congratulations dialog all read the
       // run's logs.
@@ -96,20 +94,6 @@ export function registerMutationDefaults(queryClient) {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.runs })
       queryClient.invalidateQueries({ queryKey: queryPrefixes.clientTraining })
-    },
-  })
-
-  queryClient.setMutationDefaults(mutationKeys.setSessionStatus, {
-    mutationFn: setSessionStatus,
-    // Serialise replays.  `resumePausedMutations` runs paused mutations in
-    // parallel unless they share a scope, and this key queues an ordered pair
-    // -- `in_progress` on start, `completed` on stop.  Unordered, the last PATCH
-    // to land wins by luck and a finished workout can persist as unfinished.
-    scope: { id: 'sessionStatus' },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
-      // The plan screen and Home both render this session's status.
-      queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
     },
   })
 

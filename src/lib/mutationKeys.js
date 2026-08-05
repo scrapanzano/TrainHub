@@ -10,7 +10,6 @@ export const mutationKeys = {
   resumeRun: ['resumeRun'],
   endRun: ['endRun'],
   saveRunNote: ['saveRunNote'],
-  setSessionStatus: ['setSessionStatus'],
   awardReward: ['awardReward'],
   createSession: ['createSession'],
   createPlan: ['createPlan'],

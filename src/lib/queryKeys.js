@@ -6,12 +6,12 @@ export const queryKeys = {
   session: (sessionId) => ['session', sessionId],
   sessionExercise: (sessionExerciseId) => ['sessionExercise', sessionExerciseId],
   appointmentsOnDay: (memberId, dayISO) => ['appointments', memberId, dayISO],
-  sessionLogs: (sessionId) => ['sessionLogs', sessionId],
   rewards: (memberId) => ['rewards', memberId],
   exerciseCatalogue: () => ['exerciseCatalogue'],
   // Every run key starts with 'runs', so one prefix invalidates the open run,
   // the plan's fortnight and any loaded run's logs together.
   openRun: (memberId) => ['runs', 'open', memberId],
+  run: (runId) => ['runs', 'one', runId],
   runsSince: (memberId, sinceISO) => ['runs', 'since', memberId, sinceISO],
   runLogs: (runId) => ['runs', 'logs', runId],
   clients: (proId) => ['clients', proId],
@@ -44,7 +44,6 @@ export const queryKeys = {
 export const queryPrefixes = {
   plan: ['plan'],
   session: ['session'],
-  sessionLogs: ['sessionLogs'],
   // The open run, the plan's fortnight and every loaded run's logs.
   runs: ['runs'],
   rewards: ['rewards'],

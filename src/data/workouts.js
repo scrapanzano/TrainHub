@@ -110,33 +110,6 @@ export async function fetchSessionExercise(sessionExerciseId) {
   return data
 }
 
-/** Every set the member has logged in one session. */
-export async function fetchSessionLogs(sessionId) {
-  const { data, error } = await supabase
-    .from('set_logs')
-    // `!inner` turns the embed into an inner join, which is what lets the filter
-    // below reach through to the parent session.  RLS still scopes the rows to
-    // this member on top of it.
-    .select(
-      'id, session_exercise_id, set_number, reps, weight, performed_at, session_exercises!inner ( session_id )',
-    )
-    .eq('session_exercises.session_id', sessionId)
-    .order('performed_at')
-    .retry(navigator.onLine)
-
-  if (error) throw error
-  // Return only the log's own columns; the joined `session_exercises` row exists
-  // solely so the filter above can reach the parent session.
-  return (data ?? []).map(({ id, session_exercise_id, set_number, reps, weight, performed_at }) => ({
-    id,
-    session_exercise_id,
-    set_number,
-    reps,
-    weight,
-    performed_at,
-  }))
-}
-
 /**
  * Record one performed set.
  *
@@ -185,23 +158,6 @@ export async function logSet({
 
   if (error) throw error
   // `ignoreDuplicates` returns no row on a replay.  That is success, not a gap.
-  return data
-}
-
-/**
- * Move a session between `todo`, `in_progress` and `completed`.
- *
- * Idempotent by nature: setting a status it already holds writes the same value.
- */
-export async function setSessionStatus({ sessionId, status }) {
-  const { data, error } = await supabase
-    .from('workout_sessions')
-    .update({ status })
-    .eq('id', sessionId)
-    .select('id, status')
-    .single()
-
-  if (error) throw error
   return data
 }
 
