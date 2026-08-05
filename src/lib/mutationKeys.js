@@ -15,6 +15,7 @@ export const mutationKeys = {
   createSession: ['createSession'],
   createPlan: ['createPlan'],
   deleteSession: ['deleteSession'],
+  addSessionExercise: ['addSessionExercise'],
   deleteSessionExercise: ['deleteSessionExercise'],
   saveNutritionPlan: ['saveNutritionPlan'],
   saveMeal: ['saveMeal'],

@@ -41,6 +41,12 @@ const router = createBrowserRouter([
         lazy: async () => ({ Component: (await import('../features/workout/SessionDetailScreen.jsx')).default }),
       },
       {
+        path: 'workout/session/:sessionId/exercise/new',
+        lazy: async () => ({
+          Component: (await import('../features/workout/AddExerciseScreen.jsx')).default,
+        }),
+      },
+      {
         path: 'workout/session/:sessionId/live',
         lazy: async () => ({
           Component: (await import('../features/workout/LiveSessionScreen.jsx')).default,

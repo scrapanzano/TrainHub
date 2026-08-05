@@ -1,5 +1,6 @@
 import {
-  createPlan, createSession, deleteSession, deleteSessionExercise, logSet, setSessionStatus,
+  addSessionExercise, createPlan, createSession, deleteSession, deleteSessionExercise, logSet,
+  setSessionStatus,
 } from './workouts.js'
 import { endRun, pauseRun, resumeRun, saveRunNote, startRun } from './runs.js'
 import { awardReward } from './rewards.js'
@@ -158,8 +159,22 @@ export function registerMutationDefaults(queryClient) {
     },
   })
 
+  // Shares the session-write scope with the delete below: `position` is
+  // `Math.max(...) + 1` computed from cache, so two adds replayed in parallel
+  // would land on the same position and `unique (session_id, position)` would
+  // reject the second.
+  queryClient.setMutationDefaults(mutationKeys.addSessionExercise, {
+    mutationFn: addSessionExercise,
+    scope: { id: 'sessionExercises' },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
+    },
+  })
+
   queryClient.setMutationDefaults(mutationKeys.deleteSessionExercise, {
     mutationFn: deleteSessionExercise,
+    scope: { id: 'sessionExercises' },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
       // The plan screen prints each session's exercise count.

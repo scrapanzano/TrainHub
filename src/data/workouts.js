@@ -302,6 +302,44 @@ export async function deleteSession({ sessionId }) {
 }
 
 /**
+ * Add one prescribed exercise to a session that already exists.
+ *
+ * The caller supplies `id` and `position`.  The id makes a replay upsert
+ * instead of duplicating -- this write can pause offline and be replayed on
+ * reconnect -- and `ignoreDuplicates` is right because there is no edit path
+ * through this function for it to silently no-op.
+ *
+ * `position` must be `Math.max(0, ...) + 1`, never a count: `unique
+ * (session_id, position)` rejects a reused one, and counting collides the
+ * moment anything has been deleted.
+ */
+export async function addSessionExercise({
+  id, sessionId, exerciseId, position, targetSets, targetReps, targetWeight, restSeconds,
+}) {
+  const { data, error } = await supabase
+    .from('session_exercises')
+    .upsert(
+      {
+        id,
+        session_id: sessionId,
+        exercise_id: exerciseId,
+        position,
+        target_sets: targetSets,
+        target_reps: targetReps,
+        target_weight: targetWeight ?? null,
+        rest_seconds: restSeconds,
+      },
+      { onConflict: 'id', ignoreDuplicates: true },
+    )
+    .select('id')
+    .maybeSingle()
+
+  if (error) throw error
+  // `ignoreDuplicates` returns no row on a replay.  That is success, not a gap.
+  return data
+}
+
+/**
  * Remove one exercise from a session.
  *
  * Any `set_logs` beneath it cascade, which is why the caller confirms first.
