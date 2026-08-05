@@ -1803,7 +1803,10 @@ code changes, design included.
 Section 8 (Phase 1 core) -- confirmed correct in full: home screen content,
 greeting, today's appointments, week strip, bell.
 
-RESUME HERE. Hardening is paused on purpose: Davide wants to redesign the live
+(SUPERSEDED 2026-08-05 by the Phase 5A section at the end of this file -- the
+prompt arrived, the brainstorm happened, the spec is written. Read that one.)
+
+Hardening is paused on purpose: Davide wants to redesign the live
 workout session (Phase 2's weakest part, built against under-specified
 wireframes) BEFORE finishing the hardening/report pass, since a redesign would
 invalidate device-walk results and report screenshots taken against the old
@@ -1832,3 +1835,79 @@ Still open and NOT yet fixed, independent of the workout redesign:
 Once the workout redesign is scoped and built, the remaining hardening item is
 re-verifying section 7 against the NEW flow rather than the old checklist
 wording, plus everything above.
+
+
+# Phase 5A -- The workout half, rebuilt (design done, not yet planned)
+
+Branch `phase-5a-workout-redesign`, cut from `main` at 86e8c3a on 2026-08-05.
+Hardening and the report stay paused behind this, for the reason recorded in
+the section above: a redesign invalidates device-walk results and report
+screenshots taken against the old flow.
+
+Davide wrote `doc/live_train_session.md` -- his own brainstorm of how the
+member's workout half should work -- and asked to be grilled on it rather than
+handed an implementation. Four rounds of questions later, nineteen decisions
+are settled and written up in
+
+    docs/superpowers/specs/2026-08-05-trainhub-workout-redesign-design.md
+
+which is the source of truth for this phase. Do not re-derive it from the
+brainstorm; the brainstorm contradicts itself in two places (weight editing,
+and "stop") and the spec records how each contradiction was resolved and why.
+
+The one-line shape of it: a session's state stops being a column and becomes
+DERIVED from `workout_runs` rows inside the current ISO week. Every press of
+play opens a run; every `set_logs` row points at one. That single change is
+what makes the plan weekly, the counting correct, the points honest, the clock
+right, and abandoning safe without deleting anything.
+
+Nine defects are named in the spec with file and line. Three Davide confirmed
+by hand on 2026-08-03; SIX came out of reading the code while designing, and
+are latent only because nothing in the app repeats yet:
+
+  - `loggedCount` is a LIFETIME count (`workouts.js:17`). Week 2 reads `6/3`
+    and nothing ever completes again.
+  - the reward code is `workout:${sessionId}` against `unique (member_id,
+    code)` with `ignoreDuplicates: true` (`rewards.js:28`). The second
+    completion of a session awards NOTHING, silently. Becomes `workout:${runId}`.
+  - an empty plan hides the coach's plan, because `fetchActivePlan` takes the
+    newest by `created_at`. This is live on the PROFESSIONAL's side today:
+    create a plan, stop before the first session, and the member's screen
+    reads "This plan has no sessions". Closed by deferring the write until
+    plan AND first session both exist -- which fixes the coach's side too.
+  - the member cannot create a plan at all (`WorkoutBuilderScreen` only adds a
+    session to an existing plan).
+  - end-of-session notes for the coach do not exist, though
+    `doc/live_train_session.md:63` believes they do.
+  - `expires_on` is printed by the plan banner although the brainstorm's own
+    section 21 says validity is deliberately not tracked.
+
+Deliberately NOT in this phase, and each already has a reason on file: the
+notification bell (both its stale badge and its missing tap target), a history
+screen for archived plans, a member-side progress screen, real exercise
+imagery, dropping `workout_sessions.status` or `workout_plans.expires_on` from
+the schema, and reordering sessions or exercises.
+
+Two things worth knowing before touching the implementation, both of which the
+spec explains at length and both of which are the kind of thing that costs a
+day if missed:
+
+  1. `startRun`, `logSet` and `endRun` MUST share one `scope` in
+     `src/data/mutations.js`. `set_logs.run_id` is a foreign key and
+     `resumePausedMutations` replays in parallel without a scope, so a set can
+     land before the run it references. `logSet` carries no scope today.
+  2. `timer.js` and its self-check do NOT change. Its three keys map one to one
+     onto three new columns on `workout_runs`; only where the state is read
+     from changes.
+
+RESUME HERE. The spec is written and committed (e01ec52); no code has been
+touched. Next step is `superpowers:writing-plans` against the spec to produce
+the implementation plan, then execution task by task with a review each.
+
+HUMAN HANDOFF, blocking everything: `supabase/patches/013-workout-runs.sql`
+does not exist yet -- it is written as part of task 1 -- and once written must
+be applied BY DAVIDE in the Supabase SQL editor. No agent holds credentials.
+Nothing in this phase functions before it lands. `verify.sql` also moves from
+18 tables to 19 in the same patch, and the new policies must be probed from an
+anonymous client, because `verify.sql` cannot catch a policy whose `using`
+clause never mentions `auth.uid()` -- Phase 0 shipped exactly one of those.
