@@ -5,10 +5,10 @@
 -- just the final one.
 --
 -- Run after schema.sql + policies.sql + seed.sql, and after the patches.  The
--- five schema/security counts below expect `patches/009` (checkin_tokens) and
--- `patches/010` (app_config) to have been applied; run before them they read two
--- short.  Every row must read PASS, except the four seed counts -- see the
--- comment on them.
+-- five schema/security counts below expect `patches/009` (checkin_tokens),
+-- `patches/010` (app_config) and `patches/013` (workout_runs) to have been
+-- applied; run before them they read short.  Every row must read PASS, except
+-- the four seed counts -- see the comment on them.
 --
 -- Caveat: this runs as the dashboard's privileged role, which bypasses RLS.
 -- It proves the rows and policies EXIST; it does not prove the policies are
@@ -23,31 +23,32 @@ select
 from (
   values
     -- Schema ---------------------------------------------------------------
-    -- 18 = the 16 tables schema.sql creates, plus `checkin_tokens`
-    -- (`patches/009`) and `app_config` (`patches/010`).  The three counts
-    -- further down read 17, not 18, and the comment there says why.
+    -- 19 = the 16 tables schema.sql creates, plus `checkin_tokens`
+    -- (`patches/009`), `app_config` (`patches/010`) and `workout_runs`
+    -- (`patches/013`).  The three counts further down read 18, not 19, and the
+    -- comment there says why.
     ('public tables',
      (select count(*)::text from information_schema.tables
-      where table_schema = 'public' and table_type = 'BASE TABLE'), '18'),
+      where table_schema = 'public' and table_type = 'BASE TABLE'), '19'),
 
     -- Security -------------------------------------------------------------
     ('tables with RLS enabled',
      (select count(*)::text from pg_tables
-      where schemaname = 'public' and rowsecurity), '18'),
+      where schemaname = 'public' and rowsecurity), '19'),
     -- RLS switched on with zero policies denies everything: it passes the
     -- check above while silently breaking every read the app makes.
     --
-    -- 17, one short of the table count, and that gap is the assertion rather
+    -- 18, one short of the table count, and that gap is the assertion rather
     -- than a gap in coverage: `app_config` holds the secret that authenticates
     -- the database to the notify Edge Function and is deliberately policy-less
     -- AND grant-less, so RLS-on-with-no-policy denies every PostgREST caller
     -- and the missing grant denies them one gate earlier.  Only
     -- `notify_user()`, which is `security definer`, reads it.  If any of the
-    -- three rows below ever reads 18, that table became reachable from the
+    -- three rows below ever reads 19, that table became reachable from the
     -- browser.
     ('tables with at least one policy',
      (select count(distinct tablename)::text from pg_policies
-      where schemaname = 'public'), '17'),
+      where schemaname = 'public'), '18'),
     -- RLS is the second gate, not the first.  PostgREST connects as `anon` and
     -- switches to `authenticated`, and Postgres checks the table GRANT before it
     -- ever evaluates a policy -- so a table with perfect RLS and no grant fails
@@ -59,12 +60,12 @@ from (
      (select count(*)::text from pg_tables
       where schemaname = 'public'
         and has_table_privilege('authenticated', format('%I.%I', schemaname, tablename), 'select')),
-     '17'),
+     '18'),
     ('tables the app role can write',
      (select count(*)::text from pg_tables
       where schemaname = 'public'
         and has_table_privilege('authenticated', format('%I.%I', schemaname, tablename), 'insert')),
-     '17'),
+     '18'),
 
     -- Seed contents --------------------------------------------------------
     -- The four counts below (`profiles`, `workout_plans`, `workout_sessions`,
