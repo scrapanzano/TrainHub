@@ -1,4 +1,7 @@
-import { createPlan, createSession, deleteSession, logSet, setSessionStatus } from './workouts.js'
+import {
+  createPlan, createSession, deleteSession, deleteSessionExercise, logSet, setSessionStatus,
+} from './workouts.js'
+import { endRun, pauseRun, resumeRun, saveRunNote, startRun } from './runs.js'
 import { awardReward } from './rewards.js'
 import { deleteMeal, saveMeal, saveNutritionPlan } from './nutrition.js'
 import { saveBodyMetric } from './progress.js'
@@ -25,14 +28,73 @@ import { queryKeys, queryPrefixes } from '../lib/queryKeys.js'
  * are safe -- those run in addition, not instead.
  */
 export function registerMutationDefaults(queryClient) {
+  // One scope across a whole workout.  `set_logs.run_id` is a foreign key, so
+  // the run must land before any of its sets, and pause/resume/end must land in
+  // the order they happened.  `resumePausedMutations` replays in parallel
+  // unless a scope says otherwise, so without this the reconnect after a
+  // session logged underground fails on the constraint and the sets are lost.
+  const runScope = { id: 'workoutRun' }
+
   queryClient.setMutationDefaults(mutationKeys.logSet, {
     mutationFn: logSet,
+    scope: runScope,
     // Invalidate the families rather than one id: prefix matching cannot be
     // defeated by a caller that omits the id, and at this cache size -- one
     // member's own sessions -- the extra refetches are negligible.
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.sessionLogs })
       queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
+      // The pills, the plan bar and the congratulations dialog all read the
+      // run's logs.
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.runs })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.startRun, {
+    mutationFn: startRun,
+    scope: runScope,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.runs })
+      // The plan screen derives every session's state from these runs.
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.pauseRun, {
+    mutationFn: pauseRun,
+    scope: runScope,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.runs })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.resumeRun, {
+    mutationFn: resumeRun,
+    scope: runScope,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.runs })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.endRun, {
+    mutationFn: endRun,
+    scope: runScope,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.runs })
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
+    },
+  })
+
+  // Written on the summary, after the run has closed, so it carries no
+  // ordering obligation against the sets -- but it shares the scope anyway:
+  // a note replayed before the `endRun` that closed the run would be
+  // overwritten by `endRun`'s own null note.
+  queryClient.setMutationDefaults(mutationKeys.saveRunNote, {
+    mutationFn: saveRunNote,
+    scope: runScope,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.runs })
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.clientTraining })
     },
   })
 
@@ -80,6 +142,15 @@ export function registerMutationDefaults(queryClient) {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
       queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.deleteSessionExercise, {
+    mutationFn: deleteSessionExercise,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
+      // The plan screen prints each session's exercise count.
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
     },
   })
 

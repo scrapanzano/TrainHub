@@ -9,6 +9,11 @@ export const queryKeys = {
   sessionLogs: (sessionId) => ['sessionLogs', sessionId],
   rewards: (memberId) => ['rewards', memberId],
   exerciseCatalogue: () => ['exerciseCatalogue'],
+  // Every run key starts with 'runs', so one prefix invalidates the open run,
+  // the plan's fortnight and any loaded run's logs together.
+  openRun: (memberId) => ['runs', 'open', memberId],
+  runsSince: (memberId, sinceISO) => ['runs', 'since', memberId, sinceISO],
+  runLogs: (runId) => ['runs', 'logs', runId],
   clients: (proId) => ['clients', proId],
   client: (clientId) => ['client', clientId],
   agendaOnDay: (proId, dayISO) => ['agenda', proId, 'day', dayISO],
@@ -40,6 +45,8 @@ export const queryPrefixes = {
   plan: ['plan'],
   session: ['session'],
   sessionLogs: ['sessionLogs'],
+  // The open run, the plan's fortnight and every loaded run's logs.
+  runs: ['runs'],
   rewards: ['rewards'],
   clients: ['clients'],
   // Both `agendaOnDay` and `agendaRange` start with 'agenda', so one prefix
@@ -52,6 +59,7 @@ export const queryPrefixes = {
   nutritionPlan: ['nutritionPlan'],
   availability: ['availability'],
   bodyMetrics: ['bodyMetrics'],
+  clientTraining: ['clientTraining'],
   // Every chat key starts with 'chat', so one prefix invalidates the thread
   // list, the open conversation and the unread badge together.
   chat: ['chat'],

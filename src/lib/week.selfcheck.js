@@ -1,6 +1,6 @@
-// Run with:  node src/features/workout/week.selfcheck.js
+// Run with:  node src/lib/week.selfcheck.js
 import assert from 'node:assert/strict'
-import { mondayOf, runStatusOf } from './week.js'
+import { daysBefore, mondayOf, runStatusOf } from './week.js'
 
 // --- mondayOf -------------------------------------------------------------
 // 2026-08-05 is a Wednesday; its week starts Monday the 3rd.
@@ -16,6 +16,20 @@ assert.equal(mondayOf('2026-09-01'), '2026-08-31')
 assert.equal(mondayOf('2027-01-01'), '2026-12-28')
 // A full ISO instant is accepted too, so callers need not slice it themselves.
 assert.equal(mondayOf('2026-08-05T22:30:00+02:00'), '2026-08-03')
+
+// --- daysBefore -----------------------------------------------------------
+assert.equal(daysBefore('2026-08-10', 7), '2026-08-03')
+assert.equal(daysBefore('2026-08-03', 0), '2026-08-03')
+// Back across a month boundary.
+assert.equal(daysBefore('2026-09-02', 7), '2026-08-26')
+// Back across a year boundary.
+assert.equal(daysBefore('2027-01-04', 7), '2026-12-28')
+// Across the European DST change (Sunday 2026-03-29, when one day is 23 hours).
+// Subtracting milliseconds would land on the 22nd at 23:00 and render as the
+// 22nd or the 23rd depending on the hour; calendar arithmetic cannot.
+assert.equal(daysBefore('2026-03-30', 7), '2026-03-23')
+// And across the autumn change (Sunday 2026-10-25, a 25-hour day).
+assert.equal(daysBefore('2026-10-26', 7), '2026-10-19')
 
 // --- runStatusOf ----------------------------------------------------------
 const WEEK = '2026-08-03'

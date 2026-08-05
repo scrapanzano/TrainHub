@@ -3,7 +3,7 @@
 //
 // The only import is `format.js`, which is itself import-free, so the
 // self-check still runs under bare Node with no bundler.
-import { localDayISO } from '../../lib/format.js'
+import { localDayISO } from './format.js'
 
 /**
  * The Monday of `dayISO`'s ISO week, as `'YYYY-MM-DD'`.
@@ -18,14 +18,32 @@ import { localDayISO } from '../../lib/format.js'
  * Without that, Sunday would start the week about to begin rather than close
  * the one just finished, and every Sunday workout would land in the wrong week.
  */
+/** A local `Date` back to `'YYYY-MM-DD'`, in the local calendar. */
+function toDayISO(date) {
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${m}-${d}`
+}
+
 export function mondayOf(dayISO) {
   const [year, month, day] = String(dayISO).slice(0, 10).split('-').map(Number)
   const date = new Date(year, month - 1, day)
   const weekday = date.getDay() === 0 ? 7 : date.getDay()
   date.setDate(date.getDate() - (weekday - 1))
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${date.getFullYear()}-${m}-${d}`
+  return toDayISO(date)
+}
+
+/**
+ * `n` days before `dayISO`, in the local calendar.
+ *
+ * Exists so callers never reach for `Date.now() - n * 86_400_000`, which is
+ * wrong across a daylight-saving boundary -- one day that year is 23 hours long
+ * and another is 25 -- nor for `toISOString()`, which converts to UTC and
+ * reintroduces the off-by-one-day this module exists to prevent.
+ */
+export function daysBefore(dayISO, n) {
+  const [year, month, day] = String(dayISO).slice(0, 10).split('-').map(Number)
+  return toDayISO(new Date(year, month - 1, day - n))
 }
 
 /**
