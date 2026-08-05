@@ -58,6 +58,12 @@ create table if not exists workout_runs (
   -- Null while the run is open. `abandoned` means the sets are kept but count
   -- for nothing: the session returns to "to do" and can be done again today.
   outcome         run_outcome,
+  -- Share of the prescribed sets actually logged, 0-100, stamped once when the
+  -- run closes. Stored rather than derived because the plan screen prints it on
+  -- every card ("Stopped at 60%") and deriving it would mean loading every
+  -- run's logs to draw one list. Added for already-migrated databases in
+  -- patches/014.
+  pct             int,
   -- The member's word to their coach about how it went, written once at the
   -- summary. Null is the ordinary case.
   note            text

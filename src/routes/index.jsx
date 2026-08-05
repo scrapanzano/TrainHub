@@ -29,6 +29,13 @@ const router = createBrowserRouter([
         path: 'workout',
         lazy: async () => ({ Component: (await import('../features/workout/WorkoutPlanScreen.jsx')).default }),
       },
+      // Before the `:sessionId` route, or 'new' would be read as an id.
+      {
+        path: 'workout/session/new',
+        lazy: async () => ({
+          Component: (await import('../features/workout/AddSessionScreen.jsx')).default,
+        }),
+      },
       {
         path: 'workout/session/:sessionId',
         lazy: async () => ({ Component: (await import('../features/workout/SessionDetailScreen.jsx')).default }),
