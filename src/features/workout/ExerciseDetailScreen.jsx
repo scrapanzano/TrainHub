@@ -89,9 +89,14 @@ function LogPanel({ item, runId, sessionId, logs, memberId }) {
       // what moves the counter the moment the button is tapped -- otherwise
       // nothing happens and the set gets logged twice.
       await queryClient.cancelQueries({ queryKey: queryKeys.runLogs(runId) })
-      queryClient.setQueryData(queryKeys.runLogs(runId), (current) =>
-        current ? [...current, variables.optimistic] : current,
-      )
+      // Seeded when absent rather than skipped.  A run opened offline has never
+      // had its logs fetched, and a no-op here would leave the set invisible --
+      // and, because the double-tap guard only clears when the count changes,
+      // would lock the form against every set after it.
+      queryClient.setQueryData(queryKeys.runLogs(runId), (current) => [
+        ...(current ?? []),
+        variables.optimistic,
+      ])
     },
 
     onError: (_error, variables) => {
@@ -99,7 +104,7 @@ function LogPanel({ item, runId, sessionId, logs, memberId }) {
       // in flight, an earlier failure restoring its own snapshot would clobber
       // the later one's optimistic state; reversing one delta cannot.
       queryClient.setQueryData(queryKeys.runLogs(runId), (current) =>
-        current ? current.filter((log) => log.id !== variables.id) : current,
+        (current ?? []).filter((log) => log.id !== variables.id),
       )
     },
   })

@@ -101,7 +101,9 @@ export default function LiveSessionScreen() {
       award.mutate({
         memberId: user.id,
         code: `workout:${run.id}`,
-        title: `Completed ${session.name}`,
+        // The rewards list is a history, so the title must not call a session
+        // stopped at 40% "completed".
+        title: outcome === 'completed' ? `Completed ${session.name}` : `${session.name} — ${pct}%`,
         points,
       })
     }
