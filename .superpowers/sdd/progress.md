@@ -1987,15 +1987,47 @@ never read until that spec lands. `ClientWorkoutScreen` was still touched here,
 but only as far as the shared extraction forced (it held `NewPlanForm`, and it
 read the dead `status` column).
 
-RESUME HERE. All eleven tasks are built; `npm run lint` and `npm run build` pass
-and all ten self-checks are green. NOTHING has been exercised in a browser --
-lint and build cannot catch a wrong query or a broken flow, so treat every
-screen as unverified.
+WHOLE-BRANCH REVIEW, 2026-08-06. Held as CLAUDE.md's working agreement
+prescribes, and as in every phase before it, it found a CRITICAL that no single
+task owned:
+
+  - 6973df1  CRITICAL. Starting a workout never worked. `beginRun` fired the
+             mutation and navigated in the same handler; the live screen
+             redirects away when it finds no open run for its session, and the
+             cache still held null. Guaranteed offline, and a race the
+             navigation usually won online. Each task was correct alone -- task
+             7 wrote the navigation, task 8 the guard, task 4 the cache.
+             Fixed by registering `onMutate` cache writes for `startRun` and
+             `endRun` in `src/data/mutations.js`, not at the call sites, so a
+             screen cannot forget. `endRun`'s also seeds the summary, which
+             reads a key nothing had ever populated -- finishing a workout
+             offline landed on an empty screen.
+  - df2a584  Logging a set into a run whose logs had never been fetched was a
+             silent no-op, because the optimistic write bailed when the cache
+             entry was undefined. Worse, the double-tap guard only clears when
+             the count changes, so the form then locked against every further
+             set. Seeded instead of skipped.
+  - df2a584  A run stopped at 40% was titled "Completed X" in the rewards list.
+  - 51ccf89  The exercise screen carried its own clock while the mini-player
+             showed the same one below it. Deleted the local one; the
+             mini-player is the general answer and already covers every screen.
+  - c283406  The spec was reconciled with what was actually built: `week.js`'s
+             new home, `daysBefore`, patches/014, the run-keyed summary route,
+             the three screens the spec had not named, and the walked-back claim
+             about points and `pct` agreeing exactly.
+
+RESUME HERE. All eleven tasks are built and reviewed; `npm run lint` and
+`npm run build` pass and all ten self-checks are green. NOTHING has been
+exercised in a browser -- lint and build cannot catch a wrong query or a broken
+flow, so treat every screen as unverified.
 
 BLOCKING, first thing: apply `supabase/patches/014-workout-run-pct.sql`. From
-commit 2ec53ac the run reads select `pct`, so until 014 lands EVERY run query
+commit 2ec53ac every run read selects `pct`, so until 014 lands EVERY run query
 answers "column workout_runs.pct does not exist" and the whole workout half is
 dark. 013 alone is not enough any more.
+
+Then the ten-step device walk in the spec's Acceptance section, and the
+anonymous-client RLS probe on `workout_runs`, which is still owed.
 
 HUMAN HANDOFF, blocking everything: `supabase/patches/013-workout-runs.sql`
 does not exist yet -- it is written as part of task 1 -- and once written must
