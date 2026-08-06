@@ -2101,3 +2101,53 @@ What is honestly true, and belongs in the report's PWA-constraints chapter:
 
 The finish is therefore also announced through `aria-live` and stated in text.
 Sound is an enhancement here, never the only carrier.
+
+
+# PHASE 5A MERGED into main via pull request #4
+
+Merge commit 53f732d, 2026-08-06. 30 commits, 46 files, +5939/-687. Branch
+`phase-5a-workout-redesign` kept, as every earlier one has been.
+
+Verified on main after the merge: lint, build, all ten self-checks, and
+`node supabase/probe-rls.mjs`.
+
+Two findings arrived after the whole-branch review, from Davide's second pass:
+
+  - "See how it went" landed on the SESSION screen instead of the summary. The
+    same `onMutate` cache write that makes starting a workout work offline
+    clears the open run, which re-rendered the live screen in the same commit as
+    the navigation -- and its `<Navigate replace>` replaced the summary. The
+    fix that made the entrance work broke the exit. A `leaving` flag now stops
+    the screen deciding where to send anyone once the member has committed to
+    finishing.
+  - Points could be farmed by reopening a completed session. Capped at ONE
+    AWARD PER SESSION PER CALENDAR DAY, via `earnedOn()` in `src/lib/week.js`.
+
+The principle behind that cap is worth keeping: RATION THE POINT, NEVER THE
+WORKOUT. Starting, logging and the coach's view are all untouched -- refusing
+to let someone train would throw away the data the coach actually reads, and
+the points are the only thing that can be farmed. A run that paid nothing has
+not spent the day, so closing empty or abandoning leaves the member free to come
+back and train it properly. The comparison is on the LOCAL day: a session
+started at 00:30 carries a UTC timestamp dated yesterday and would otherwise pay
+twice.
+
+RESUME HERE. Phase 5A is done and merged. Nothing is in flight.
+
+Queued, in dependency order:
+
+  1. The PROFESSIONAL'S side of the workout rebuild -- its own spec, Davide's
+     decision. Includes surfacing `workout_runs.note`, which the member writes
+     and nobody reads until then, and probably a weekly view of a client now
+     that runs exist. This is the acknowledged debt of Phase 5A.
+  2. The notification bell: the badge that does not refresh within its 60s poll,
+     and the fact that it has never been clickable at all. Needs its own design
+     pass -- dropdown or screen, and what it lists.
+  3. Hardening and the report: re-run Lighthouse, capture the screenshots for
+     chapter 5, write chapters 4/5/6 and the slides. Section 7 of
+     `docs/superpowers/2026-07-30-device-verification.md` must be rewritten
+     against the NEW workout flow rather than the old wording.
+
+The rest-timer audio story (three causes in sequence, ending at
+`navigator.audioSession.type = 'transient'`) is written up above and is direct
+material for the report's chapter on PWA constraints.
