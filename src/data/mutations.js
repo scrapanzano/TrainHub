@@ -1,4 +1,7 @@
-import { createPlan, createSession, deleteSession, logSet, setSessionStatus } from './workouts.js'
+import {
+  addSessionExercise, createPlan, createSession, deleteSession, deleteSessionExercise, logSet,
+} from './workouts.js'
+import { endRun, pauseRun, resumeRun, saveRunNote, startRun } from './runs.js'
 import { awardReward } from './rewards.js'
 import { deleteMeal, saveMeal, saveNutritionPlan } from './nutrition.js'
 import { saveBodyMetric } from './progress.js'
@@ -25,28 +28,129 @@ import { queryKeys, queryPrefixes } from '../lib/queryKeys.js'
  * are safe -- those run in addition, not instead.
  */
 export function registerMutationDefaults(queryClient) {
+  // One scope across a whole workout.  `set_logs.run_id` is a foreign key, so
+  // the run must land before any of its sets, and pause/resume/end must land in
+  // the order they happened.  `resumePausedMutations` replays in parallel
+  // unless a scope says otherwise, so without this the reconnect after a
+  // session logged underground fails on the constraint and the sets are lost.
+  const runScope = { id: 'workoutRun' }
+
   queryClient.setMutationDefaults(mutationKeys.logSet, {
     mutationFn: logSet,
+    scope: runScope,
     // Invalidate the families rather than one id: prefix matching cannot be
     // defeated by a caller that omits the id, and at this cache size -- one
     // member's own sessions -- the extra refetches are negligible.
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryPrefixes.sessionLogs })
       queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
+      // The pills, the plan bar and the congratulations dialog all read the
+      // run's logs.
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.runs })
     },
   })
 
-  queryClient.setMutationDefaults(mutationKeys.setSessionStatus, {
-    mutationFn: setSessionStatus,
-    // Serialise replays.  `resumePausedMutations` runs paused mutations in
-    // parallel unless they share a scope, and this key queues an ordered pair
-    // -- `in_progress` on start, `completed` on stop.  Unordered, the last PATCH
-    // to land wins by luck and a finished workout can persist as unfinished.
-    scope: { id: 'sessionStatus' },
+  queryClient.setMutationDefaults(mutationKeys.startRun, {
+    mutationFn: startRun,
+    scope: runScope,
+    // The open run must exist in the cache the instant play is pressed, not
+    // when the server answers.  The live screen redirects away when it finds no
+    // open run for its session, so without this the member is bounced straight
+    // back: guaranteed offline, and a race the navigation usually wins online.
+    onMutate: (variables) => {
+      queryClient.setQueryData(queryKeys.openRun(variables.memberId), {
+        id: variables.id,
+        session_id: variables.sessionId,
+        member_id: variables.memberId,
+        started_at: variables.startedAt,
+        paused_at: null,
+        paused_total_ms: 0,
+        ended_at: null,
+        outcome: null,
+        pct: null,
+        note: null,
+        // The caller passes the name so the mini-player has something to say
+        // before the refetch lands.
+        session: { id: variables.sessionId, name: variables.sessionName ?? 'Workout' },
+      })
+      // A fresh run has logged nothing.  Seeded rather than left missing so the
+      // pills read 0/3 immediately instead of waiting on a request that will
+      // not go out at all while offline.
+      queryClient.setQueryData(queryKeys.runLogs(variables.id), [])
+    },
+    onError: (_error, variables) => {
+      // The run never opened.  Leaving it in the cache would show a mini-player
+      // for a workout that does not exist and block starting a real one.
+      queryClient.setQueryData(queryKeys.openRun(variables.memberId), null)
+    },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
-      // The plan screen and Home both render this session's status.
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.runs })
+      // The plan screen derives every session's state from these runs.
       queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.pauseRun, {
+    mutationFn: pauseRun,
+    scope: runScope,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.runs })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.resumeRun, {
+    mutationFn: resumeRun,
+    scope: runScope,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.runs })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.endRun, {
+    mutationFn: endRun,
+    scope: runScope,
+    // The mirror of `startRun`'s problem.  Offline this write pauses, so
+    // without closing the run in the cache here the mini-player would go on
+    // counting a workout the member has already finished, and pressing play on
+    // anything else would raise "a workout is already open" about it.
+    //
+    // It also seeds the summary.  That screen reads the run by id, a key
+    // nothing has ever populated, so finishing a workout offline would land on
+    // an empty screen instead of the numbers just earned.
+    onMutate: (variables) => {
+      const open = queryClient.getQueryData(queryKeys.openRun(variables.memberId))
+      const closed = {
+        ...(open ?? { id: variables.id, session_id: variables.sessionId }),
+        id: variables.id,
+        ended_at: variables.endedAt,
+        outcome: variables.outcome,
+        pct: variables.pct ?? null,
+      }
+
+      queryClient.setQueryData(queryKeys.run(variables.id), closed)
+      // Only clear the shell's run if the one being closed IS the open one: a
+      // replay arriving after the member has started something else must not
+      // wipe the workout they are in the middle of now.
+      if (open?.id === variables.id) {
+        queryClient.setQueryData(queryKeys.openRun(variables.memberId), null)
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.runs })
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
+    },
+  })
+
+  // Written on the summary, after the run has closed.  `endRun` deliberately
+  // does not touch `note`, so there is nothing here for it to overwrite -- but
+  // the scope is shared anyway so a note cannot reach the server ahead of the
+  // run it belongs to, which offline is a real ordering and not a theoretical
+  // one.
+  queryClient.setMutationDefaults(mutationKeys.saveRunNote, {
+    mutationFn: saveRunNote,
+    scope: runScope,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.runs })
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.clientTraining })
     },
   })
 
@@ -57,8 +161,20 @@ export function registerMutationDefaults(queryClient) {
     },
   })
 
+  // `createPlan` and `createSession` share a scope so a replay cannot land a
+  // session before the plan it belongs to -- `CreatePlanFlow` fires both at
+  // once precisely so neither depends on a per-call callback surviving a
+  // reload, and only an ordered replay makes that safe.
+  //
+  // It serialises two adds to the same plan as a bonus: `position` is
+  // `Math.max(...) + 1` read from cache, so two sessions added in parallel
+  // would compute the same position and the second would be rejected by
+  // `unique (plan_id, position)`.
+  const planWriteScope = { id: 'planWrite' }
+
   queryClient.setMutationDefaults(mutationKeys.createSession, {
     mutationFn: createSession,
+    scope: planWriteScope,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
     },
@@ -66,6 +182,7 @@ export function registerMutationDefaults(queryClient) {
 
   queryClient.setMutationDefaults(mutationKeys.createPlan, {
     mutationFn: createPlan,
+    scope: planWriteScope,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
       // `fetchClients` derives each roster row's `goal` from the client's
@@ -80,6 +197,29 @@ export function registerMutationDefaults(queryClient) {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
       queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
+    },
+  })
+
+  // Shares the session-write scope with the delete below: `position` is
+  // `Math.max(...) + 1` computed from cache, so two adds replayed in parallel
+  // would land on the same position and `unique (session_id, position)` would
+  // reject the second.
+  queryClient.setMutationDefaults(mutationKeys.addSessionExercise, {
+    mutationFn: addSessionExercise,
+    scope: { id: 'sessionExercises' },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.deleteSessionExercise, {
+    mutationFn: deleteSessionExercise,
+    scope: { id: 'sessionExercises' },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
+      // The plan screen prints each session's exercise count.
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
     },
   })
 

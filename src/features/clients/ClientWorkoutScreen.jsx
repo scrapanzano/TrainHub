@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  Alert, Button, Card, CardContent, Divider, IconButton, MenuItem, Stack, TextField, Typography,
+  Alert, Button, Card, CardContent, Divider, IconButton, Stack, Typography,
 } from '@mui/material'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import { useMutation, useQuery } from '@tanstack/react-query'
@@ -10,80 +10,11 @@ import { fetchActivePlan, fetchExerciseCatalogue } from '../../data/workouts.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
+import CreatePlanFlow from '../workout/CreatePlanFlow.jsx'
 import SessionForm from '../workout/SessionForm.jsx'
+import { runStatusOf } from '../../lib/week.js'
 import { sessionStatusOf } from '../workout/status.js'
 import { useAuth } from '../auth/useAuth.js'
-
-const LEVELS = ['Beginner', 'Intermediate', 'Advanced']
-
-/** The form shown when the client has no plan at all. */
-function NewPlanForm({ onSubmit, pending, paused, error }) {
-  const [name, setName] = useState('')
-  const [goal, setGoal] = useState('')
-  const [level, setLevel] = useState('Beginner')
-  const [weeks, setWeeks] = useState(6)
-
-  return (
-    <Stack
-      component="form"
-      spacing={3}
-      onSubmit={(event) => {
-        event.preventDefault()
-        onSubmit({ name, goal, level, weeks: Number(weeks) })
-      }}
-    >
-      <TextField
-        label="Plan name"
-        value={name}
-        onChange={(event) => setName(event.target.value)}
-        placeholder="Hypertrophy - Phase 1"
-        required
-        fullWidth
-      />
-      <TextField
-        label="Goal"
-        value={goal}
-        onChange={(event) => setGoal(event.target.value)}
-        placeholder="Hypertrophy"
-        fullWidth
-      />
-      <TextField
-        select
-        label="Level"
-        value={level}
-        onChange={(event) => setLevel(event.target.value)}
-        fullWidth
-      >
-        {LEVELS.map((option) => (
-          <MenuItem key={option} value={option}>
-            {option}
-          </MenuItem>
-        ))}
-      </TextField>
-      <TextField
-        label="Weeks"
-        type="number"
-        value={weeks}
-        onChange={(event) => setWeeks(event.target.value)}
-        slotProps={{ htmlInput: { inputMode: 'numeric', min: 1, max: 52 } }}
-        fullWidth
-      />
-
-      {paused ? (
-        <Alert severity="info">
-          You are offline. The plan is saved on your device and will be created when you reconnect.
-        </Alert>
-      ) : null}
-      {error ? (
-        <Alert severity="error">{error.message ?? 'The plan could not be created.'}</Alert>
-      ) : null}
-
-      <Button type="submit" variant="contained" size="large" fullWidth disabled={pending}>
-        {paused ? 'Saved offline' : pending ? 'Creating…' : 'Create plan'}
-      </Button>
-    </Stack>
-  )
-}
 
 export default function ClientWorkoutScreen() {
   const { clientId } = useParams()
@@ -105,7 +36,6 @@ export default function ClientWorkoutScreen() {
     queryFn: fetchExerciseCatalogue,
   })
 
-  const createPlan = useMutation({ mutationKey: mutationKeys.createPlan })
   const createSession = useMutation({ mutationKey: mutationKeys.createSession })
   const removeSession = useMutation({ mutationKey: mutationKeys.deleteSession })
 
@@ -116,31 +46,23 @@ export default function ClientWorkoutScreen() {
 
   const clientName = client.data?.full_name ?? 'this client'
 
-  // No plan yet: the only thing to do is create one.  This is the case the
-  // member's own builder cannot reach, and the reason this screen exists.
+  // No plan yet.  The same two-step flow the member uses on themselves: the
+  // plan and its first session are written together at the end, so abandoning
+  // halfway leaves nothing behind.  That matters more here than it looks --
+  // `fetchActivePlan` takes the newest plan, so a plan saved with no sessions
+  // would immediately replace whatever the client was following with an empty
+  // screen reading "This plan has no sessions".
   if (plan.data === null) {
     return (
       <Stack spacing={3} sx={{ p: 2 }}>
         <Typography variant="h1">New plan</Typography>
         <Typography color="text.secondary">
-          {clientName} has no workout plan. Create one, then add sessions to it.
+          {clientName} has no workout plan yet.
         </Typography>
-        <NewPlanForm
-          pending={createPlan.isPending}
-          paused={createPlan.isPending && createPlan.isPaused}
-          error={createPlan.error}
-          onSubmit={(values) =>
-            // Generated here, in the submit handler, not during render: a
-            // render-time `crypto.randomUUID()` call would be impure and
-            // lint-detected.  It is the idempotency key `createPlan` upserts
-            // on, so a retried or replayed submit lands on the same row.
-            createPlan.mutate({
-              id: crypto.randomUUID(),
-              memberId: clientId,
-              authorId: user.id,
-              ...values,
-            })
-          }
+        <CreatePlanFlow
+          memberId={clientId}
+          authorId={user.id}
+          onDone={() => plan.refetch()}
         />
       </Stack>
     )
@@ -178,7 +100,12 @@ export default function ClientWorkoutScreen() {
                     {session.name}
                   </Typography>
                   <Typography variant="body2" color="text.secondary" noWrap>
-                    {session.exerciseCount} exercises • {sessionStatusOf(session.status).label}
+                    {/* Derived from this week's runs, not from the stored
+                        column: what the coach wants to know is whether the
+                        client trained THIS week, which a status frozen at the
+                        first ever completion cannot say. */}
+                    {session.exerciseCount} exercises •{' '}
+                    {sessionStatusOf(runStatusOf(session.runs, plan.data.weekStart).status).label}
                   </Typography>
                 </Stack>
 

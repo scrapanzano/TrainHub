@@ -29,9 +29,22 @@ const router = createBrowserRouter([
         path: 'workout',
         lazy: async () => ({ Component: (await import('../features/workout/WorkoutPlanScreen.jsx')).default }),
       },
+      // Before the `:sessionId` route, or 'new' would be read as an id.
+      {
+        path: 'workout/session/new',
+        lazy: async () => ({
+          Component: (await import('../features/workout/AddSessionScreen.jsx')).default,
+        }),
+      },
       {
         path: 'workout/session/:sessionId',
         lazy: async () => ({ Component: (await import('../features/workout/SessionDetailScreen.jsx')).default }),
+      },
+      {
+        path: 'workout/session/:sessionId/exercise/new',
+        lazy: async () => ({
+          Component: (await import('../features/workout/AddExerciseScreen.jsx')).default,
+        }),
       },
       {
         path: 'workout/session/:sessionId/live',
@@ -39,8 +52,11 @@ const router = createBrowserRouter([
           Component: (await import('../features/workout/LiveSessionScreen.jsx')).default,
         }),
       },
+      // Keyed on the run, not the session: the same session is trained again
+      // every week, and a summary that could only name the session would show
+      // this week's numbers under last week's workout.
       {
-        path: 'workout/session/:sessionId/summary',
+        path: 'workout/run/:runId/summary',
         lazy: async () => ({
           Component: (await import('../features/workout/SessionSummaryScreen.jsx')).default,
         }),
@@ -55,7 +71,7 @@ const router = createBrowserRouter([
       {
         path: 'workout/builder',
         lazy: async () => ({
-          Component: (await import('../features/workout/WorkoutBuilderScreen.jsx')).default,
+          Component: (await import('../features/workout/NewPlanScreen.jsx')).default,
         }),
       },
 

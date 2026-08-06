@@ -5,11 +5,17 @@
 // discarded without an error.  One home for both halves.
 export const mutationKeys = {
   logSet: ['logSet'],
-  setSessionStatus: ['setSessionStatus'],
+  startRun: ['startRun'],
+  pauseRun: ['pauseRun'],
+  resumeRun: ['resumeRun'],
+  endRun: ['endRun'],
+  saveRunNote: ['saveRunNote'],
   awardReward: ['awardReward'],
   createSession: ['createSession'],
   createPlan: ['createPlan'],
   deleteSession: ['deleteSession'],
+  addSessionExercise: ['addSessionExercise'],
+  deleteSessionExercise: ['deleteSessionExercise'],
   saveNutritionPlan: ['saveNutritionPlan'],
   saveMeal: ['saveMeal'],
   deleteMeal: ['deleteMeal'],

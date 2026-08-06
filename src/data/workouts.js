@@ -1,4 +1,7 @@
 import { supabase } from '../lib/supabase.js'
+import { daysBefore, mondayOf } from '../lib/week.js'
+import { todayISO } from '../lib/format.js'
+import { fetchRunsSince } from './runs.js'
 
 // postgrest retries a failed GET three times with 1s/2s/4s backoff, which is
 // the right call for a transient 503 and the wrong one for a phone in a gym
@@ -6,31 +9,32 @@ import { supabase } from '../lib/supabase.js'
 // the browser thinks there is a network, so the transient-error handling is
 // kept and the offline path fails immediately. Applied to every read below.
 
-// PostgREST embeds related rows through the foreign keys already declared in
-// schema.sql.  `set_logs(count)` is an embedded aggregate: it returns how many
-// set_logs point at each session_exercise without shipping the rows.  Row Level
-// Security scopes that count to the signed-in member automatically, so no
-// member_id filter is needed -- and adding one would not make it safer.
+// The prescription only.  There was once an embedded `set_logs ( count )`
+// aggregate here; it was a LIFETIME count, which is the wrong question the
+// moment a session repeats.  In week two a three-set exercise read `6/3` and
+// nothing ever completed again.  Counting now happens against one run's logs --
+// see `fetchRunLogs` in `./runs.js` and `countsByExercise` in the summary
+// module.
 const SESSION_EXERCISE_COLUMNS = `
   id, position, target_sets, target_reps, target_weight, rest_seconds, notes,
-  exercise:exercises ( id, name, muscle_group, equipment, instructions, video_url, image_url ),
-  set_logs ( count )
+  exercise:exercises ( id, name, muscle_group, equipment, instructions, video_url, image_url )
 `
 
-// PostgREST returns an embedded count as `[{ count: n }]`, or `[]` when nothing
-// matches.  Flatten it here so no screen has to know that shape.
-const withLoggedCount = (row) => {
-  const { set_logs: logs, ...rest } = row
-  return { ...rest, loggedCount: logs?.[0]?.count ?? 0 }
-}
-
 /**
- * The member's current plan and its sessions.
+ * The member's current plan, its sessions, and the runs that give each session
+ * a state this week.
  *
  * A member can hold several plans over time; "current" is the most recently
- * created one.  Returns null rather than throwing when there is none, because
- * a member who has not been assigned a plan yet is an ordinary state that the
+ * created one.  Older plans are archived rather than deleted -- their sessions
+ * and logged sets stay attached and keep feeding the professional's progress
+ * charts.  Returns null rather than throwing when there is none, because a
+ * member who has not been assigned a plan yet is an ordinary state that the
  * Home and Workout screens both render as an empty state.
+ *
+ * `weekStart` comes back with the data so every screen derives status against
+ * the same Monday.  Computed once here rather than per card: a member who opens
+ * the app at 23:59:59 on Sunday must not have half the list resolve against one
+ * week and half against the next.
  */
 export async function fetchActivePlan(memberId) {
   const { data: plan, error: planError } = await supabase
@@ -54,11 +58,21 @@ export async function fetchActivePlan(memberId) {
 
   if (sessionsError) throw sessionsError
 
+  const weekStart = mondayOf(todayISO())
+  // Read back a fortnight, not a week.  A run left open last Sunday is still
+  // open, and `workout_runs_one_open_per_member` blocks starting a new one --
+  // so a window that hid it would strand the member with a play button that
+  // fails and nothing on screen explaining why.  `runStatusOf` decides what
+  // counts for the week; this read only has to not hide anything.
+  const runs = await fetchRunsSince(memberId, daysBefore(weekStart, 7))
+
   return {
     plan,
+    weekStart,
     sessions: (sessions ?? []).map(({ session_exercises: exercises, ...session }) => ({
       ...session,
       exerciseCount: exercises?.[0]?.count ?? 0,
+      runs: runs.filter((run) => run.session_id === session.id),
     })),
   }
 }
@@ -79,7 +93,7 @@ export async function fetchSession(sessionId) {
     session,
     // PostgREST does not order embedded rows, so sort here rather than trusting
     // insertion order -- the trainer's sequencing is meaningful.
-    exercises: (exercises ?? []).map(withLoggedCount).sort((a, b) => a.position - b.position),
+    exercises: (exercises ?? []).sort((a, b) => a.position - b.position),
   }
 }
 
@@ -93,34 +107,7 @@ export async function fetchSessionExercise(sessionExerciseId) {
     .retry(navigator.onLine)
 
   if (error) throw error
-  return withLoggedCount(data)
-}
-
-/** Every set the member has logged in one session. */
-export async function fetchSessionLogs(sessionId) {
-  const { data, error } = await supabase
-    .from('set_logs')
-    // `!inner` turns the embed into an inner join, which is what lets the filter
-    // below reach through to the parent session.  RLS still scopes the rows to
-    // this member on top of it.
-    .select(
-      'id, session_exercise_id, set_number, reps, weight, performed_at, session_exercises!inner ( session_id )',
-    )
-    .eq('session_exercises.session_id', sessionId)
-    .order('performed_at')
-    .retry(navigator.onLine)
-
-  if (error) throw error
-  // Return only the log's own columns; the joined `session_exercises` row exists
-  // solely so the filter above can reach the parent session.
-  return (data ?? []).map(({ id, session_exercise_id, set_number, reps, weight, performed_at }) => ({
-    id,
-    session_exercise_id,
-    set_number,
-    reps,
-    weight,
-    performed_at,
-  }))
+  return data
 }
 
 /**
@@ -134,9 +121,14 @@ export async function fetchSessionLogs(sessionId) {
  * The caller supplies `performedAt` for the same reason.  This write can sit
  * paused for hours and land on reconnect; leaving it to the column's `now()`
  * default would stamp a set performed at 18:00 as happening at 23:00.
+ *
+ * `runId` is what scopes the count to one attempt.  It is a foreign key, so
+ * this write and `startRun` share a `scope` in `src/data/mutations.js` -- a
+ * parallel replay could otherwise land the set before the run it references.
  */
 export async function logSet({
   id,
+  runId,
   sessionExerciseId,
   memberId,
   setNumber,
@@ -149,6 +141,7 @@ export async function logSet({
     .upsert(
       {
         id,
+        run_id: runId,
         session_exercise_id: sessionExerciseId,
         member_id: memberId,
         set_number: setNumber,
@@ -165,23 +158,6 @@ export async function logSet({
 
   if (error) throw error
   // `ignoreDuplicates` returns no row on a replay.  That is success, not a gap.
-  return data
-}
-
-/**
- * Move a session between `todo`, `in_progress` and `completed`.
- *
- * Idempotent by nature: setting a status it already holds writes the same value.
- */
-export async function setSessionStatus({ sessionId, status }) {
-  const { data, error } = await supabase
-    .from('workout_sessions')
-    .update({ status })
-    .eq('id', sessionId)
-    .select('id, status')
-    .single()
-
-  if (error) throw error
   return data
 }
 
@@ -278,5 +254,60 @@ export async function createPlan({ id, memberId, authorId, name, goal, level, we
  */
 export async function deleteSession({ sessionId }) {
   const { error } = await supabase.from('workout_sessions').delete().eq('id', sessionId)
+  if (error) throw error
+}
+
+/**
+ * Add one prescribed exercise to a session that already exists.
+ *
+ * The caller supplies `id` and `position`.  The id makes a replay upsert
+ * instead of duplicating -- this write can pause offline and be replayed on
+ * reconnect -- and `ignoreDuplicates` is right because there is no edit path
+ * through this function for it to silently no-op.
+ *
+ * `position` must be `Math.max(0, ...) + 1`, never a count: `unique
+ * (session_id, position)` rejects a reused one, and counting collides the
+ * moment anything has been deleted.
+ */
+export async function addSessionExercise({
+  id, sessionId, exerciseId, position, targetSets, targetReps, targetWeight, restSeconds,
+}) {
+  const { data, error } = await supabase
+    .from('session_exercises')
+    .upsert(
+      {
+        id,
+        session_id: sessionId,
+        exercise_id: exerciseId,
+        position,
+        target_sets: targetSets,
+        target_reps: targetReps,
+        target_weight: targetWeight ?? null,
+        rest_seconds: restSeconds,
+      },
+      { onConflict: 'id', ignoreDuplicates: true },
+    )
+    .select('id')
+    .maybeSingle()
+
+  if (error) throw error
+  // `ignoreDuplicates` returns no row on a replay.  That is success, not a gap.
+  return data
+}
+
+/**
+ * Remove one exercise from a session.
+ *
+ * Any `set_logs` beneath it cascade, which is why the caller confirms first.
+ * Idempotent like `deleteSession`: deleting a row that is already gone affects
+ * nothing and does not error, so it needs no client-generated id to be safe to
+ * replay after a reconnect.
+ *
+ * The gap it leaves in `position` is deliberate and harmless: positions are
+ * only ever read in order, and `unique (session_id, position)` is respected by
+ * `Math.max(...) + 1`, never by counting.
+ */
+export async function deleteSessionExercise({ sessionExerciseId }) {
+  const { error } = await supabase.from('session_exercises').delete().eq('id', sessionExerciseId)
   if (error) throw error
 }

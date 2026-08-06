@@ -1748,8 +1748,356 @@ scanner's manual field uppercases and strips whitespace before comparing.
 `checkin_tokens.token` is `text`, no format constraint -- no SQL change
 needed. Spec amended in place. Lint 0, build clean.
 
-RESUME HERE. The branch is phase-4b-badge-scanner-and-push, not merged, not
-pushed. Before anything else: run patches/012-appointment-insert-notifies.sql
-in the SQL editor (Davide's database already has 009/010/011; 012 is the only
-one still outstanding) and re-test the professional-books-directly case above.
-Then: PR #3 into main, following the Phase 3 and 4A precedent.
+patches/012 applied, professional-books-directly case re-tested and PASSES.
+
+PHASE 4B MERGED into main via pull request #3 (merge commit fac023d,
+2026-08-03). Branch phase-4b-badge-scanner-and-push is on origin, kept per
+Davide's standing instruction to not delete branches. Every route in
+src/routes/index.jsx now renders real content; Placeholder.jsx deleted.
+
+All of the original schedule's phases 0-4 (design spec section 7) are done,
+roughly three weeks ahead of the 20-24 Aug date phase 4 was scheduled for.
+Next per the schedule is phase 5, hardening + report.
+
+# Phase 5 — Hardening (started)
+
+Cross-checked docs/superpowers/2026-07-30-device-verification.md against what
+had an actual on-device confirmation in this ledger, rather than assume a
+generic "walked the app" pass covered every itemised check. Sections 0, 1, 2
+(minus a Lighthouse re-run and report screenshots, still pending), 5, 6, and 9
+already had one. Sections 3, 4, 7 and 8 did not -- Davide ran them 2026-08-03:
+
+Section 3 (chat) -- confirmed working except: the header bell badge does NOT
+update within its 60s poll; Daniel had to reload manually. AppLayout.jsx:36 has
+`refetchInterval: 60_000` on `queryKeys.unreadCount`, and the query itself
+(fetchUnreadCount, src/data/chat.js:118) looks correct -- counts messages where
+`sender_id != you and read_at is null`, which is right. NOT YET ROOT-CAUSED;
+candidates not yet checked: AppLayout remounting on navigation (resetting the
+interval's clock before it fires), or the interval pausing on
+`document.visibilityState` in a way that doesn't match how Davide was actually
+holding the phone. Left open, deliberately not touched this session.
+
+Section 4 (rest of the member's app) -- everything confirmed correct: meal
+detail, specialty filters (untestable with only one seeded professional, but
+present and not broken), the month-boundary calendar jump, offline booking
+replay on reconnect, subscription renewal date.
+
+Section 7 (Phase 2, workout) -- confirmed: timer survives a live-session
+reload; log-set double-tap guard. TWO REAL DEFECTS found, not yet fixed:
+  - the timer does NOT reset navigating from one live session to another --
+    the checklist's expected behaviour (queue-item: "resets to the new
+    session's clock") does not hold; the old session's elapsed time carries
+    over.
+  - a session completes and AWARDS A REWARD even when zero exercises were
+    logged. The checklist expected finishing offline with no data to refuse
+    to render a summary (and it does, correctly) but finishing ONLINE with no
+    sets logged should arguably be the same refusal, or at least not mint a
+    reward for nothing done.
+Davide's own assessment, unprompted: this whole section was built against
+wireframes that were not well thought through, and needs a real refactor of
+the live workout session's functionality and logic -- not just these two
+bugs patched in place. He is writing a prompt describing how live workout
+should actually work and wants to brainstorm the redesign together before any
+code changes, design included.
+
+Section 8 (Phase 1 core) -- confirmed correct in full: home screen content,
+greeting, today's appointments, week strip, bell.
+
+(SUPERSEDED 2026-08-05 by the Phase 5A section at the end of this file -- the
+prompt arrived, the brainstorm happened, the spec is written. Read that one.)
+
+Hardening is paused on purpose: Davide wants to redesign the live
+workout session (Phase 2's weakest part, built against under-specified
+wireframes) BEFORE finishing the hardening/report pass, since a redesign would
+invalidate device-walk results and report screenshots taken against the old
+flow. He is about to share a prompt describing the intended live-workout
+behaviour. Use superpowers:brainstorming for that discussion -- he explicitly
+asked to design it together, design included, not to receive an
+implementation straight away.
+
+Still open and NOT yet fixed, independent of the workout redesign:
+  - the header bell badge's live-update gap (section 3 above) -- small,
+    unrelated to workout, root cause not yet found.
+  - the bell has never been clickable at all (TopHeader.jsx: the IconButton
+    wrapping NotificationsIcon carries no onClick and no Link, unlike the
+    profile avatar next to it). Noticed 2026-08-03, while looking at the badge
+    bug above -- not a regression, it was built this way from the start.
+    Davide wants tapping it to open an actual notifications view, the way
+    every other mobile app's bell works. No screen for that exists yet
+    (checkins have no history view either, by the same "not built" reasoning
+    as the Phase 4B spec's out-of-scope list) -- this is new scope, not a bug
+    fix, and needs its own design pass: a dropdown, a screen, what it lists
+    (unread threads only, or the same three events push notifies on).
+    Deliberately not scoped further here -- queued behind the workout redesign.
+  - Lighthouse re-run + report screenshots (Lighthouse panel, DevTools
+    Application Manifest/Service Workers) for chapter 5 -- blocked on nothing,
+    just not done yet.
+Once the workout redesign is scoped and built, the remaining hardening item is
+re-verifying section 7 against the NEW flow rather than the old checklist
+wording, plus everything above.
+
+
+# Phase 5A -- The workout half, rebuilt (design done, not yet planned)
+
+Branch `phase-5a-workout-redesign`, cut from `main` at 86e8c3a on 2026-08-05.
+Hardening and the report stay paused behind this, for the reason recorded in
+the section above: a redesign invalidates device-walk results and report
+screenshots taken against the old flow.
+
+Davide wrote `doc/live_train_session.md` -- his own brainstorm of how the
+member's workout half should work -- and asked to be grilled on it rather than
+handed an implementation. Four rounds of questions later, nineteen decisions
+are settled and written up in
+
+    docs/superpowers/specs/2026-08-05-trainhub-workout-redesign-design.md
+
+which is the source of truth for this phase. Do not re-derive it from the
+brainstorm; the brainstorm contradicts itself in two places (weight editing,
+and "stop") and the spec records how each contradiction was resolved and why.
+
+The one-line shape of it: a session's state stops being a column and becomes
+DERIVED from `workout_runs` rows inside the current ISO week. Every press of
+play opens a run; every `set_logs` row points at one. That single change is
+what makes the plan weekly, the counting correct, the points honest, the clock
+right, and abandoning safe without deleting anything.
+
+Nine defects are named in the spec with file and line. Three Davide confirmed
+by hand on 2026-08-03; SIX came out of reading the code while designing, and
+are latent only because nothing in the app repeats yet:
+
+  - `loggedCount` is a LIFETIME count (`workouts.js:17`). Week 2 reads `6/3`
+    and nothing ever completes again.
+  - the reward code is `workout:${sessionId}` against `unique (member_id,
+    code)` with `ignoreDuplicates: true` (`rewards.js:28`). The second
+    completion of a session awards NOTHING, silently. Becomes `workout:${runId}`.
+  - an empty plan hides the coach's plan, because `fetchActivePlan` takes the
+    newest by `created_at`. This is live on the PROFESSIONAL's side today:
+    create a plan, stop before the first session, and the member's screen
+    reads "This plan has no sessions". Closed by deferring the write until
+    plan AND first session both exist -- which fixes the coach's side too.
+  - the member cannot create a plan at all (`WorkoutBuilderScreen` only adds a
+    session to an existing plan).
+  - end-of-session notes for the coach do not exist, though
+    `doc/live_train_session.md:63` believes they do.
+  - `expires_on` is printed by the plan banner although the brainstorm's own
+    section 21 says validity is deliberately not tracked.
+
+Deliberately NOT in this phase, and each already has a reason on file: the
+notification bell (both its stale badge and its missing tap target), a history
+screen for archived plans, a member-side progress screen, real exercise
+imagery, dropping `workout_sessions.status` or `workout_plans.expires_on` from
+the schema, and reordering sessions or exercises.
+
+Two things worth knowing before touching the implementation, both of which the
+spec explains at length and both of which are the kind of thing that costs a
+day if missed:
+
+  1. `startRun`, `logSet` and `endRun` MUST share one `scope` in
+     `src/data/mutations.js`. `set_logs.run_id` is a foreign key and
+     `resumePausedMutations` replays in parallel without a scope, so a set can
+     land before the run it references. `logSet` carries no scope today.
+  2. `timer.js` and its self-check do NOT change. Its three keys map one to one
+     onto three new columns on `workout_runs`; only where the state is read
+     from changes.
+
+The plan is `docs/superpowers/plans/2026-08-05-phase-5a-workout-redesign.md`
+(95b9a2c), eleven tasks. Tasks 1 to 3 are done:
+
+  - b4ad1d8  task 1  `week.js` + self-check. `mondayOf`, `runStatusOf`.
+  - d733f6d  task 2  `pointsForRun`, `countsByExercise`, the `partial` status,
+                     and `planProgress` counting partials. Self-checks extended.
+  - af91589  task 3  `supabase/patches/013-workout-runs.sql` + `verify.sql`
+                     counts moved 18->19 and 17->18.
+
+Three cases were added during task 1 that the plan had not foreseen, and the
+middle one changed the implementation: `mondayOf` accepts a full ISO instant,
+`runStatusOf` compares on the LOCAL day rather than the raw ISO string (a run
+started 23:30 on Sunday carries a UTC timestamp dated Monday and would
+otherwise be filed under the week that had not begun yet), and it sorts by
+`Date.parse` rather than lexically.
+
+patches/013 applied 2026-08-06, all eight rows PASS. `verify.sql` re-run: the
+five schema/security rows PASS at 19/19/18/18/18. Seven seed rows read FAIL --
+the four documented ones (005-demo-clients) plus `messages`, `rewards` and
+`checkins`, which have simply grown from the Phase 4B device walks. Not a
+defect.
+
+STILL OWED from that handoff: the anonymous-client RLS probe on `workout_runs`.
+`verify.sql` runs as the dashboard's privileged role and bypasses RLS, so it
+proves the policies exist and not that they are right. Not treated as blocking
+because both policies are verbatim copies of `set_logs`', already in service --
+but it is owed before the phase closes.
+
+Tasks 4 to 11 are done, all eleven committed:
+
+  - 2372431  task 4   `src/data/runs.js`, run-scoped counting, run writes
+                      registered, keys added.
+  - 34b9685  task 5   `PlanForm` extracted, `CreatePlanFlow` shared by both
+                      roles, `WorkoutBuilderScreen` deleted.
+  - ed80fa0  task 6   plan screen: weekly states, overflow menu, edit mode,
+                      empty-state fork. Plus `AddSessionScreen` and patch 014.
+  - 0e9fe08  task 7   session screen: weekly state, guarded play, edit mode,
+                      `AddExerciseScreen`, `OpenRunSheet`.
+  - 2ec53ac  task 8   live session driven by the run; `EndRunSheet`,
+                      `CongratsDialog`; reward code is now `workout:${runId}`.
+  - 0f8ddb9  task 9   exercise screen grew the logging half; `RestTimer`;
+                      `LogSetSheet` deleted.
+  - 04371b0  task 10  `LiveSessionBar` mini-player mounted in `AppLayout`.
+  - b3d65c4  task 11  summary keyed on the run, member's note, dead code out.
+
+FIVE THINGS THE PLAN GOT WRONG, all found while building and all corrected:
+
+  1. `week.js` was to live in `src/features/workout/`. Having `data/workouts.js`
+     import it inverted the layering CLAUDE.md fixes (`features/` calls `data/`).
+     It is pure date logic like `format.js`, so it moved to `src/lib/week.js`.
+     The documented self-check list is now TEN, and CLAUDE.md says so.
+  2. The plan computed "the previous Monday" through `Date.now() - 7*86_400_000`
+     and `toISOString()`. Both wrong: millisecond arithmetic breaks across a DST
+     boundary (one day a year is 23 hours, another 25) and `toISOString()`
+     converts to UTC, reintroducing the very off-by-one-day `week.js` exists to
+     prevent. Replaced by `daysBefore()`, with the 2026 DST Sundays pinned in
+     the self-check.
+  3. `CreatePlanFlow` was to chain `createPlan` then `createSession` through
+     `onSuccess`. Per-call callbacks ARE NOT PERSISTED: offline, the plan queues,
+     and if the member closes the app before reconnecting the replay creates the
+     plan with no callback left to create its session -- an empty plan, which is
+     defect 8 walking back in through the side door. Both writes now fire
+     together, ordered by a shared `planWrite` scope.
+  4. `patches/013` shipped without a `pct` column, though the spec requires the
+     card to read "Stopped at 60%". Deriving it would mean loading every run's
+     logs to draw four cards. Fixed by `patches/014` plus the source file, the
+     008/011/012 convention.
+  5. Deleting `WorkoutBuilderScreen` also deleted the only way to ADD a session
+     to an existing plan, not just to create one. Reborn as `AddSessionScreen`,
+     with its route placed BEFORE `:sessionId` or "new" parses as an id.
+
+Two claims were also walked back for being false rather than merely imprecise.
+The self-check asserted that `pct` and the points can never disagree; they can
+differ by one, because a whole percentage is a lossy carrier (one set of six is
+16%, while the award is floor(30/6)=5 rather than floor(30*0.16)=4). The
+assertion now pins what is actually true -- no points without progress, no full
+award without a full session, neither moving while the other stands still --
+and the comment in `patches/014` was corrected to match.
+
+SCOPE CHANGE, Davide's call 2026-08-06: the professional's side becomes its own
+spec after the member's side is finished. Task 11's third step -- surfacing the
+member's note in `ClientProgressScreen` -- is therefore OUT of this phase.
+CONSEQUENCE, recorded rather than hidden: `workout_runs.note` is written and
+never read until that spec lands. `ClientWorkoutScreen` was still touched here,
+but only as far as the shared extraction forced (it held `NewPlanForm`, and it
+read the dead `status` column).
+
+WHOLE-BRANCH REVIEW, 2026-08-06. Held as CLAUDE.md's working agreement
+prescribes, and as in every phase before it, it found a CRITICAL that no single
+task owned:
+
+  - 6973df1  CRITICAL. Starting a workout never worked. `beginRun` fired the
+             mutation and navigated in the same handler; the live screen
+             redirects away when it finds no open run for its session, and the
+             cache still held null. Guaranteed offline, and a race the
+             navigation usually won online. Each task was correct alone -- task
+             7 wrote the navigation, task 8 the guard, task 4 the cache.
+             Fixed by registering `onMutate` cache writes for `startRun` and
+             `endRun` in `src/data/mutations.js`, not at the call sites, so a
+             screen cannot forget. `endRun`'s also seeds the summary, which
+             reads a key nothing had ever populated -- finishing a workout
+             offline landed on an empty screen.
+  - df2a584  Logging a set into a run whose logs had never been fetched was a
+             silent no-op, because the optimistic write bailed when the cache
+             entry was undefined. Worse, the double-tap guard only clears when
+             the count changes, so the form then locked against every further
+             set. Seeded instead of skipped.
+  - df2a584  A run stopped at 40% was titled "Completed X" in the rewards list.
+  - 51ccf89  The exercise screen carried its own clock while the mini-player
+             showed the same one below it. Deleted the local one; the
+             mini-player is the general answer and already covers every screen.
+  - c283406  The spec was reconciled with what was actually built: `week.js`'s
+             new home, `daysBefore`, patches/014, the run-keyed summary route,
+             the three screens the spec had not named, and the walked-back claim
+             about points and `pct` agreeing exactly.
+
+RESUME HERE. All eleven tasks are built and reviewed; `npm run lint` and
+`npm run build` pass and all ten self-checks are green. NOTHING has been
+exercised in a browser -- lint and build cannot catch a wrong query or a broken
+flow, so treat every screen as unverified.
+
+BLOCKING, first thing: apply `supabase/patches/014-workout-run-pct.sql`. From
+commit 2ec53ac every run read selects `pct`, so until 014 lands EVERY run query
+answers "column workout_runs.pct does not exist" and the whole workout half is
+dark. 013 alone is not enough any more.
+
+patches/014 applied 2026-08-06, all rows true. Both database handoffs are now
+closed.
+
+The anonymous-client RLS probe is DONE and no longer a manual handoff: it is
+`supabase/probe-rls.mjs`, run with `node supabase/probe-rls.mjs`. Every table
+plus `redeem_checkin_token` reads PASS, `workout_runs` included. It carries a
+connectivity control on purpose -- a wrong URL, a dead project or a rejected key
+all make every table answer "empty", which looks identical to perfect security.
+`app_config` is grant-less by design and must refuse with 42501, so that refusal
+is what makes the empties mean anything.
+
+One assumption was wrong on the first run and is worth remembering: NOTHING in
+this schema is anonymously readable, not even `exercises` or `profiles`. Both
+gate on `auth.uid() is not null`, which is deliberate and load-bearing -- the
+comment above `profiles_select_professionals` explains why.
+
+STILL OWED, and the only thing left: the ten-step device walk in the spec's
+Acceptance section, on a real phone installed from Safari. Nothing in this phase
+has been exercised in a browser.
+
+HUMAN HANDOFF, blocking everything: `supabase/patches/013-workout-runs.sql`
+does not exist yet -- it is written as part of task 1 -- and once written must
+be applied BY DAVIDE in the Supabase SQL editor. No agent holds credentials.
+Nothing in this phase functions before it lands. `verify.sql` also moves from
+18 tables to 19 in the same patch, and the new policies must be probed from an
+anonymous client, because `verify.sql` cannot catch a policy whose `using`
+clause never mentions `auth.uid()` -- Phase 0 shipped exactly one of those.
+
+
+## Rest timer audio -- two wrong turns, worth not repeating
+
+Davide reported the rest timer silent on iPhone twice. Both causes were real and
+neither was obvious.
+
+1. `beep()` built its `AudioContext` inside the `setInterval` callback, ninety
+   seconds after the tap. A context created outside a user gesture is born
+   `suspended` on iOS and under Chrome's autoplay policy and never sounds. The
+   docstring above it claimed the opposite of what the code did -- a comment
+   describing the intent instead of the behaviour.
+2. Fixing that was not enough. Safari on iOS routes Web Audio through the
+   AMBIENT audio category, which the hardware ring/silent switch mutes. No web
+   API overrides it. Most phones in a gym have that switch on.
+
+The answer is an `<audio>` element holding an inline WAV data URI
+(`src/features/workout/beep.js`), unlocked by playing and immediately rewinding
+it inside the tap that starts the rest. The media path an `<audio>` element uses
+ignores the silent switch.
+
+Also walked back: an earlier claim that scheduling on the Web Audio clock
+survives backgrounding. True on desktop Chrome, FALSE on iOS, where Safari
+suspends the context and `currentTime` stops. It was written from the API's
+documented behaviour rather than from a device, and stated more confidently than
+it had earned.
+
+3. Once it sounded through the silent switch, it seized the phone's audio
+   session: starting a rest cut off whatever music was playing. Two separate
+   causes again. The unlock itself was audible for a few milliseconds, which is
+   enough to take the session -- fixed by unlocking with `muted = true`, the
+   only lever available since `volume` is read-only on iOS. And the chime played
+   in the default category, which stops other audio rather than ducking it --
+   fixed with `navigator.audioSession.type = 'transient'` (WebKit, Safari 16.4),
+   the category the system timer uses. `transient-solo` pauses other audio and
+   `playback` takes the session over; neither is what a rest timer wants.
+
+What is honestly true, and belongs in the report's PWA-constraints chapter:
+
+    <audio>, unlocked by a gesture   works, ignores the iOS silent switch
+    navigator.audioSession           WebKit only; 'transient' ducks other audio
+    Web Audio                        muted by that switch on iOS
+    Vibration API                    absent in Safari on iOS
+    scheduled local notifications    no web API at all
+    setInterval in the background    throttled everywhere, frozen on iOS
+
+The finish is therefore also announced through `aria-live` and stated in text.
+Sound is an enhancement here, never the only carrier.

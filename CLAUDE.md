@@ -19,10 +19,11 @@ paths; Vite does, at build time. A MUI icon glyph the installed
 
 No test runner is configured and none is being added. Non-trivial pure logic
 ships an `assert`-based `*.selfcheck.js` beside it, run with plain
-`node <path>`. There are nine; run them all after touching shared code:
+`node <path>`. There are ten; run them all after touching shared code:
 
 ```bash
 node src/lib/format.selfcheck.js
+node src/lib/week.selfcheck.js
 node src/theme/resolveTokens.selfcheck.js
 node src/features/workout/timer.selfcheck.js
 node src/features/workout/status.selfcheck.js
@@ -48,8 +49,17 @@ Phase 4A — the member's nutrition, trainer and profile sections, booking,
 settings with logout, and realtime chat — is merged into `main`.
 
 Phase 4B — the member's QR access badge, the professional's scanner, and push
-notifications end to end — is **in progress** on the branch
-`phase-4b-badge-scanner-and-push`.
+notifications end to end — is merged into `main`.
+
+Phase 5A — the member's workout half rebuilt around `workout_runs`, so a plan
+repeats weekly instead of finishing forever — is on the branch
+`phase-5a-workout-redesign`, built and device-verified. Session state is now
+DERIVED from the runs in the current ISO week rather than stored in
+`workout_sessions.status`, which stays in the schema but is no longer read or
+written. Its spec is `docs/superpowers/specs/2026-08-05-...`.
+
+The professional's side of that rebuild is deliberately a separate, later spec.
+`workout_runs.note` is written by the member and read by nobody until it lands.
 
 ## Where the project's memory lives
 
@@ -167,6 +177,10 @@ credentials, so any schema work ends in a handoff to Davide.
   PASS/FAIL blocks. `009` (checkin tokens) and `010` (push notifications) are
   what Phase 4B's badge, scanner and push features depend on; `011` hardens the
   three oldest `security definer` functions against pg_temp shadowing.
+- `probe-rls.mjs` — `node supabase/probe-rls.mjs`. Asks every table what it
+  returns to a caller holding nothing but the publishable key, which ships in
+  the JS bundle. `verify.sql` structurally cannot answer this: it runs as the
+  dashboard's privileged role and bypasses RLS. Needs `.env.local`.
 - `verify.sql` — run last, **after the patches**: its five schema and security
   counts expect `checkin_tokens` (`009`) and `app_config` (`010`) to exist. The
   three security rows and the two grant rows must read PASS. Three of them read

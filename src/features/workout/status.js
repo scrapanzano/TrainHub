@@ -10,6 +10,9 @@ const SESSION_STATUS = Object.freeze({
   todo: TODO,
   in_progress: Object.freeze({ label: 'In Progress', color: 'warning' }),
   completed: Object.freeze({ label: 'Completed', color: 'success' }),
+  // Stopping early is a decision, not a failure, and not the same thing as
+  // finishing.  It earns weighted points and the card says so.
+  partial: Object.freeze({ label: 'Stopped Early', color: 'warning' }),
 })
 
 /**
@@ -41,7 +44,13 @@ export function setProgress(loggedCount, targetSets) {
 /** Plan-level roll-up. `percent` stays an integer so it can key an aria-label. */
 export function planProgress(sessions) {
   const total = sessions.length
-  const completed = sessions.filter((s) => s.status === 'completed').length
+  // A partial closes the session for the week just as a full completion does:
+  // the bar answers "is the week done", the cards answer "how well".  Counting
+  // only full completions would leave anyone who ever stopped early looking at
+  // a week that can never reach 100%.
+  const completed = sessions.filter(
+    (s) => s.status === 'completed' || s.status === 'partial',
+  ).length
   // Guard the divide: an empty plan is a real state (a member with no plan yet)
   // and 0/0 would put NaN into a progress bar.
   // Floor, not round: 199 of 200 sessions rounds to 100 and shows a full bar

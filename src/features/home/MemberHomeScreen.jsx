@@ -4,6 +4,7 @@ import { fetchAppointmentsOnDay } from '../../data/appointments.js'
 import { fetchActivePlan } from '../../data/workouts.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { todayISO } from '../../lib/format.js'
+import { runStatusOf } from '../../lib/week.js'
 import AppointmentCard from '../../components/AppointmentCard.jsx'
 import SessionCard from '../../components/SessionCard.jsx'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
@@ -25,11 +26,20 @@ export default function MemberHomeScreen() {
   })
 
   // The header already greets by name, so this screen leads with the day's work.
-  // Show whatever is under way; failing that, the next thing to do.
+  // Show whatever is under way; failing that, the next thing to do this week.
+  //
+  // Derived from the week's runs rather than from `workout_sessions.status`,
+  // which freezes at the first ever completion -- read from the column, this
+  // card would say "Plan complete" for the rest of the protocol.
   const sessions = plan.data?.sessions ?? []
+  const weekStart = plan.data?.weekStart ?? null
+  const states = sessions.map((session) => ({
+    session,
+    ...runStatusOf(session.runs, weekStart),
+  }))
   const current =
-    sessions.find((session) => session.status === 'in_progress') ??
-    sessions.find((session) => session.status === 'todo')
+    states.find(({ status }) => status === 'in_progress') ??
+    states.find(({ status }) => status === 'todo')
 
   // Three different nothings, and telling a member "every session is done" when
   // their trainer has not written any is the worst of them.
@@ -45,8 +55,8 @@ export default function MemberHomeScreen() {
             description: 'Your trainer has created your plan but has not added any sessions yet.',
           }
         : {
-            title: 'Plan complete',
-            description: 'Every session in your plan is done. Nice work.',
+            title: 'Week complete',
+            description: 'Every session is done for this week. It all resets on Monday.',
           }
 
   return (
@@ -114,7 +124,12 @@ export default function MemberHomeScreen() {
         ) : null}
 
         {current ? (
-          <SessionCard session={current} to={`/m/workout/session/${current.id}`} />
+          <SessionCard
+            session={current.session}
+            status={current.status}
+            run={current.run}
+            to={`/m/workout/session/${current.session.id}`}
+          />
         ) : null}
       </Box>
     </Stack>

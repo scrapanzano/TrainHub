@@ -1,11 +1,15 @@
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Box, Button, Stack, Typography } from '@mui/material'
 import { Navigate, Outlet, useLocation } from 'react-router'
 import BottomNav from '../components/BottomNav.jsx'
+import LiveSessionBar from '../components/LiveSessionBar.jsx'
 import OfflineBanner from '../components/OfflineBanner.jsx'
 import { LoadingState } from '../components/ScreenState.jsx'
 import TopHeader from '../components/TopHeader.jsx'
 import { fetchUnreadCount } from '../data/chat.js'
+import { fetchOpenRun } from '../data/runs.js'
+import { elapsedMs } from '../features/workout/timer.js'
 import { useAuth } from '../features/auth/useAuth.js'
 import { queryKeys } from '../lib/queryKeys.js'
 
@@ -35,6 +39,30 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
     // not worth a second channel at this scale.
     refetchInterval: 60_000,
   })
+
+  // The member's open workout, if any.  Members only: a professional has no
+  // workout of their own to be in the middle of.
+  const openRun = useQuery({
+    queryKey: queryKeys.openRun(user?.id),
+    queryFn: () => fetchOpenRun(user.id),
+    enabled: Boolean(user?.id) && requiredRole === 'member',
+  })
+
+  const run = openRun.data ?? null
+  const runId = run?.id ?? null
+  const runPaused = Boolean(run?.paused_at)
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    // Only forces a re-render; the elapsed value is arithmetic over timestamps,
+    // so a tick the browser skips while throttled costs nothing.  Nothing ticks
+    // when there is no workout open, which is almost always.  Keyed on
+    // primitives, not on `run`: a fresh object each render would tear down and
+    // restart the interval every second.
+    if (!runId || runPaused) return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [runId, runPaused])
 
   // Hold the shell until the session is known, otherwise a signed-in user is
   // briefly bounced to /login on every cold start.  A spinner rather than null:
@@ -108,7 +136,29 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
       <Box component="main" sx={{ flexGrow: 1, pb: 2 }}>
         <Outlet />
       </Box>
-      <BottomNav items={navItems} />
+      {/* The mini-player and the nav pin as one block, mirroring the header and
+          the sync banner at the top.  `BottomNav` is sticky on its own, so a
+          bar merely placed before it in the column scrolls out of sight on any
+          screen taller than the viewport -- which is most of them, and exactly
+          when a member has wandered away from their workout. */}
+      <Box sx={{ position: 'sticky', bottom: 0, zIndex: 'appBar' }}>
+        {run && !location.pathname.endsWith('/live') ? (
+          <LiveSessionBar
+            sessionName={run.session?.name ?? 'Workout'}
+            sessionId={run.session_id}
+            paused={runPaused}
+            elapsed={elapsedMs(
+              {
+                startedAt: Date.parse(run.started_at),
+                pausedAt: run.paused_at ? Date.parse(run.paused_at) : null,
+                pausedTotal: run.paused_total_ms ?? 0,
+              },
+              now,
+            )}
+          />
+        ) : null}
+        <BottomNav items={navItems} />
+      </Box>
     </Box>
   )
 }

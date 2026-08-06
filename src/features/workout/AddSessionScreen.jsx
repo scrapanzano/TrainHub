@@ -8,7 +8,15 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenSta
 import SessionForm from './SessionForm.jsx'
 import { useAuth } from '../auth/useAuth.js'
 
-export default function WorkoutBuilderScreen() {
+/**
+ * Add one session to the plan that already exists.
+ *
+ * Reached from the plan screen's edit mode.  The plan itself is created by
+ * `CreatePlanFlow`, which writes a plan and its first session together -- this
+ * screen is the every-session-after case, and the only one where `position`
+ * has to be worked out rather than being 1.
+ */
+export default function AddSessionScreen() {
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -38,7 +46,7 @@ export default function WorkoutBuilderScreen() {
     return (
       <EmptyState
         title="No plan to add to"
-        description="Your trainer has not assigned you a plan yet. Sessions belong to a plan."
+        description="Sessions belong to a plan. Create one first."
       />
     )
   }
@@ -68,6 +76,7 @@ export default function WorkoutBuilderScreen() {
         pending={create.isPending}
         paused={create.isPending && create.isPaused}
         error={create.error}
+        submitLabel="Add session"
       />
     </Stack>
   )

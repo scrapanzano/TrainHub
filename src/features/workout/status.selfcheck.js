@@ -29,4 +29,26 @@ assert.equal(planProgress(Array.from({ length: 200 }, (_, i) => ({
   status: i < 199 ? 'completed' : 'todo',
 }))).percent, 99)
 
+// `partial` is its own state: the member chose to stop early, which is neither
+// "not done" nor "done as prescribed", and the card says which.
+assert.deepEqual(sessionStatusOf('partial'), { label: 'Stopped Early', color: 'warning' })
+
+// A partial counts towards the plan bar.  Counting only full completions would
+// mean a member who ended one session early never sees the week reach 100%,
+// which reads as an unfinished week rather than a finished-early one.
+assert.deepEqual(
+  planProgress([{ status: 'completed' }, { status: 'partial' }, { status: 'todo' }]),
+  { completed: 2, total: 3, percent: 66 },
+)
+// A session being worked on right now is not yet done for the week.
+assert.deepEqual(
+  planProgress([{ status: 'in_progress' }, { status: 'todo' }]),
+  { completed: 0, total: 2, percent: 0 },
+)
+// A week closed entirely with early finishes is still a closed week.
+assert.deepEqual(
+  planProgress([{ status: 'partial' }, { status: 'partial' }]),
+  { completed: 2, total: 2, percent: 100 },
+)
+
 console.log('workout status: OK')
