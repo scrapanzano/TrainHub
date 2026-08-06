@@ -49,8 +49,17 @@ Phase 4A — the member's nutrition, trainer and profile sections, booking,
 settings with logout, and realtime chat — is merged into `main`.
 
 Phase 4B — the member's QR access badge, the professional's scanner, and push
-notifications end to end — is **in progress** on the branch
-`phase-4b-badge-scanner-and-push`.
+notifications end to end — is merged into `main`.
+
+Phase 5A — the member's workout half rebuilt around `workout_runs`, so a plan
+repeats weekly instead of finishing forever — is on the branch
+`phase-5a-workout-redesign`, built and device-verified. Session state is now
+DERIVED from the runs in the current ISO week rather than stored in
+`workout_sessions.status`, which stays in the schema but is no longer read or
+written. Its spec is `docs/superpowers/specs/2026-08-05-...`.
+
+The professional's side of that rebuild is deliberately a separate, later spec.
+`workout_runs.note` is written by the member and read by nobody until it lands.
 
 ## Where the project's memory lives
 

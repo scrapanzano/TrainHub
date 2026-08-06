@@ -1,7 +1,8 @@
 # TrainHub Phase 5A — The Workout Half, Rebuilt
 
-**Status:** design approved 2026-08-05, ready for an implementation plan.
-**Branch:** to be cut from `main` at the Phase 4B merge (`fac023d`).
+**Status:** built and device-verified 2026-08-06. Patches 013 and 014 applied;
+`verify.sql` and `supabase/probe-rls.mjs` both pass.
+**Branch:** `phase-5a-workout-redesign`, cut from `main` at `86e8c3a`.
 **Source:** `doc/live_train_session.md`, Davide's own brainstorm, refined
 question by question in the session of 2026-08-05.
 
