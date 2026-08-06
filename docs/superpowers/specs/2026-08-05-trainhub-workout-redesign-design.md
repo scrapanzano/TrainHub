@@ -354,19 +354,39 @@ updated in the same patch, or the next run reads FAIL for the wrong reason.
 
 ## Deriving state
 
-New pure module `src/features/workout/week.js`, with `week.selfcheck.js` beside
-it, run under bare Node like the other nine.
+New pure module **`src/lib/week.js`**, with `week.selfcheck.js` beside it, run
+under bare Node like the other nine.
+
+It lives in `lib/` rather than beside the workout screens because `data/` reads
+it, and `features/` calls `data/`, never the other way round. It is date logic
+with no React in it, exactly like `format.js` -- its only import.
 
 ```
-mondayOf(dateISO)             the ISO week's Monday, computed in the local frame
-runStatusOf(runs, nowISO)     'in_progress' | 'completed' | 'partial' | 'todo'
+mondayOf(dayISO)              the ISO week's Monday, in the local frame
+daysBefore(dayISO, n)         n days earlier, in the local frame
+runStatusOf(runs, weekISO)    'in_progress' | 'completed' | 'partial' | 'todo'
 ```
+
+`daysBefore` exists so no caller reaches for `Date.now() - n * 86_400_000`,
+which is wrong across a daylight-saving boundary -- one day a year is 23 hours
+and another 25 -- nor for `toISOString()`, which converts to UTC and
+reintroduces the off-by-one-day this module exists to prevent.
 
 - `in_progress` — a run exists with `ended_at` null.
 - `completed` / `partial` — a closed run with that outcome and `started_at`
   inside the current week.
 - `todo` — everything else. An `abandoned` run does not count; the session is
   there to be done again.
+
+An open run wins whatever week it began in. One left open last Sunday is still
+open, and `workout_runs_one_open_per_member` blocks a second, so hiding it
+would strand the member with a play button that fails and nothing on screen
+saying why. The plan therefore reads back a fortnight and lets `runStatusOf`
+decide what counts.
+
+The week comparison is made on the LOCAL day, never on the raw ISO string: a
+session started at 23:30 on Sunday carries a UTC timestamp dated Monday, and a
+string comparison would file it under the week that had not begun yet.
 
 Dates go through `todayISO()` and `localDayISO()`. Never `new Date('YYYY-MM-DD')`
 — that is UTC midnight and renders as the previous day west of Greenwich.
@@ -428,9 +448,12 @@ into it.
 Per §102, once the target is reached the form is replaced by a plain statement
 that the exercise is done. Nothing lets a member log a fourth set of three.
 
-### `/m/workout/session/:sessionId/summary` — after
+### `/m/workout/run/:runId/summary` — after
 
-The existing summary, with weighted points and the note field of decision 6.
+Keyed on the run, not the session. The same session comes round again every
+week, and a route that could only name the session would show this week's
+numbers under last week's heading. The existing summary otherwise, with
+weighted points and the note field of decision 6.
 
 ### The mini-player
 
@@ -461,7 +484,7 @@ first and breaks the second.
 Self-checks under bare Node, including the new one:
 
 ```
-node src/features/workout/week.selfcheck.js
+node src/lib/week.selfcheck.js
 node src/features/workout/summary.selfcheck.js
 node src/features/workout/status.selfcheck.js
 node src/features/workout/timer.selfcheck.js
@@ -486,12 +509,55 @@ signed in as `daniel@trainhub.dev`:
 
 ## Human handoffs
 
-- **Apply `supabase/patches/013-workout-runs.sql`** in the Supabase SQL editor
-  and report its PASS/FAIL block. Nothing in this phase works before it lands.
-- **Re-run `verify.sql`** afterwards; its counts move from 18 tables to 19.
-- **Probe the new policies from an anonymous client.** `verify.sql` cannot catch
-  a policy whose `using` clause never mentions `auth.uid()`; Phase 0 shipped one.
-- **The device walk above**, on a real phone, installed from Safari.
+- **Apply `supabase/patches/013-workout-runs.sql`.** Done 2026-08-06, eight rows
+  PASS.
+- **Apply `supabase/patches/014-workout-run-pct.sql`.** The `pct` column 013
+  should have carried. Every run read selects it, so until this lands the whole
+  workout half answers "column workout_runs.pct does not exist".
+- **Re-run `verify.sql`** afterwards; its counts move from 18 tables to 19 and
+  from 17 to 18. Done 2026-08-06, all five schema and security rows PASS.
+- **Probe the new policies from an anonymous client.** `verify.sql` runs as the
+  dashboard's privileged role and bypasses RLS, so it proves the policies exist
+  and not that they are right. Phase 0 shipped one that looked fine and was
+  public. **Still owed.**
+- **The device walk above**, on a real phone, installed from Safari. **Still
+  owed** — nothing in this phase has been exercised in a browser.
+
+## What implementation changed
+
+Recorded here rather than quietly, because a spec that no longer describes the
+code is worse than no spec.
+
+1. **`week.js` moved to `src/lib/`** and grew `daysBefore`, for the reasons now
+   stated under "Deriving state".
+2. **`patches/014` was needed** because 013 shipped without `pct`, which
+   decision 15's card copy requires.
+3. **The points and `pct` are not equal to the unit.** An earlier draft claimed
+   they could never disagree. They can differ by one: a whole percentage is a
+   lossy carrier, and one set of six is 16% while the award is floor(30/6) = 5
+   rather than floor(30 × 0.16) = 4. What is true, and what the self-check pins,
+   is that they can never tell opposite stories — no points without progress, no
+   full award without a full session, neither moving while the other stands
+   still. Deriving the points from the rounded percentage instead would lose
+   real work to rounding.
+4. **Three screens the spec did not name** turned out to be required by its own
+   decisions: `AddSessionScreen` (decision 14's edit mode has to add sessions,
+   and deleting the old builder took the only path that could),
+   `AddExerciseScreen` (the same, for exercises), and `OpenRunSheet`
+   (decision 16's choice sheet). With them, `addSessionExercise` and
+   `deleteSessionExercise` in the data layer.
+5. **Opening and closing a run must be written to the cache before the server
+   answers.** This is not a refinement: without it the live screen finds no open
+   run and redirects straight back, so starting a workout never worked at all —
+   guaranteed offline, and a race the navigation usually won online. Both are
+   now registered as `onMutate` handlers in `src/data/mutations.js` rather than
+   left to each call site, so a screen cannot forget. The same applies to
+   logging a set into a run whose logs were never fetched, which silently did
+   nothing and then locked the form.
+6. **The coach's side of decision 6 left this phase.** Davide split the
+   professional's half into its own spec on 2026-08-06. `workout_runs.note` is
+   therefore written and read by nobody until that spec lands — a known debt,
+   not an oversight.
 
 ## Out of scope
 
@@ -499,6 +565,8 @@ signed in as `daniel@trainhub.dev`:
   target. Queued behind this phase with its own design pass.
 - A history screen for archived plans.
 - A member-side progress screen; `ClientProgressScreen` remains professional-only.
+- Surfacing the member's note to the coach. Moved into the professional's own
+  spec, so the note is written and unread until then.
 - Real exercise imagery or video.
 - Removing `workout_sessions.status` or `workout_plans.expires_on` from the
   schema. Both stop being used; neither is worth a destructive migration.
