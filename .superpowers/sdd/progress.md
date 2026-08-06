@@ -2053,3 +2053,40 @@ Nothing in this phase functions before it lands. `verify.sql` also moves from
 18 tables to 19 in the same patch, and the new policies must be probed from an
 anonymous client, because `verify.sql` cannot catch a policy whose `using`
 clause never mentions `auth.uid()` -- Phase 0 shipped exactly one of those.
+
+
+## Rest timer audio -- two wrong turns, worth not repeating
+
+Davide reported the rest timer silent on iPhone twice. Both causes were real and
+neither was obvious.
+
+1. `beep()` built its `AudioContext` inside the `setInterval` callback, ninety
+   seconds after the tap. A context created outside a user gesture is born
+   `suspended` on iOS and under Chrome's autoplay policy and never sounds. The
+   docstring above it claimed the opposite of what the code did -- a comment
+   describing the intent instead of the behaviour.
+2. Fixing that was not enough. Safari on iOS routes Web Audio through the
+   AMBIENT audio category, which the hardware ring/silent switch mutes. No web
+   API overrides it. Most phones in a gym have that switch on.
+
+The answer is an `<audio>` element holding an inline WAV data URI
+(`src/features/workout/beep.js`), unlocked by playing and immediately rewinding
+it inside the tap that starts the rest. The media path an `<audio>` element uses
+ignores the silent switch.
+
+Also walked back: an earlier claim that scheduling on the Web Audio clock
+survives backgrounding. True on desktop Chrome, FALSE on iOS, where Safari
+suspends the context and `currentTime` stops. It was written from the API's
+documented behaviour rather than from a device, and stated more confidently than
+it had earned.
+
+What is honestly true, and belongs in the report's PWA-constraints chapter:
+
+    <audio>, unlocked by a gesture   works, ignores the iOS silent switch
+    Web Audio                        muted by that switch on iOS
+    Vibration API                    absent in Safari on iOS
+    scheduled local notifications    no web API at all
+    setInterval in the background    throttled everywhere, frozen on iOS
+
+The finish is therefore also announced through `aria-live` and stated in text.
+Sound is an enhancement here, never the only carrier.

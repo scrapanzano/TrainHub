@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { Button, Card, CardContent, IconButton, Stack, Typography } from '@mui/material'
+import { Button, Card, CardContent, IconButton, Stack, TextField, Typography } from '@mui/material'
 import RemoveIcon from '@mui/icons-material/Remove'
 import AddIcon from '@mui/icons-material/Add'
 import VolumeUpIcon from '@mui/icons-material/VolumeUp'
 import VolumeOffIcon from '@mui/icons-material/VolumeOff'
+import { BEEP_DATA_URI } from './beep.js'
 
 const MUTE_KEY = 'trainhub-rest-muted'
+const MIN_SECONDS = 15
+const MAX_SECONDS = 600
 
 function readMuted() {
   try {
@@ -17,86 +20,52 @@ function readMuted() {
   }
 }
 
-/**
- * Schedule a burst on the audio clock, `seconds` from now.
- *
- * Scheduled rather than played when a timer fires, and that is the whole point:
- * every browser throttles `setInterval` in a backgrounded tab and stops it when
- * the phone locks -- which is exactly where a phone spends a rest period. The
- * Web Audio clock keeps running regardless, so a sound booked at start time
- * still lands on time.
- *
- * The context must be created and resumed inside the tap that starts the rest.
- * One constructed later, from an interval callback, is born `suspended` on iOS
- * and under Chrome's autoplay policy and stays silent for the whole session --
- * which is precisely how this first shipped, silent.
- *
- * Returns the oscillator so a cancelled rest can call `stop()` on it.
- */
-function scheduleBeep(ctx, seconds) {
-  const at = ctx.currentTime + Math.max(0, seconds)
-  const osc = ctx.createOscillator()
-  const gain = ctx.createGain()
-
-  osc.type = 'sine'
-  osc.frequency.value = 880
-
-  // Silent until the moment it should sound.  Ramped rather than switched: a
-  // square-edged start clicks, and on a phone speaker the click carries further
-  // than the tone.
-  gain.gain.setValueAtTime(0.0001, ctx.currentTime)
-  gain.gain.setValueAtTime(0.0001, at)
-  gain.gain.exponentialRampToValueAtTime(0.4, at + 0.02)
-  gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.35)
-  gain.gain.exponentialRampToValueAtTime(0.4, at + 0.45)
-  gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.9)
-
-  osc.connect(gain).connect(ctx.destination)
-  osc.start(ctx.currentTime)
-  osc.stop(at + 1)
-  return osc
-}
+const clamp = (n) => Math.min(MAX_SECONDS, Math.max(MIN_SECONDS, n))
+const mmss = (total) =>
+  `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
 
 /**
  * Rest between sets.
  *
- * Two clocks, and neither is a counter ticked down by an interval.  The number
- * on screen is the difference between now and a target instant, so a tick the
- * browser skips costs nothing and the count is still right when the screen
- * comes back on.  The sound is booked on the Web Audio clock at the moment the
- * rest starts.
+ * The number on screen is the difference between now and a target instant,
+ * never a counter ticked down by an interval: every browser throttles
+ * `setInterval` in a backgrounded tab, and derived from a timestamp the count
+ * is still right when the screen comes back on.
  *
- * Booking rather than playing is what makes it work at all.  Every browser
- * throttles `setInterval` in a backgrounded tab and stops it when the phone
- * locks -- which is exactly where a phone spends a rest period -- so a sound
- * played from a timer callback is a sound that arrives late or never.  Worse,
- * an `AudioContext` created from that callback is created outside a user
- * gesture and is born suspended on iOS, silent for the whole session. That is
- * how this first shipped.
+ * The sound goes through an `<audio>` element, unlocked inside the tap that
+ * starts the rest. Web Audio was tried first and is silent on any iPhone whose
+ * ring/silent switch is on, because Safari routes an `AudioContext` through the
+ * ambient audio category -- which is most iPhones in a gym, and which no web
+ * API can override. The media path an `<audio>` element uses ignores that
+ * switch.
  *
  * Platform limits that remain, for the report's chapter on PWA constraints:
  *
- *   Web Audio                      works, and must be unlocked inside a tap
- *   AudioContext in Safari         suspended on backgrounding, resumed on start
- *   Vibration API                  does not exist in Safari on iOS
- *   scheduled local notifications  no web API at all
- *   setInterval in the background  throttled everywhere
+ *   <audio>, unlocked by a gesture   works, and ignores the iOS silent switch
+ *   Web Audio                        muted by that switch on iOS
+ *   Vibration API                    does not exist in Safari on iOS
+ *   scheduled local notifications    no web API at all
+ *   setInterval in the background    throttled everywhere, frozen on iOS
  *
- * So the sound is reliable while the tab is alive, including with the screen
- * off. What no web API can do is wake a page the operating system has evicted.
+ * So the sound is reliable while the tab is alive. It is not reliable with the
+ * app backgrounded or the phone locked, and nothing on the web makes it so --
+ * which is why the finish is also announced to a screen reader and stated in
+ * text, rather than being carried by sound alone.
  */
 export default function RestTimer({ seconds }) {
   // The member's own duration, or null to follow the coach's prescription.
   // Held as an override rather than as a copy of `seconds`: mirroring a prop
-  // into state needs an effect to keep the two in step, and that effect is both
-  // a cascading render and the thing that would quietly undo an adjustment.
+  // into state needs an effect to keep them in step, and that effect is both a
+  // cascading render and the thing that would quietly undo an adjustment.
   const [custom, setCustom] = useState(null)
   const [target, setTarget] = useState(null)
   const [remaining, setRemaining] = useState(0)
   const [muted, setMuted] = useState(readMuted)
-  // The unlocked audio context, kept alive across rests so it is unlocked once
-  // and stays that way, plus whatever sound is currently booked on it.
-  const audio = useRef({ ctx: null, osc: null })
+  const [editing, setEditing] = useState(null)
+
+  const audio = useRef(null)
+  // Guards the boundary: without it a late tick could sound the chime twice.
+  const rung = useRef(false)
 
   const running = target !== null
   const base = custom ?? seconds
@@ -105,48 +74,22 @@ export default function RestTimer({ seconds }) {
   useEffect(() => {
     if (!running) return
 
-    // Only the displayed number is driven from here.  The sound was booked on
-    // the audio clock when the rest started, so a tick the browser skips costs
-    // nothing -- neither the count, which is derived from `target`, nor the
-    // beep, which is no longer this effect's business.
-    //
-    // No synchronous first call either: `start` seeds `remaining`, so this
-    // effect only ever subscribes and writes from the interval's callback.
+    // No synchronous first call: `start` seeds `remaining`, so this effect only
+    // ever subscribes to the interval and writes state from its callback.
     const id = setInterval(() => {
-      setRemaining(Math.max(0, Math.ceil((target - Date.now()) / 1000)))
+      const left = Math.max(0, Math.ceil((target - Date.now()) / 1000))
+      setRemaining(left)
+
+      if (left === 0 && !rung.current) {
+        rung.current = true
+        // Already unlocked by the tap that started the rest, so this is not a
+        // fresh autoplay attempt and the browser allows it.
+        if (!muted) audio.current?.play().catch(() => {})
+      }
     }, 250)
 
     return () => clearInterval(id)
-  }, [running, target])
-
-  // Release the context when the screen goes.  Without this, walking between
-  // exercises leaves one suspended context per visit.
-  useEffect(() => () => {
-    audio.current.osc?.stop()
-    audio.current.ctx?.close()
-    audio.current = { ctx: null, osc: null }
-  }, [])
-
-  /** Cancel whatever sound is booked, leaving the context unlocked for reuse. */
-  const cancelBooked = () => {
-    audio.current.osc?.stop()
-    audio.current.osc = null
-  }
-
-  /** Book the finish sound `seconds` from now, unlocking the context if needed. */
-  const book = (seconds) => {
-    const Ctx = window.AudioContext ?? window.webkitAudioContext
-    if (!Ctx) return
-
-    audio.current.ctx ??= new Ctx()
-    const { ctx } = audio.current
-    // Safari suspends a context whenever the page is backgrounded, so this is
-    // not only a first-run unlock -- it has to happen on every start.
-    if (ctx.state === 'suspended') ctx.resume()
-
-    cancelBooked()
-    audio.current.osc = scheduleBeep(ctx, seconds)
-  }
+  }, [running, target, muted])
 
   const toggleMute = () => {
     const next = !muted
@@ -156,36 +99,47 @@ export default function RestTimer({ seconds }) {
     } catch {
       // Remembering the choice is a convenience, not a requirement.
     }
-
-    // Muting mid-rest has to reach the sound already booked on the audio clock;
-    // unmuting has to book one for the time that is left.  Both happen inside a
-    // tap, which is what keeps the context legal to touch.
-    if (!running) return
-    if (next) cancelBooked()
-    else book((target - Date.now()) / 1000)
   }
 
   const start = () => {
+    rung.current = false
+    setEditing(null)
+
+    // The unlock, and the whole reason this lives in a click handler: an
+    // <audio> element may only be played later without a gesture once it has
+    // been played with one. Played and immediately rewound, so the member hears
+    // nothing now.
+    const el = audio.current
+    if (el && !muted) {
+      el.play()
+        .then(() => {
+          el.pause()
+          el.currentTime = 0
+        })
+        .catch(() => {})
+    }
+
     setRemaining(base)
     setTarget(Date.now() + base * 1000)
-    // Booked from inside the tap.  This is the gesture the browser requires;
-    // there is no second chance ninety seconds later.
-    if (!muted) book(base)
   }
 
   const stop = () => {
     setTarget(null)
-    cancelBooked()
+    rung.current = false
   }
 
   const adjust = (delta) => {
     if (running) return
-    // Clamped: 15 seconds is the shortest rest worth timing, ten minutes the
-    // longest anyone waits between sets.
-    setCustom(Math.min(600, Math.max(15, base + delta)))
+    setCustom(clamp(base + delta))
   }
 
-  const mmss = `${String(Math.floor(shown / 60)).padStart(2, '0')}:${String(shown % 60).padStart(2, '0')}`
+  const commitEdit = () => {
+    const parsed = Number(editing)
+    // A blank or unparseable entry leaves the duration alone rather than
+    // snapping it to a bound the member never asked for.
+    if (Number.isFinite(parsed) && parsed > 0) setCustom(clamp(Math.round(parsed)))
+    setEditing(null)
+  }
 
   return (
     <Card variant="outlined">
@@ -206,23 +160,65 @@ export default function RestTimer({ seconds }) {
             <RemoveIcon />
           </IconButton>
 
-          {/* role="timer" so a screen reader is told this is a running clock,
-              and aria-live announces the finish rather than only sounding it --
-              which is also the fallback when the sound is muted. */}
-          <Typography
-            variant="h1"
-            component="p"
-            role="timer"
-            aria-live={shown === 0 && running ? 'assertive' : 'off'}
-            sx={{ fontVariantNumeric: 'tabular-nums', minWidth: 140, textAlign: 'center' }}
-          >
-            {mmss}
-          </Typography>
+          {editing !== null ? (
+            <TextField
+              value={editing}
+              onChange={(event) => setEditing(event.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') commitEdit()
+                if (event.key === 'Escape') setEditing(null)
+              }}
+              type="number"
+              label="Seconds"
+              slotProps={{
+                htmlInput: {
+                  inputMode: 'numeric',
+                  min: MIN_SECONDS,
+                  max: MAX_SECONDS,
+                  'aria-label': 'Rest duration in seconds',
+                },
+              }}
+              autoFocus
+              sx={{ width: 150 }}
+            />
+          ) : (
+            // Tapping the clock types a duration straight in.  The ±15 buttons
+            // are four taps from two minutes and nineteen from five, which is a
+            // long way to walk for a number the member already knows.
+            <Typography
+              variant="h1"
+              component={running ? 'p' : 'button'}
+              type={running ? undefined : 'button'}
+              role="timer"
+              aria-live={running && shown === 0 ? 'assertive' : 'off'}
+              onClick={running ? undefined : () => setEditing(String(base))}
+              sx={{
+                fontVariantNumeric: 'tabular-nums',
+                minWidth: 150,
+                textAlign: 'center',
+                border: 0,
+                p: 0,
+                bgcolor: 'transparent',
+                color: 'inherit',
+                font: 'inherit',
+                cursor: running ? 'default' : 'pointer',
+              }}
+            >
+              {mmss(shown)}
+            </Typography>
+          )}
 
           <IconButton onClick={() => adjust(15)} disabled={running} aria-label="15 seconds more">
             <AddIcon />
           </IconButton>
         </Stack>
+
+        {!running && editing === null ? (
+          <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 0.5 }}>
+            Tap the time to change it
+          </Typography>
+        ) : null}
 
         <Button
           onClick={running ? stop : start}
@@ -230,15 +226,20 @@ export default function RestTimer({ seconds }) {
           size="large"
           fullWidth
           sx={{ mt: 2 }}
+          disabled={editing !== null}
         >
-          {running ? (shown === 0 ? "Done — reset" : "Cancel rest") : "Start rest"}
+          {running ? (shown === 0 ? 'Done — reset' : 'Cancel rest') : 'Start rest'}
         </Button>
 
-        {running && remaining === 0 ? (
+        {running && shown === 0 ? (
           <Typography color="primary" sx={{ mt: 1, textAlign: 'center', fontWeight: 700 }}>
             Time — next set.
           </Typography>
         ) : null}
+
+        {/* `preload="auto"` so the clip is decoded well before the rest ends,
+            rather than at the instant it has to sound. */}
+        <audio ref={audio} src={BEEP_DATA_URI} preload="auto" />
       </CardContent>
     </Card>
   )
