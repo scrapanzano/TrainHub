@@ -20,6 +20,26 @@ function readMuted() {
   }
 }
 
+/**
+ * Ask iOS to duck other audio rather than take it over.
+ *
+ * `navigator.audioSession` is WebKit's, from Safari 16.4. Without it a chime
+ * plays in the default category, which STOPS whatever the member was listening
+ * to -- and someone who trains to music does not want their album killed by a
+ * rest timer.
+ *
+ *   transient        lowers other audio for the length of the sound
+ *   transient-solo   pauses other audio
+ *   playback         takes the session over entirely
+ *   ambient          mixes, but is silenced by the ring/silent switch
+ *
+ * `transient` is what the system timer does. Guarded because the API exists
+ * nowhere else, and everywhere else the browser already mixes.
+ */
+function duckOtherAudio() {
+  if (navigator.audioSession) navigator.audioSession.type = 'transient'
+}
+
 const clamp = (n) => Math.min(MAX_SECONDS, Math.max(MIN_SECONDS, n))
 const mmss = (total) =>
   `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
@@ -83,8 +103,12 @@ export default function RestTimer({ seconds }) {
       if (left === 0 && !rung.current) {
         rung.current = true
         // Already unlocked by the tap that started the rest, so this is not a
-        // fresh autoplay attempt and the browser allows it.
-        if (!muted) audio.current?.play().catch(() => {})
+        // fresh autoplay attempt and the browser allows it.  Re-asserted here
+        // because the category is global and something else may have moved it.
+        if (!muted) {
+          duckOtherAudio()
+          audio.current?.play().catch(() => {})
+        }
       }
     }, 250)
 
@@ -107,16 +131,26 @@ export default function RestTimer({ seconds }) {
 
     // The unlock, and the whole reason this lives in a click handler: an
     // <audio> element may only be played later without a gesture once it has
-    // been played with one. Played and immediately rewound, so the member hears
-    // nothing now.
+    // been played with one.
+    //
+    // Unlocked MUTED. Playing it audibly here -- even for the few milliseconds
+    // before the pause -- is enough to seize the phone's audio session and cut
+    // off whatever the member is listening to, at the start of the rest rather
+    // than at its end. `muted` is settable on iOS; `volume` is read-only there,
+    // so it is the only lever available.
     const el = audio.current
     if (el && !muted) {
+      duckOtherAudio()
+      el.muted = true
       el.play()
         .then(() => {
           el.pause()
           el.currentTime = 0
+          el.muted = false
         })
-        .catch(() => {})
+        .catch(() => {
+          el.muted = false
+        })
     }
 
     setRemaining(base)

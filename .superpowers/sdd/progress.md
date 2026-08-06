@@ -2080,9 +2080,20 @@ suspends the context and `currentTime` stops. It was written from the API's
 documented behaviour rather than from a device, and stated more confidently than
 it had earned.
 
+3. Once it sounded through the silent switch, it seized the phone's audio
+   session: starting a rest cut off whatever music was playing. Two separate
+   causes again. The unlock itself was audible for a few milliseconds, which is
+   enough to take the session -- fixed by unlocking with `muted = true`, the
+   only lever available since `volume` is read-only on iOS. And the chime played
+   in the default category, which stops other audio rather than ducking it --
+   fixed with `navigator.audioSession.type = 'transient'` (WebKit, Safari 16.4),
+   the category the system timer uses. `transient-solo` pauses other audio and
+   `playback` takes the session over; neither is what a rest timer wants.
+
 What is honestly true, and belongs in the report's PWA-constraints chapter:
 
     <audio>, unlocked by a gesture   works, ignores the iOS silent switch
+    navigator.audioSession           WebKit only; 'transient' ducks other audio
     Web Audio                        muted by that switch on iOS
     Vibration API                    absent in Safari on iOS
     scheduled local notifications    no web API at all
