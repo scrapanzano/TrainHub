@@ -2,7 +2,6 @@ import {
   Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography,
 } from '@mui/material'
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
-import { POINTS } from './summary.js'
 
 /**
  * Every exercise met its prescription.
@@ -17,7 +16,9 @@ import { POINTS } from './summary.js'
  * workout they believe they finished -- which the one-open-run index would then
  * block them from starting anything else with.
  */
-export default function CongratsDialog({ open, sessionName, setCount, onFinish, pending = false }) {
+export default function CongratsDialog({
+  open, sessionName, setCount, points, alreadyPaid = false, onFinish, pending = false,
+}) {
   return (
     <Dialog
       open={open}
@@ -37,7 +38,10 @@ export default function CongratsDialog({ open, sessionName, setCount, onFinish, 
       <DialogContent>
         <Typography color="text.secondary">
           You finished every exercise in {sessionName} — {setCount}{' '}
-          {setCount === 1 ? 'set' : 'sets'} logged, and the full {POINTS.workout} points are yours.
+          {setCount === 1 ? 'set' : 'sets'} logged.
+          {alreadyPaid
+            ? ' No points this time: this session has already earned today. The work still counts, and your coach still sees it.'
+            : ` That is ${points} ${points === 1 ? 'point' : 'points'}.`}
         </Typography>
       </DialogContent>
 

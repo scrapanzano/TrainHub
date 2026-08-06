@@ -1,6 +1,6 @@
 // Run with:  node src/lib/week.selfcheck.js
 import assert from 'node:assert/strict'
-import { daysBefore, mondayOf, runStatusOf } from './week.js'
+import { daysBefore, earnedOn, mondayOf, runStatusOf } from './week.js'
 
 // --- mondayOf -------------------------------------------------------------
 // 2026-08-05 is a Wednesday; its week starts Monday the 3rd.
@@ -83,5 +83,37 @@ const sundayNight = {
 assert.deepEqual(runStatusOf([sundayNight], WEEK), { status: 'completed', run: sundayNight })
 // ...and it does NOT leak into the following week.
 assert.deepEqual(runStatusOf([sundayNight], '2026-08-10'), { status: 'todo', run: null })
+
+// --- earnedOn ------------------------------------------------------------
+const TODAY = '2026-08-05'
+const paid = { id: 'p1', started_at: '2026-08-05T09:00:00+02:00', ended_at: '2026-08-05T10:00:00+02:00', outcome: 'completed', pct: 100 }
+const paidPartial = { id: 'p2', started_at: '2026-08-05T18:00:00+02:00', ended_at: '2026-08-05T18:20:00+02:00', outcome: 'partial', pct: 40 }
+const zero = { id: 'p3', started_at: '2026-08-05T19:00:00+02:00', ended_at: '2026-08-05T19:00:30+02:00', outcome: 'partial', pct: 0 }
+const quitToday = { id: 'p4', started_at: '2026-08-05T20:00:00+02:00', ended_at: '2026-08-05T20:01:00+02:00', outcome: 'abandoned', pct: 0 }
+const stillOpen = { id: 'p5', started_at: '2026-08-05T21:00:00+02:00', ended_at: null, outcome: null, pct: null }
+const yesterday = { id: 'p6', started_at: '2026-08-04T09:00:00+02:00', ended_at: '2026-08-04T10:00:00+02:00', outcome: 'completed', pct: 100 }
+
+assert.equal(earnedOn([], TODAY), false)
+assert.equal(earnedOn(undefined, TODAY), false)
+assert.equal(earnedOn([paid], TODAY), true)
+// Stopping early still collects, so it still spends the day's one award.
+assert.equal(earnedOn([paidPartial], TODAY), true)
+// A session closed with nothing logged paid nothing, so it cannot have used
+// up the day: the member gets to come back and actually train it.
+assert.equal(earnedOn([zero], TODAY), false)
+assert.equal(earnedOn([quitToday], TODAY), false)
+// The run being finished right now is still open and must not veto itself.
+assert.equal(earnedOn([stillOpen], TODAY), false)
+// Yesterday's award does not spend today's -- the extra gym day is the whole
+// case this rule exists to protect.
+assert.equal(earnedOn([yesterday], TODAY), false)
+assert.equal(earnedOn([yesterday, paid], TODAY), true)
+// A run from before `pct` existed carries null. Treated as having paid: it
+// completed, and guessing "free" would hand out a second award for it.
+assert.equal(earnedOn([{ ...paid, pct: null }], TODAY), true)
+// Compared on the LOCAL day. 00:30 local on the 5th is 22:30 UTC on the 4th,
+// and a raw ISO comparison would call it yesterday and pay twice.
+const afterMidnight = { id: 'p7', started_at: '2026-08-05T00:30:00+02:00', ended_at: '2026-08-05T01:10:00+02:00', outcome: 'completed', pct: 100 }
+assert.equal(earnedOn([afterMidnight], TODAY), true)
 
 console.log('workout week: OK')

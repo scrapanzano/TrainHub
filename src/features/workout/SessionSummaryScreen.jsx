@@ -5,9 +5,11 @@ import {
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import { fetchSession } from '../../data/workouts.js'
-import { fetchRun, fetchRunLogs } from '../../data/runs.js'
+import { fetchRun, fetchRunLogs, fetchRunsSince } from '../../data/runs.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
+import { localDayISO } from '../../lib/format.js'
+import { daysBefore, earnedOn, mondayOf } from '../../lib/week.js'
 import { countsByExercise, pointsForRun, summariseSession } from './summary.js'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import { useAuth } from '../auth/useAuth.js'
@@ -52,6 +54,17 @@ export default function SessionSummaryScreen() {
     queryFn: () => fetchRunLogs(runId),
   })
 
+  // To answer whether this session had already collected on the DAY THIS RUN
+  // HAPPENED -- not today, because a summary can be reopened much later.  No
+  // `Date.now()` fallback: `react-hooks/purity` forbids it in a render body, and
+  // there is nothing to ask until the run has loaded anyway.
+  const since = run.data ? daysBefore(mondayOf(localDayISO(run.data.started_at)), 7) : null
+  const priorRuns = useQuery({
+    queryKey: queryKeys.runsSince(run.data?.member_id, since),
+    queryFn: () => fetchRunsSince(run.data.member_id, since),
+    enabled: Boolean(run.data?.member_id && since),
+  })
+
   const saveNote = useMutation({ mutationKey: mutationKeys.saveRunNote })
 
   if (run.isPending || logs.isPending) return <LoadingState />
@@ -75,8 +88,19 @@ export default function SessionSummaryScreen() {
 
   const exercises = session.data.exercises
   const stats = summariseSession(exercises, logs.data ?? [])
-  const points = pointsForRun(exercises, countsByExercise(logs.data))
   const pct = run.data.pct ?? 0
+
+  // The same one-award-per-session-per-day rule the live screen applied, over
+  // the same inputs, so the two cannot disagree about what was earned.  This
+  // run is excluded from the question it is asking: by now it has closed with a
+  // percentage of its own and would otherwise veto itself.
+  const alreadyPaid = earnedOn(
+    (priorRuns.data ?? []).filter(
+      (item) => item.session_id === run.data.session_id && item.id !== runId,
+    ),
+    localDayISO(run.data.started_at),
+  )
+  const points = alreadyPaid ? 0 : pointsForRun(exercises, countsByExercise(logs.data))
 
   const onSaveNote = (event) => {
     event.preventDefault()
@@ -118,11 +142,13 @@ export default function SessionSummaryScreen() {
             {points === 0 ? 'No points this time' : `+${points} points`}
           </Typography>
           <Typography color="text.secondary" sx={{ mb: 2 }}>
-            {points === 0
-              ? 'Points follow the sets you log, and none were logged.'
-              : stats.allComplete
-                ? 'Earned for finishing every exercise.'
-                : 'Weighted by how much of the session you got through.'}
+            {alreadyPaid
+              ? 'This session had already earned today. The work still counts and your coach still sees it — the points are once a day.'
+              : points === 0
+                ? 'Points follow the sets you log, and none were logged.'
+                : stats.allComplete
+                  ? 'Earned for finishing every exercise.'
+                  : 'Weighted by how much of the session you got through.'}
           </Typography>
           <Button component={Link} to="/m/profile/rewards" variant="outlined" fullWidth>
             View rewards

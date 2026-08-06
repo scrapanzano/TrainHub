@@ -11,9 +11,11 @@ import StopIcon from '@mui/icons-material/Stop'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, Navigate, useNavigate, useParams } from 'react-router'
 import { fetchSession } from '../../data/workouts.js'
-import { fetchOpenRun, fetchRunLogs } from '../../data/runs.js'
+import { fetchOpenRun, fetchRunLogs, fetchRunsSince } from '../../data/runs.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
+import { todayISO } from '../../lib/format.js'
+import { daysBefore, earnedOn, mondayOf } from '../../lib/week.js'
 import { formatElapsed } from './timer.js'
 import { setProgress } from './status.js'
 import { completionPct, countsByExercise, pointsForRun, runComplete } from './summary.js'
@@ -28,6 +30,9 @@ export default function LiveSessionScreen() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [ending, setEnding] = useState(false)
+  // Set the moment the member commits to finishing, and never cleared: this
+  // screen is on its way out and must stop deciding where to send them.
+  const [leaving, setLeaving] = useState(false)
 
   const openRun = useQuery({
     queryKey: queryKeys.openRun(user.id),
@@ -47,6 +52,15 @@ export default function LiveSessionScreen() {
     enabled: Boolean(run?.id),
   })
 
+  // This session's earlier runs, only to answer whether today's award has
+  // already been collected.  Same key the session screen uses, so it is
+  // normally already in cache and costs nothing here.
+  const since = daysBefore(mondayOf(todayISO()), 7)
+  const priorRuns = useQuery({
+    queryKey: queryKeys.runsSince(user.id, since),
+    queryFn: () => fetchRunsSince(user.id, since),
+  })
+
   const live = useLiveSession(run, user.id)
   const end = useMutation({ mutationKey: mutationKeys.endRun })
   const award = useMutation({ mutationKey: mutationKeys.awardReward })
@@ -60,7 +74,13 @@ export default function LiveSessionScreen() {
   // No run open for this session: there is nothing live to show.  Sending them
   // to the session screen is better than an empty clock, because that is where
   // the play button is.
-  if (!run && openRun.data !== undefined) {
+  //
+  // Not while finishing, though.  `endRun` clears the open run from the cache
+  // in its `onMutate`, so this screen re-renders with no run in the same commit
+  // as the navigation to the summary -- and a `<Navigate replace>` rendered
+  // then REPLACES that summary, landing the member back on the session they
+  // just finished. That is what "See how it went" used to do.
+  if (!run && !leaving && openRun.data !== undefined) {
     return <Navigate to={`/m/workout/session/${sessionId}`} replace />
   }
 
@@ -72,7 +92,15 @@ export default function LiveSessionScreen() {
   ).length
   const allDone = runComplete(exercises, counts)
   const pct = completionPct(exercises, counts)
-  const points = pointsForRun(exercises, counts)
+
+  // One award per session per day.  Training is never blocked -- the run still
+  // happens, the sets are still logged, the coach still sees it -- but a second
+  // helping of points on the same day is not on offer.
+  const alreadyPaid = earnedOn(
+    (priorRuns.data ?? []).filter((item) => item.session_id === sessionId),
+    todayISO(),
+  )
+  const points = alreadyPaid ? 0 : pointsForRun(exercises, counts)
 
   /**
    * Close the run and leave.
@@ -83,6 +111,10 @@ export default function LiveSessionScreen() {
    * trained the same session -- invisible until sessions began repeating.
    */
   const finish = (outcome) => {
+    // Before the write, because the write's `onMutate` runs synchronously and
+    // re-renders this screen with no open run.
+    setLeaving(true)
+
     end.mutate({
       id: run.id,
       // `memberId` and `sessionId` are not columns this write touches -- the
@@ -230,6 +262,7 @@ export default function LiveSessionScreen() {
         onClose={() => setEnding(false)}
         pct={pct}
         points={points}
+        alreadyPaid={alreadyPaid}
         setCount={setCount}
         onFinish={() => finish('partial')}
         onAbandon={() => {
@@ -247,6 +280,8 @@ export default function LiveSessionScreen() {
         open={allDone && !ending}
         sessionName={session.name}
         setCount={setCount}
+        points={points}
+        alreadyPaid={alreadyPaid}
         onFinish={() => finish('completed')}
         pending={end.isPending && !end.isPaused}
       />

@@ -47,6 +47,41 @@ export function daysBefore(dayISO, n) {
 }
 
 /**
+ * Has this session already paid out on `dayISO`?
+ *
+ * Repeating a session is legitimate -- an extra day in the gym is a good thing
+ * and should count. Repeating it four times in an hour is not: without a rule,
+ * a member could open and close the same session all afternoon and mint the
+ * full award each time.
+ *
+ * So the award is capped at one per session per calendar day, and nothing else
+ * is: the workout can always be started, always be logged, and always reaches
+ * the coach. Only the points are rationed, because only the points can be
+ * farmed. Refusing to let someone train would throw away the data their coach
+ * actually reads.
+ *
+ * A run that paid nothing has not spent the day. Abandoning, or closing with no
+ * sets logged, leaves the member free to come back and train it properly.
+ *
+ * `pct` is null on runs written before `patches/014`. Those are read as having
+ * paid: they completed, and guessing "free" would hand out a second award for
+ * a workout already rewarded.
+ *
+ * The comparison is made on the LOCAL day. A session started at 00:30 carries a
+ * UTC timestamp dated the day before, and a raw string comparison would call it
+ * yesterday's and pay twice.
+ */
+export function earnedOn(runs, dayISO) {
+  return (runs ?? []).some(
+    (run) =>
+      run.ended_at &&
+      run.outcome !== 'abandoned' &&
+      (run.pct == null || run.pct > 0) &&
+      localDayISO(run.started_at) === dayISO,
+  )
+}
+
+/**
  * What one session's runs say about it, for the week starting `weekStartISO`.
  *
  * Precedence, and why:
