@@ -52,6 +52,36 @@ export function registerMutationDefaults(queryClient) {
   queryClient.setMutationDefaults(mutationKeys.startRun, {
     mutationFn: startRun,
     scope: runScope,
+    // The open run must exist in the cache the instant play is pressed, not
+    // when the server answers.  The live screen redirects away when it finds no
+    // open run for its session, so without this the member is bounced straight
+    // back: guaranteed offline, and a race the navigation usually wins online.
+    onMutate: (variables) => {
+      queryClient.setQueryData(queryKeys.openRun(variables.memberId), {
+        id: variables.id,
+        session_id: variables.sessionId,
+        member_id: variables.memberId,
+        started_at: variables.startedAt,
+        paused_at: null,
+        paused_total_ms: 0,
+        ended_at: null,
+        outcome: null,
+        pct: null,
+        note: null,
+        // The caller passes the name so the mini-player has something to say
+        // before the refetch lands.
+        session: { id: variables.sessionId, name: variables.sessionName ?? 'Workout' },
+      })
+      // A fresh run has logged nothing.  Seeded rather than left missing so the
+      // pills read 0/3 immediately instead of waiting on a request that will
+      // not go out at all while offline.
+      queryClient.setQueryData(queryKeys.runLogs(variables.id), [])
+    },
+    onError: (_error, variables) => {
+      // The run never opened.  Leaving it in the cache would show a mini-player
+      // for a workout that does not exist and block starting a real one.
+      queryClient.setQueryData(queryKeys.openRun(variables.memberId), null)
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.runs })
       // The plan screen derives every session's state from these runs.
@@ -78,16 +108,43 @@ export function registerMutationDefaults(queryClient) {
   queryClient.setMutationDefaults(mutationKeys.endRun, {
     mutationFn: endRun,
     scope: runScope,
+    // The mirror of `startRun`'s problem.  Offline this write pauses, so
+    // without closing the run in the cache here the mini-player would go on
+    // counting a workout the member has already finished, and pressing play on
+    // anything else would raise "a workout is already open" about it.
+    //
+    // It also seeds the summary.  That screen reads the run by id, a key
+    // nothing has ever populated, so finishing a workout offline would land on
+    // an empty screen instead of the numbers just earned.
+    onMutate: (variables) => {
+      const open = queryClient.getQueryData(queryKeys.openRun(variables.memberId))
+      const closed = {
+        ...(open ?? { id: variables.id, session_id: variables.sessionId }),
+        id: variables.id,
+        ended_at: variables.endedAt,
+        outcome: variables.outcome,
+        pct: variables.pct ?? null,
+      }
+
+      queryClient.setQueryData(queryKeys.run(variables.id), closed)
+      // Only clear the shell's run if the one being closed IS the open one: a
+      // replay arriving after the member has started something else must not
+      // wipe the workout they are in the middle of now.
+      if (open?.id === variables.id) {
+        queryClient.setQueryData(queryKeys.openRun(variables.memberId), null)
+      }
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.runs })
       queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
     },
   })
 
-  // Written on the summary, after the run has closed, so it carries no
-  // ordering obligation against the sets -- but it shares the scope anyway:
-  // a note replayed before the `endRun` that closed the run would be
-  // overwritten by `endRun`'s own null note.
+  // Written on the summary, after the run has closed.  `endRun` deliberately
+  // does not touch `note`, so there is nothing here for it to overwrite -- but
+  // the scope is shared anyway so a note cannot reach the server ahead of the
+  // run it belongs to, which offline is a real ordering and not a theoretical
+  // one.
   queryClient.setMutationDefaults(mutationKeys.saveRunNote, {
     mutationFn: saveRunNote,
     scope: runScope,

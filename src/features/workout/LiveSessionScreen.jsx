@@ -83,7 +83,17 @@ export default function LiveSessionScreen() {
    * trained the same session -- invisible until sessions began repeating.
    */
   const finish = (outcome) => {
-    end.mutate({ id: run.id, endedAt: new Date().toISOString(), outcome, pct })
+    end.mutate({
+      id: run.id,
+      // `memberId` and `sessionId` are not columns this write touches -- the
+      // registered `onMutate` needs them to find the shell's cached run and to
+      // seed the summary before the server answers.
+      memberId: user.id,
+      sessionId,
+      endedAt: new Date().toISOString(),
+      outcome,
+      pct,
+    })
 
     // Nothing earned, nothing minted: a zero-point row would clutter the
     // rewards list with sessions the member walked out of.

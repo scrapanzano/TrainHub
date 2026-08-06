@@ -101,6 +101,10 @@ export default function SessionDetailScreen() {
       sessionId,
       memberId: user.id,
       startedAt: new Date().toISOString(),
+      // Carried so the registered `onMutate` can put a named run in the cache
+      // before the server answers -- the mini-player and the live screen both
+      // read it immediately.
+      sessionName: session.name,
     })
     // Navigate now rather than in `onSuccess`.  Offline the mutation pauses and
     // `onSuccess` never fires, leaving the member on a button that did nothing;
@@ -120,8 +124,18 @@ export default function SessionDetailScreen() {
     // Both writes share the `workoutRun` scope, so they are serialised even
     // online: the abandon lands first and releases the one-open-run index
     // before the new run tries to take it.
-    end.mutate({ id: open.id, endedAt: new Date().toISOString(), outcome: 'abandoned' })
+    end.mutate({
+      id: open.id,
+      memberId: user.id,
+      sessionId: open.session_id,
+      endedAt: new Date().toISOString(),
+      outcome: 'abandoned',
+    })
     setOpenRunShownAt(null)
+    // Ordered by the shared `workoutRun` scope, so the abandon lands first and
+    // releases the one-open-run index before this takes it.  In the cache the
+    // effect is the same either way: `endRun`'s onMutate clears the open run
+    // and `startRun`'s writes the new one, in that order.
     beginRun()
   }
 
