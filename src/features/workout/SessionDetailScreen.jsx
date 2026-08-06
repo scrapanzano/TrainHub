@@ -31,6 +31,7 @@ export default function SessionDetailScreen() {
   const [menuAnchor, setMenuAnchor] = useState(null)
   const [editing, setEditing] = useState(false)
   const [confirmStart, setConfirmStart] = useState(false)
+  const [emptyWarning, setEmptyWarning] = useState(false)
   // The instant the sheet was opened, captured in the handler.  `Date.now()` in
   // a render body is forbidden by `react-hooks/purity`, and this reading only
   // has to be right when the member looks at it -- it is "running for 23
@@ -115,6 +116,11 @@ export default function SessionDetailScreen() {
   }
 
   const onPlay = () => {
+    // A session with nothing in it cannot be trained, and the play button used
+    // to start one anyway -- opening a run against an empty list, which then
+    // could only be abandoned.  Explained rather than disabled: a greyed-out
+    // button states that something is impossible and never says why.
+    if (exercises.length === 0) return setEmptyWarning(true)
     if (openHere) return goLive()
     if (openElsewhere) return setOpenRunShownAt(Date.now())
     return setConfirmStart(true)
@@ -308,6 +314,29 @@ export default function SessionDetailScreen() {
           </Button>
         ) : null}
       </Box>
+
+      <Dialog open={emptyWarning} onClose={() => setEmptyWarning(false)}>
+        <DialogTitle>Nothing to train yet</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {isAuthor
+              ? `${session.name} has no exercises in it. Add at least one before you start.`
+              : `${session.name} has no exercises in it. Your coach still has to fill it in.`}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEmptyWarning(false)}>Close</Button>
+          {isAuthor ? (
+            <Button
+              component={Link}
+              to={`/m/workout/session/${sessionId}/exercise/new`}
+              variant="contained"
+            >
+              Add an exercise
+            </Button>
+          ) : null}
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={confirmStart} onClose={() => setConfirmStart(false)}>
         <DialogTitle>Start {session.name}?</DialogTitle>

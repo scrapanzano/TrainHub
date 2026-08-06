@@ -136,24 +136,29 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
       <Box component="main" sx={{ flexGrow: 1, pb: 2 }}>
         <Outlet />
       </Box>
-      {/* Pinned above the bottom bar, on every screen -- except the live one,
-          where it would sit under the clock it duplicates. */}
-      {run && !location.pathname.endsWith('/live') ? (
-        <LiveSessionBar
-          sessionName={run.session?.name ?? 'Workout'}
-          sessionId={run.session_id}
-          paused={runPaused}
-          elapsed={elapsedMs(
-            {
-              startedAt: Date.parse(run.started_at),
-              pausedAt: run.paused_at ? Date.parse(run.paused_at) : null,
-              pausedTotal: run.paused_total_ms ?? 0,
-            },
-            now,
-          )}
-        />
-      ) : null}
-      <BottomNav items={navItems} />
+      {/* The mini-player and the nav pin as one block, mirroring the header and
+          the sync banner at the top.  `BottomNav` is sticky on its own, so a
+          bar merely placed before it in the column scrolls out of sight on any
+          screen taller than the viewport -- which is most of them, and exactly
+          when a member has wandered away from their workout. */}
+      <Box sx={{ position: 'sticky', bottom: 0, zIndex: 'appBar' }}>
+        {run && !location.pathname.endsWith('/live') ? (
+          <LiveSessionBar
+            sessionName={run.session?.name ?? 'Workout'}
+            sessionId={run.session_id}
+            paused={runPaused}
+            elapsed={elapsedMs(
+              {
+                startedAt: Date.parse(run.started_at),
+                pausedAt: run.paused_at ? Date.parse(run.paused_at) : null,
+                pausedTotal: run.paused_total_ms ?? 0,
+              },
+              now,
+            )}
+          />
+        ) : null}
+        <BottomNav items={navItems} />
+      </Box>
     </Box>
   )
 }

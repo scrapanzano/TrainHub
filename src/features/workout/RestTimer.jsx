@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, Card, CardContent, IconButton, Stack, Typography } from '@mui/material'
 import RemoveIcon from '@mui/icons-material/Remove'
 import AddIcon from '@mui/icons-material/Add'
@@ -18,53 +18,72 @@ function readMuted() {
 }
 
 /**
- * A short burst, loud enough to hear over a gym.
+ * Schedule a burst on the audio clock, `seconds` from now.
  *
- * The `AudioContext` is created inside the gesture that starts the timer, never
- * at module scope: one constructed without a user gesture starts suspended on
- * iOS and stays silent for the whole session.
+ * Scheduled rather than played when a timer fires, and that is the whole point:
+ * every browser throttles `setInterval` in a backgrounded tab and stops it when
+ * the phone locks -- which is exactly where a phone spends a rest period. The
+ * Web Audio clock keeps running regardless, so a sound booked at start time
+ * still lands on time.
+ *
+ * The context must be created and resumed inside the tap that starts the rest.
+ * One constructed later, from an interval callback, is born `suspended` on iOS
+ * and under Chrome's autoplay policy and stays silent for the whole session --
+ * which is precisely how this first shipped, silent.
+ *
+ * Returns the oscillator so a cancelled rest can call `stop()` on it.
  */
-function beep() {
-  const Ctx = window.AudioContext ?? window.webkitAudioContext
-  if (!Ctx) return
-
-  const ctx = new Ctx()
+function scheduleBeep(ctx, seconds) {
+  const at = ctx.currentTime + Math.max(0, seconds)
   const osc = ctx.createOscillator()
   const gain = ctx.createGain()
 
   osc.type = 'sine'
   osc.frequency.value = 880
-  gain.gain.setValueAtTime(0.001, ctx.currentTime)
-  // Ramped rather than switched: a square-edged start clicks, and on a phone
-  // speaker the click is louder than the tone.
-  gain.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.02)
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7)
+
+  // Silent until the moment it should sound.  Ramped rather than switched: a
+  // square-edged start clicks, and on a phone speaker the click carries further
+  // than the tone.
+  gain.gain.setValueAtTime(0.0001, ctx.currentTime)
+  gain.gain.setValueAtTime(0.0001, at)
+  gain.gain.exponentialRampToValueAtTime(0.4, at + 0.02)
+  gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.35)
+  gain.gain.exponentialRampToValueAtTime(0.4, at + 0.45)
+  gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.9)
 
   osc.connect(gain).connect(ctx.destination)
-  osc.start()
-  osc.stop(ctx.currentTime + 0.75)
-  osc.onended = () => ctx.close()
+  osc.start(ctx.currentTime)
+  osc.stop(at + 1)
+  return osc
 }
 
 /**
  * Rest between sets.
  *
- * The countdown is the difference between now and a target instant, never a
- * counter ticked down by an interval.  Every browser throttles timers in a
- * backgrounded tab and stops them when the phone locks, which is exactly when a
- * member is resting -- derived from timestamps, the number is still right when
- * the screen comes back on, and only the sound is at risk.
+ * Two clocks, and neither is a counter ticked down by an interval.  The number
+ * on screen is the difference between now and a target instant, so a tick the
+ * browser skips costs nothing and the count is still right when the screen
+ * comes back on.  The sound is booked on the Web Audio clock at the moment the
+ * rest starts.
  *
- * Known platform limits, which belong in the report's chapter on PWA
- * constraints rather than in a comment apologising for them:
+ * Booking rather than playing is what makes it work at all.  Every browser
+ * throttles `setInterval` in a backgrounded tab and stops it when the phone
+ * locks -- which is exactly where a phone spends a rest period -- so a sound
+ * played from a timer callback is a sound that arrives late or never.  Worse,
+ * an `AudioContext` created from that callback is created outside a user
+ * gesture and is born suspended on iOS, silent for the whole session. That is
+ * how this first shipped.
  *
- *   Web Audio                      works, needs one gesture to unlock
+ * Platform limits that remain, for the report's chapter on PWA constraints:
+ *
+ *   Web Audio                      works, and must be unlocked inside a tap
+ *   AudioContext in Safari         suspended on backgrounding, resumed on start
  *   Vibration API                  does not exist in Safari on iOS
  *   scheduled local notifications  no web API at all
  *   setInterval in the background  throttled everywhere
  *
- * So: app open and screen awake, the sound is reliable. Phone locked, it may be
- * late or absent. There is no web mechanism that changes this.
+ * So the sound is reliable while the tab is alive, including with the screen
+ * off. What no web API can do is wake a page the operating system has evicted.
  */
 export default function RestTimer({ seconds }) {
   // The member's own duration, or null to follow the coach's prescription.
@@ -75,8 +94,9 @@ export default function RestTimer({ seconds }) {
   const [target, setTarget] = useState(null)
   const [remaining, setRemaining] = useState(0)
   const [muted, setMuted] = useState(readMuted)
-  // Guards the boundary: without it a late tick could fire the sound twice.
-  const rung = useRef(false)
+  // The unlocked audio context, kept alive across rests so it is unlocked once
+  // and stays that way, plus whatever sound is currently booked on it.
+  const audio = useRef({ ctx: null, osc: null })
 
   const running = target !== null
   const base = custom ?? seconds
@@ -85,42 +105,77 @@ export default function RestTimer({ seconds }) {
   useEffect(() => {
     if (!running) return
 
-    // No synchronous first call: `start` seeds `remaining`, so the effect only
-    // ever subscribes to the interval and writes state from its callback.
+    // Only the displayed number is driven from here.  The sound was booked on
+    // the audio clock when the rest started, so a tick the browser skips costs
+    // nothing -- neither the count, which is derived from `target`, nor the
+    // beep, which is no longer this effect's business.
+    //
+    // No synchronous first call either: `start` seeds `remaining`, so this
+    // effect only ever subscribes and writes from the interval's callback.
     const id = setInterval(() => {
-      const left = Math.max(0, Math.ceil((target - Date.now()) / 1000))
-      setRemaining(left)
-
-      if (left === 0 && !rung.current) {
-        rung.current = true
-        if (!muted) beep()
-      }
+      setRemaining(Math.max(0, Math.ceil((target - Date.now()) / 1000)))
     }, 250)
 
     return () => clearInterval(id)
-  }, [running, target, muted])
+  }, [running, target])
 
-  const toggleMute = useCallback(() => {
-    setMuted((current) => {
-      const next = !current
-      try {
-        localStorage.setItem(MUTE_KEY, next ? '1' : '0')
-      } catch {
-        // Remembering the choice is a convenience, not a requirement.
-      }
-      return next
-    })
+  // Release the context when the screen goes.  Without this, walking between
+  // exercises leaves one suspended context per visit.
+  useEffect(() => () => {
+    audio.current.osc?.stop()
+    audio.current.ctx?.close()
+    audio.current = { ctx: null, osc: null }
   }, [])
 
+  /** Cancel whatever sound is booked, leaving the context unlocked for reuse. */
+  const cancelBooked = () => {
+    audio.current.osc?.stop()
+    audio.current.osc = null
+  }
+
+  /** Book the finish sound `seconds` from now, unlocking the context if needed. */
+  const book = (seconds) => {
+    const Ctx = window.AudioContext ?? window.webkitAudioContext
+    if (!Ctx) return
+
+    audio.current.ctx ??= new Ctx()
+    const { ctx } = audio.current
+    // Safari suspends a context whenever the page is backgrounded, so this is
+    // not only a first-run unlock -- it has to happen on every start.
+    if (ctx.state === 'suspended') ctx.resume()
+
+    cancelBooked()
+    audio.current.osc = scheduleBeep(ctx, seconds)
+  }
+
+  const toggleMute = () => {
+    const next = !muted
+    setMuted(next)
+    try {
+      localStorage.setItem(MUTE_KEY, next ? '1' : '0')
+    } catch {
+      // Remembering the choice is a convenience, not a requirement.
+    }
+
+    // Muting mid-rest has to reach the sound already booked on the audio clock;
+    // unmuting has to book one for the time that is left.  Both happen inside a
+    // tap, which is what keeps the context legal to touch.
+    if (!running) return
+    if (next) cancelBooked()
+    else book((target - Date.now()) / 1000)
+  }
+
   const start = () => {
-    rung.current = false
     setRemaining(base)
     setTarget(Date.now() + base * 1000)
+    // Booked from inside the tap.  This is the gesture the browser requires;
+    // there is no second chance ninety seconds later.
+    if (!muted) book(base)
   }
 
   const stop = () => {
     setTarget(null)
-    rung.current = false
+    cancelBooked()
   }
 
   const adjust = (delta) => {

@@ -1,6 +1,13 @@
 import { BottomNavigation, BottomNavigationAction, Paper } from '@mui/material'
 import { Link, useLocation } from 'react-router'
 
+/**
+ * The section's tab bar.
+ *
+ * Not sticky itself: `AppLayout` pins it together with the live-session
+ * mini-player as one block, so the two cannot drift apart when a workout is
+ * open.
+ */
 export default function BottomNav({ items }) {
   const { pathname } = useLocation()
 
@@ -26,7 +33,7 @@ export default function BottomNav({ items }) {
     <Paper
       elevation={0}
       sx={{
-        position: 'sticky', bottom: 0, borderTop: 1, borderColor: 'divider',
+        borderTop: 1, borderColor: 'divider',
         // Keeps the bar clear of the iOS home indicator.
         pb: 'env(safe-area-inset-bottom)',
       }}
