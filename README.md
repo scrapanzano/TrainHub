@@ -1,295 +1,274 @@
 # TrainHub
 
-A Progressive Web App that connects gym members with fitness professionals.
+A gym PWA built for the Mobile Application Development course, Università di
+Brescia. Two roles — **member** (`/m/...`) and **professional** (`/p/...`) —
+sharing one codebase, one theme and one offline strategy.
 
-University project for the *Mobile Application Development* course, Master's
-degree in Computer Science — University of Brescia, academic year 2025/2026.
+React 19 · Vite 8 · MUI v9 · TanStack Query v5 · React Router 8 · Supabase ·
+plain JS/JSX, no TypeScript.
 
-| | |
-|---|---|
-| **Authors** | Davide Leone (723335), Andrea Bariselli (737436) |
-| **Deliverables** | this PWA + a LaTeX technical report (`Relazione/`) |
-| **Language** | English (app, code and report) |
+---
 
-## What it does
+## Setup, step by step
 
-Members and professionals normally juggle several disconnected tools: one app
-for the workout plan, a spreadsheet for the diet, WhatsApp for talking to the
-trainer, a plastic card for entering the gym. TrainHub puts all of it behind a
-single login, with two distinct sections of the app:
+You need **Node.js 20.19+** (or 22.12+), a free Supabase account, and about
+twenty minutes. Steps 1–6 get the app running. Steps 7–8 are only needed for push
+notifications, and everything else works without them.
 
-- **Gym Member** — follow the workout plan assigned by a trainer, log sets
-  during a live session (this works with no network — a weight room is the
-  worst possible place to rely on connectivity), read the nutrition plan, book
-  appointments, chat with the assigned professional and show a QR access badge
-  at the gym door.
-- **Professional** (personal trainer and/or nutritionist) — see today's agenda,
-  manage clients, assign and edit workout and nutrition plans, track client
-  progress, manage the calendar and availability, chat, and scan a member's
-  access badge.
-
-Being a PWA is a course requirement, not a detail: the app must be installable
-on a phone and must keep working offline.
-
-## Status
-
-**Phase 0 (foundations) complete.** The app builds, installs, runs offline and
-routes both roles to their own section, but every screen is still a placeholder
-naming itself. Real screens land in phases 1–4. See `docs/` (not tracked in
-this repository) for the design spec and the phase plans.
-
-## Stack
-
-| Layer | Choice |
-|---|---|
-| UI | React 19, plain JS + JSX (no TypeScript) |
-| Build | Vite 8, ESM |
-| Components | MUI v9 + Emotion, custom theme built from the Figma design tokens |
-| Routing | React Router (data router) |
-| Backend | Supabase — Postgres, Row Level Security, Auth, Realtime |
-| Data layer | TanStack Query, persisted to IndexedDB (`idb-keyval`) |
-| PWA | `vite-plugin-pwa` in `injectManifest` mode, hand-written Workbox service worker |
-
-Two choices worth knowing before you read the code:
-
-- **`injectManifest`, not `generateSW`.** The service worker is `src/sw.js` and
-  is written by hand, because the push and `notificationclick` handlers coming
-  in phase 4 cannot live inside a generated worker.
-- **TanStack Query is also the offline write queue.** With
-  `networkMode: 'offlineFirst'` a mutation fired with no connection is *paused
-  and persisted* instead of failing, and `resumePausedMutations()` replays it on
-  reconnect. No hand-rolled sync queue exists, and none is needed.
-
-## Setup
-
-Requires **Node.js 20.19+** (or 22.12+) and a free Supabase project.
+### 1. Clone and install
 
 ```bash
+git clone https://github.com/scrapanzano/TrainHub.git
+cd TrainHub
 npm install
+```
+
+### 2. Create a Supabase project
+
+At [supabase.com](https://supabase.com) → **New project**. Pick any region;
+`eu-central` is closest. Write down the database password — you will not need it
+for this project, but Supabase will not show it again.
+
+Wait for provisioning to finish before continuing. A project that is still
+starting up answers SQL with confusing errors.
+
+### 3. Fill in the environment file
+
+```bash
 cp .env.example .env.local
 ```
 
-Fill `.env.local` with the values from your Supabase project
-(*Project Settings → API*):
+Open `.env.local` and fill the first two values from **Project Settings → API**:
 
 ```
 VITE_SUPABASE_URL=https://<project-ref>.supabase.co
-VITE_SUPABASE_ANON_KEY=<publishable key>
+VITE_SUPABASE_ANON_KEY=<publishable / anon key>
+VITE_VAPID_PUBLIC_KEY=<leave empty for now — step 7>
 ```
 
 > `VITE_*` variables are inlined into the JavaScript bundle, so they are public
-> by design. Only the publishable (anon) key belongs here — never the secret
+> by design. Only the **publishable (anon)** key belongs here — never the secret
 > service-role key. Row Level Security is what actually protects the data.
 
-Then run the SQL files **in this order** in the Supabase SQL editor:
+`.env.local` is gitignored and never leaves your machine.
 
-| Order | File | What it does |
+### 4. Run the SQL, in this exact order
+
+Open **SQL Editor** in the Supabase dashboard. Paste and run each file's whole
+contents, one at a time.
+
+| # | File | What it does |
 |---|---|---|
-| 1 | `supabase/schema.sql` | 15 tables, enums, and the trigger mirroring `auth.users` into `profiles` |
+| 1 | `supabase/schema.sql` | Tables, enums, and the trigger that mirrors `auth.users` into `profiles` |
 | 2 | `supabase/policies.sql` | Row Level Security policies for every table |
-| 3 | — | Create the two demo users (see below) |
-| 4 | `supabase/seed.sql` | Demo workout plan, meals, appointments, exercises, rewards |
-| 5 | `supabase/verify.sql` | 19 checks; every row must read `PASS` |
+| 3 | — | **Create the two demo users** (step 5 below) |
+| 4 | `supabase/seed.sql` | Demo plan, meals, appointments, exercises, rewards |
 
-Step 3 is manual, in *Authentication → Users → Add user*. Create both accounts
-with **Auto Confirm User** ticked — without it sign-in fails with a generic
-`Invalid login credentials`, which is Supabase's way of not leaking whether an
-address is registered.
+**The order matters.** `schema.sql` installs the trigger that creates a
+`profiles` row for each new user. Users created *before* it exists get no
+profile, and the seed then fails on a foreign key.
+
+### 5. Create the demo users
+
+**Authentication → Users → Add user**, twice. Tick **Auto Confirm User** on both.
 
 | Email | Password | Role |
 |---|---|---|
 | `daniel@trainhub.dev` | `TrainHub2026!` | member |
 | `andrea@trainhub.dev` | `TrainHub2026!` | professional |
 
-The order matters. `schema.sql` installs the trigger that creates a `profiles`
-row for each new user, so users created *before* it exists get no profile and
-the seed then fails on a foreign key.
+Without **Auto Confirm User**, sign-in fails with a generic
+`Invalid login credentials` — Supabase's way of not leaking whether an address is
+registered. It looks like a wrong password and is not.
 
-`supabase/patches/` holds fixes to apply on top of an already-provisioned
-database, so an existing project does not need to be rebuilt from scratch.
+Then go back and run `supabase/seed.sql` (step 4, row 4).
 
-## Picking the project up on another machine
+### 6. Apply the patches, then verify
 
-A clone carries everything about *what the project is*: the code, the SQL, the
-Figma wireframes in `doc/`, the design spec and phase plans in `docs/`, and the
-progress ledger in `.superpowers/sdd/progress.md` — which records every bug found
-during implementation and why each fix is shaped the way it is.
+`supabase/patches/` holds fixes and additions layered on top of the base schema.
+Run **all fourteen in numeric order**, `001` through `014`. Several print their
+own PASS/FAIL block — read it before moving to the next.
 
-Four things it deliberately does not carry, because they are either secret or
-machine-local:
+Two of them matter especially, because the workout half does not run without
+either: `013-workout-runs.sql` creates the `workout_runs` table, and
+`014-workout-run-pct.sql` adds a column `013` should have carried.
 
-| What | How to get it |
-|---|---|
-| `.env.local` | `cp .env.example .env.local`, then refill from *Supabase → Project Settings → API*. Never committed — the file is covered by `*.local`. |
-| `node_modules` | `npm install` |
-| The ngrok agent and its authtoken | Install the agent, then `ngrok config add-authtoken <token>` from *dashboard.ngrok.com → Your Authtoken*. The token lives in `%LOCALAPPDATA%\ngrok\ngrok.yml`, outside the repo. |
-| The service worker's cached state and IndexedDB | Nothing to move. They rebuild on first load; a fresh machine simply starts with an empty offline cache. |
+Finally run `supabase/verify.sql`. It prints one row per check.
 
-On Windows, `winget install --id ngrok.ngrok` installs the agent, and the PATH it
-adds is not visible to shells that were already open — restart the terminal, or
-reload it in place with:
+- The **five schema and security rows** must all read `PASS`. Three of them
+  expect 18 against 19 tables **on purpose** — `app_config` is policy-less and
+  grant-less by design.
+- **Seven seed-count rows read `FAIL` by design.** Four because
+  `patches/005-demo-clients.sql` adds demo clients the original counts did not
+  expect; three (`messages`, `rewards`, `checkins`) because real use during
+  device testing grew them. The comment in the file explains why the
+  expectations are deliberately not bumped.
 
-```powershell
-$env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')
-```
-
-## Testing the application
-
-### Everyday development
+Then, from your terminal:
 
 ```bash
-npm run dev
+node supabase/probe-rls.mjs
 ```
 
-Vite dev server on <http://localhost:5173>, with hot module replacement.
+Every row must read `PASS`. This asks each table what it returns to a caller
+holding only the publishable key — the question `verify.sql` structurally
+**cannot** answer, because it runs as the dashboard's privileged role and
+bypasses RLS entirely. Phase 0 shipped a policy that looked fine and was public
+to the whole internet; no SQL check caught it.
 
-**The service worker does not exist in dev mode.** Nothing offline, no install
-prompt, no precaching — that is deliberate, a worker caching your source files
-between edits makes development miserable. Every PWA behaviour has to be tested
-against a production build instead.
+### 7. Push notifications — VAPID keys *(optional)*
 
-### Testing the PWA (build + preview)
+Skip this and everything works except push. Come back to it when you need it.
+
+Generate a key pair:
 
 ```bash
+npx web-push generate-vapid-keys
+```
+
+Put the **public** key into `.env.local` as `VITE_VAPID_PUBLIC_KEY`. Keep the
+private key for the next step — it must never enter the repository.
+
+Then, in the SQL editor, insert the two rows `patches/010` deliberately left
+empty:
+
+```sql
+insert into app_config (key, value) values
+  ('notify_function_url', 'https://<project-ref>.supabase.co/functions/v1/notify'),
+  ('notify_secret',       '<a long random string you invent>')
+on conflict (key) do update set value = excluded.value;
+```
+
+Also enable the **`pg_net`** extension under **Database → Extensions**. Without
+it the database cannot call out to the Edge Function.
+
+### 8. Deploy the Edge Function *(optional, follows step 7)*
+
+```bash
+npx supabase login          # interactive, opens a browser
+npx supabase link --project-ref <project-ref>
+npx supabase functions deploy notify
+```
+
+No installation needed — `npx supabase` resolves the CLI on demand.
+
+Then set its secrets. `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are provided
+by the platform; these five are yours:
+
+```bash
+npx supabase secrets set \
+  VAPID_SUBJECT="mailto:you@example.com" \
+  VAPID_PUBLIC_KEY="<public key from step 7>" \
+  VAPID_PRIVATE_KEY="<private key from step 7>" \
+  NOTIFY_SECRET="<the same random string you put in app_config>"
+```
+
+`NOTIFY_SECRET` must match `app_config.notify_secret` exactly. It is what proves
+to the function that a request really came from your database.
+
+---
+
+## Running it
+
+```bash
+npm run dev       # dev server on http://localhost:5173
+npm run build     # production build into dist/
+npm run preview   # serve the built dist/
+npm run lint      # eslint over the repo
+```
+
+**The service worker does not exist in `dev`.** Anything about installing the
+app, offline behaviour or caching must be tested with `npm run build && npm run
+preview`, never with `npm run dev`.
+
+### Verifying a change
+
+There is no test runner and none is being added. The equivalent is:
+
+```bash
+npm run lint
 npm run build
-npm run preview
 ```
 
-<http://localhost:4173> serves the real `dist/` output, service worker
-included. This is the only way to exercise install, offline and caching.
+**Run both.** ESLint never resolves module paths; Vite does at build time. An MUI
+icon glyph that the installed version does not ship passes lint and breaks the
+build.
 
-What to check in Chrome DevTools:
+Non-trivial pure logic ships an `assert`-based self-check beside it. There are
+ten — run them all after touching anything shared:
 
-| Where | Expected |
-|---|---|
-| **Application → Service Workers** | one worker, *activated and is running* |
-| **Application → Manifest** | name, theme colour `#FE6363`, all icon sizes, no warnings |
-| **Application → Cache Storage** | the precache holds the app shell (~14 entries, no duplicates) |
-| **Application → IndexedDB** | database `keyval-store` → store `keyval` → key `trainhub-query-cache` |
-| **Install icon in the address bar** | present; installing opens TrainHub in its own window |
+```bash
+node src/lib/format.selfcheck.js
+node src/lib/week.selfcheck.js
+node src/theme/resolveTokens.selfcheck.js
+node src/features/workout/timer.selfcheck.js
+node src/features/workout/status.selfcheck.js
+node src/features/workout/summary.selfcheck.js
+node src/features/clients/subscription.selfcheck.js
+node src/features/calendar/month.selfcheck.js
+node src/features/progress/progress.selfcheck.js
+node src/features/profile/pushSubscription.selfcheck.js
+```
 
-The IndexedDB entry only appears **once at least one query has run**. The
-persister writes on query-cache changes, so an empty cache produces no
-database at all. Through phase 0 nothing goes through TanStack Query — the
-auth provider talks to Supabase directly — so its absence is expected, not a
-fault. Phase 1 is where the key shows up.
+### Testing offline
 
-### Testing offline behaviour
-
-1. `npm run build && npm run preview`, then load <http://localhost:4173> once,
-   so the service worker installs and the shell is precached.
-2. DevTools → **Network → Offline** (throttling dropdown).
-3. Reload. The app must still render — routing, theme and the last cached data
-   included. It is served entirely from the service worker.
-4. From phase 2 on, also: log a workout session while offline, go back online,
-   and confirm the sets reach Supabase. That is the paused-mutation replay.
-
-Airplane mode on a real phone is the stricter version of the same test, and the
-one that counts for the report.
+With `npm run preview` running: open DevTools → **Network → Offline**, or use the
+**Application → Service Workers → Offline** checkbox. Navigate, log a set, book
+an appointment. Writes pause and replay on reconnect; reads serve from the
+persisted cache.
 
 ### Testing on a real phone
 
-`localhost` is not reachable from your phone, and a service worker only
-registers over HTTPS (or `localhost`). A tunnel solves both:
+The app must be served over HTTPS for a phone to install it or receive push, so
+`localhost` will not do. Use ngrok:
 
-First Terminal
 ```bash
-npm run build
-npm run preview -- --host 0.0.0.0
-```
-Second Terminal
-```
+npm run build && npm run preview
 ngrok http 4173
 ```
 
-Open that HTTPS URL on the phone and use *Add to Home screen*. The app should
-launch with no browser chrome (`display: standalone`).
+On Windows: `winget install --id ngrok.ngrok`, then
+`ngrok config add-authtoken <token>` from dashboard.ngrok.com. The PATH ngrok
+adds is invisible to shells that were already open — restart the terminal.
 
-Use the **static** ngrok domain, not a random one. Push subscriptions are bound
-to their origin, so a URL that changes on every restart invalidates every
-subscription and has to be re-added to the Supabase Auth redirect allowlist
-each time. The free plan includes one static domain — replace the one above
-with yours.
+Open the ngrok HTTPS URL on the phone. **On iPhone you must use Safari** and
+*Share → Add to Home Screen*: Web Push does not exist for a site open in an iOS
+browser tab, and Chrome for iOS cannot install a PWA at all. iOS 16.4+.
 
-### Lighthouse audit
+---
 
-DevTools → **Lighthouse** → *Progressive Web App* + *Performance*, run against
-`http://localhost:4173` (never against `npm run dev` — the scores are
-meaningless without the service worker and the minified bundle).
+## Where the project's reasoning lives
 
-### Sanity checks
+Read these before changing anything substantial. They carry decisions and
+failures the code does not explain.
 
-```bash
-npm run lint                              # ESLint over the repo
-node src/theme/resolveTokens.selfcheck.js # design-token resolver self-check
-```
+| Path | What it is |
+|---|---|
+| `CLAUDE.md` | The operating rules. Every line of "Rules that exist because breaking them cost a day" is a defect that shipped. |
+| `.superpowers/sdd/progress.md` | The implementation ledger — one entry per task, what each review found, what is still owed to a human. |
+| `docs/ONBOARDING-AGENT.md` | The briefing for an AI agent joining the project. Also the fastest way for a person to get oriented. |
+| `docs/superpowers/specs/` | One design spec per phase, each decision paired with the alternative it beat. |
+| `docs/superpowers/plans/` | One implementation plan per phase. |
+| `doc/context.md` | Course and PWA requirements. |
+| `doc/assets/` | Figma wireframes and the design tokens `src/theme/tokens.js` imports directly. |
 
-The second one prints `resolveTokens: OK (22 tokens)`. It asserts that the
-Figma token file still resolves — aliases included — and fails loudly if a
-re-export from Figma renames or breaks a token the theme depends on.
+---
 
-There is no test runner: for a project this size, a self-check that runs under
-bare Node buys more than a framework would.
+## Working agreement
 
-### Walking both roles
+- **Commits belong to Davide.** Conventional Commits, no `Co-Authored-By`
+  trailer.
+- **Never push or merge without being asked. Never delete a branch** — every
+  phase branch is kept deliberately.
+- Schema work always ends in a handoff: write the patch file, Davide applies it
+  in the SQL editor and reports the PASS/FAIL block.
+- Phases run spec → plan → task-by-task execution with a review per task → a
+  whole-branch review at the end. That final review has caught a Critical in
+  every phase so far.
 
-Signing in as `daniel@trainhub.dev` gets you the member section (`/m`), as
-`andrea@trainhub.dev` the professional one (`/p`). Each screen names itself, so
-you can tell at a glance which route you landed on.
+## Status
 
-**Until phase 1 lands there is no login form** — `/login` is a placeholder like
-every other screen, and the role guard bounces every `/m` and `/p` route back
-to it. To exercise the routing before then, sign in from the DevTools console
-of the **dev** server (`npm run dev`), where Vite serves modules by URL and
-returns the same client instance the app is using:
-
-```js
-const { supabase } = await import('/src/lib/supabase.js')
-await supabase.auth.signInWithPassword({
-  email: 'daniel@trainhub.dev',
-  password: 'TrainHub2026!',
-})
-```
-
-The auth provider picks the session up through `onAuthStateChange`; navigate to
-`/m` and the shell renders. This works in dev only — a production build has no
-source URLs to import.
-
-Two things worth checking explicitly, because both are guards that are easy to
-break:
-
-- Visit `/m/profile/badge`. **No bottom-bar tab should be highlighted.** Home
-  lives at `/m`, which is a prefix of every route in the section, so a naive
-  prefix match lights Home up on screens no tab represents.
-- Sign in as the professional and navigate to `/m`. You should be redirected to
-  `/p`, once, with no flicker and no loop.
-
-## Project layout
-
-```
-src/
-  main.jsx              service-worker registration + mount
-  App.jsx               provider stack: theme, query cache, auth, router
-  sw.js                 hand-written service worker (injectManifest input)
-  theme/                design tokens, resolver, createTheme + responsiveFontSizes
-  routes/               route tree and the per-role bottom-bar entries
-  layouts/              signed-in shell (with the role guard) and public shell
-  components/           shared UI
-  features/auth/        session provider over Supabase onAuthStateChange
-  lib/                  Supabase client, TanStack Query client + persister
-supabase/
-  schema.sql  policies.sql  seed.sql  verify.sql  patches/
-Relazione/              LaTeX technical report
-doc/                    Figma exports and course material (untracked except the tokens)
-```
-
-## Notes on the repository
-
-- `doc/` is mostly untracked — it holds course material and Figma exports. The
-  one exception is `doc/assets/variables.tokens.json`, which is committed
-  because `src/theme/` imports it at build time: the Figma export stays the
-  single source of truth for the palette, so a fresh clone would otherwise not
-  build.
-- `docs/` (design spec, phase plans) and `Relazione/main.pdf` are untracked on
-  purpose — the first is working material, the second is a build artefact of the
-  LaTeX sources.
+Phases 0 through 5A are built and merged into `main`. Queued next, in dependency
+order: the professional's side of the workout rebuild, the notification bell, and
+the hardening pass plus the LaTeX report. `docs/ONBOARDING-AGENT.md` §6 has the
+detail.
