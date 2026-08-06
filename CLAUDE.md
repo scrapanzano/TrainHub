@@ -168,6 +168,10 @@ credentials, so any schema work ends in a handoff to Davide.
   PASS/FAIL blocks. `009` (checkin tokens) and `010` (push notifications) are
   what Phase 4B's badge, scanner and push features depend on; `011` hardens the
   three oldest `security definer` functions against pg_temp shadowing.
+- `probe-rls.mjs` — `node supabase/probe-rls.mjs`. Asks every table what it
+  returns to a caller holding nothing but the publishable key, which ships in
+  the JS bundle. `verify.sql` structurally cannot answer this: it runs as the
+  dashboard's privileged role and bypasses RLS. Needs `.env.local`.
 - `verify.sql` — run last, **after the patches**: its five schema and security
   counts expect `checkin_tokens` (`009`) and `app_config` (`010`) to exist. The
   three security rows and the two grant rows must read PASS. Three of them read

@@ -2026,8 +2026,25 @@ commit 2ec53ac every run read selects `pct`, so until 014 lands EVERY run query
 answers "column workout_runs.pct does not exist" and the whole workout half is
 dark. 013 alone is not enough any more.
 
-Then the ten-step device walk in the spec's Acceptance section, and the
-anonymous-client RLS probe on `workout_runs`, which is still owed.
+patches/014 applied 2026-08-06, all rows true. Both database handoffs are now
+closed.
+
+The anonymous-client RLS probe is DONE and no longer a manual handoff: it is
+`supabase/probe-rls.mjs`, run with `node supabase/probe-rls.mjs`. Every table
+plus `redeem_checkin_token` reads PASS, `workout_runs` included. It carries a
+connectivity control on purpose -- a wrong URL, a dead project or a rejected key
+all make every table answer "empty", which looks identical to perfect security.
+`app_config` is grant-less by design and must refuse with 42501, so that refusal
+is what makes the empties mean anything.
+
+One assumption was wrong on the first run and is worth remembering: NOTHING in
+this schema is anonymously readable, not even `exercises` or `profiles`. Both
+gate on `auth.uid() is not null`, which is deliberate and load-bearing -- the
+comment above `profiles_select_professionals` explains why.
+
+STILL OWED, and the only thing left: the ten-step device walk in the spec's
+Acceptance section, on a real phone installed from Safari. Nothing in this phase
+has been exercised in a browser.
 
 HUMAN HANDOFF, blocking everything: `supabase/patches/013-workout-runs.sql`
 does not exist yet -- it is written as part of task 1 -- and once written must
