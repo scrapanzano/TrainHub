@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Alert, Box, Button, Card, CardContent, Chip, IconButton, Stack, TextField, Typography,
 } from '@mui/material'
-import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter'
@@ -12,7 +11,6 @@ import { fetchSessionExercise } from '../../data/workouts.js'
 import { fetchOpenRun, fetchRunLogs } from '../../data/runs.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
-import { elapsedMs, formatElapsed } from './timer.js'
 import { setProgress } from './status.js'
 import RestTimer from './RestTimer.jsx'
 import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
@@ -236,14 +234,6 @@ export default function ExerciseDetailScreen() {
     enabled: Boolean(run?.id),
   })
 
-  const [now, setNow] = useState(() => Date.now())
-  const ticking = Boolean(run) && !run.paused_at
-  useEffect(() => {
-    if (!ticking) return
-    const id = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(id)
-  }, [ticking])
-
   if (isPending) return <LoadingState />
   // `data === undefined` means it never loaded.  With `offlineFirst` a refetch
   // can fail while the persisted cache still holds the answer, and an error
@@ -256,59 +246,26 @@ export default function ExerciseDetailScreen() {
   ).length
   const progress = setProgress(run ? mineCount : 0, data.target_sets)
 
-  const elapsed = run
-    ? elapsedMs(
-        {
-          startedAt: Date.parse(run.started_at),
-          pausedAt: run.paused_at ? Date.parse(run.paused_at) : null,
-          pausedTotal: run.paused_total_ms ?? 0,
-        },
-        now,
-      )
-    : 0
-
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
-      {/* While a run is open the clock comes with you.  Losing sight of it on
-          the screen where a set is logged is how a member ends up with a
-          workout that ran for two hours. */}
-      {run ? (
-        <Card sx={{ position: 'sticky', top: 0, zIndex: 1 }}>
-          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <IconButton
-                component={Link}
-                to={`/m/workout/session/${session.id}/live`}
-                aria-label={`Back to ${session.name}`}
-                edge="start"
-              >
-                <ArrowBackIosNewIcon fontSize="small" />
-              </IconButton>
-              <Typography variant="h3" noWrap sx={{ flexGrow: 1, minWidth: 0 }}>
-                {session.name}
-              </Typography>
-              <AccessTimeIcon fontSize="small" color="primary" aria-hidden />
-              <Typography sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                {formatElapsed(elapsed)}
-              </Typography>
-            </Stack>
-          </CardContent>
-        </Card>
-      ) : (
-        <Stack direction="row" spacing={1} alignItems="center">
-          <IconButton
-            component={Link}
-            to={`/m/workout/session/${session.id}`}
-            aria-label={`Back to ${session.name}`}
-            edge="start"
-          >
-            <ArrowBackIosNewIcon fontSize="small" />
-          </IconButton>
-          <Typography variant="body2" color="text.secondary" noWrap>
-            {session.name}
-          </Typography>
-        </Stack>
-      )}
+      {/* No clock here.  The mini-player in the shell already carries the
+          session name and the running time on every screen, so a second one
+          pinned to the top of this screen is the same information twice.  The
+          back link does change though: mid-workout it belongs to the live list,
+          not to the session's read-only view. */}
+      <Stack direction="row" spacing={1} alignItems="center">
+        <IconButton
+          component={Link}
+          to={run ? `/m/workout/session/${session.id}/live` : `/m/workout/session/${session.id}`}
+          aria-label={`Back to ${session.name}`}
+          edge="start"
+        >
+          <ArrowBackIosNewIcon fontSize="small" />
+        </IconButton>
+        <Typography variant="body2" color="text.secondary" noWrap>
+          {session.name}
+        </Typography>
+      </Stack>
 
       <Box>
         <Typography variant="h1" sx={{ mb: 2 }}>{exercise.name}</Typography>
