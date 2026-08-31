@@ -1,3 +1,5 @@
+import { createUuid } from '../../lib/uuid.js'
+
 /**
  * Freeze a session draft into the JSON contract consumed by patch 015.
  *
@@ -17,4 +19,3 @@ export function buildSessionExercisePayloads(exercises, createId = createUuid) {
     notes: item.notes || null,
   }))
 }
-import { createUuid } from '../../lib/uuid.js'

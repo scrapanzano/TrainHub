@@ -6,6 +6,11 @@
 -- an explicit zero and repairs summaries and linked rewards already written by
 -- the affected function.
 --
+-- Patch 015 now includes the corrected expression so a fresh installation is
+-- born correct. Patch 016 remains necessary for a database that ran the older
+-- revision of 015: replacing the function alone would not repair summaries or
+-- rewards already stored by that revision.
+--
 -- Idempotent: the function replacement and repair can be replayed safely.
 
 begin;

@@ -1,8 +1,9 @@
 -- Patch 015 -- essential security and data-integrity rules.
 --
--- This file is assembled and reviewed task by task. Do not apply it until the
--- complete patch, fresh-install sources and probes have passed their SQL
--- review and the manual Gate A instructions explicitly say to run it.
+-- Before applying, confirm that nobody is running a workout and that
+-- `select count(*) from public.workout_runs where ended_at is null` returns 0.
+-- Stop on any SQL error or failed final check; do not rerun blindly. The final
+-- query below must report PASS on every row.
 --
 -- Idempotent: the statements in every completed section are safe to replay.
 
