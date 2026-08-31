@@ -8,6 +8,7 @@ alter table workout_plans      enable row level security;
 alter table workout_sessions   enable row level security;
 alter table session_exercises  enable row level security;
 alter table set_logs           enable row level security;
+alter table workout_runs       enable row level security;
 alter table nutrition_plans    enable row level security;
 alter table meals              enable row level security;
 alter table availability       enable row level security;
@@ -16,8 +17,10 @@ alter table threads            enable row level security;
 alter table messages           enable row level security;
 alter table rewards            enable row level security;
 alter table checkins           enable row level security;
+alter table checkin_tokens     enable row level security;
 alter table body_metrics       enable row level security;
 alter table push_subscriptions enable row level security;
+alter table app_config         enable row level security;
 
 -- SECURITY DEFINER so the helper can read `profiles` without recursing back
 -- through the very policies it is being used to evaluate.
@@ -75,26 +78,16 @@ create policy exercises_write_professionals on exercises
 create policy workout_plans_select on workout_plans
   for select using (owns_member(member_id));
 
-create policy workout_plans_write on workout_plans
-  for all using (owns_member(member_id)) with check (owns_member(member_id));
-
 -- workout_sessions ----------------------------------------------------------
-create policy workout_sessions_all on workout_sessions
-  for all using (
-    exists (select 1 from workout_plans p
-            where p.id = plan_id and owns_member(p.member_id))
-  ) with check (
+create policy workout_sessions_select on workout_sessions
+  for select using (
     exists (select 1 from workout_plans p
             where p.id = plan_id and owns_member(p.member_id))
   );
 
 -- session_exercises ---------------------------------------------------------
-create policy session_exercises_all on session_exercises
-  for all using (
-    exists (select 1 from workout_sessions s
-            join workout_plans p on p.id = s.plan_id
-            where s.id = session_id and owns_member(p.member_id))
-  ) with check (
+create policy session_exercises_select on session_exercises
+  for select using (
     exists (select 1 from workout_sessions s
             join workout_plans p on p.id = s.plan_id
             where s.id = session_id and owns_member(p.member_id))
@@ -104,9 +97,9 @@ create policy session_exercises_all on session_exercises
 create policy set_logs_select on set_logs
   for select using (owns_member(member_id));
 
--- Only the member logs their own sets; a trainer may read but never invent them.
-create policy set_logs_write_self on set_logs
-  for all using (member_id = auth.uid()) with check (member_id = auth.uid());
+-- Runs and sets are written only through patch 015's checked operations.
+create policy workout_runs_select on workout_runs
+  for select using (owns_member(member_id));
 
 -- nutrition_plans -----------------------------------------------------------
 create policy nutrition_plans_select on nutrition_plans
@@ -147,26 +140,25 @@ create policy availability_write_own on availability
 create policy appointments_select on appointments
   for select using (member_id = auth.uid() or pro_id = auth.uid());
 
-create policy appointments_insert on appointments
-  for insert with check (member_id = auth.uid() or pro_id = auth.uid());
-
-create policy appointments_update on appointments
-  for update using (member_id = auth.uid() or pro_id = auth.uid())
-  with check (member_id = auth.uid() or pro_id = auth.uid());
-
 -- threads -------------------------------------------------------------------
 create policy threads_select on threads
-  for select using (member_id = auth.uid() or pro_id = auth.uid());
-
-create policy threads_insert on threads
-  for insert with check (member_id = auth.uid() or pro_id = auth.uid());
+  for select using (
+    (member_id = auth.uid() or pro_id = auth.uid())
+    and exists (select 1 from profiles member
+                where member.id = member_id
+                  and member.role = 'member'
+                  and member.assigned_pro_id = pro_id)
+  );
 
 -- messages ------------------------------------------------------------------
 create policy messages_select on messages
   for select using (
     exists (select 1 from threads t
+            join profiles member on member.id = t.member_id
             where t.id = thread_id
-              and (t.member_id = auth.uid() or t.pro_id = auth.uid()))
+              and (t.member_id = auth.uid() or t.pro_id = auth.uid())
+              and member.role = 'member'
+              and member.assigned_pro_id = t.pro_id)
   );
 
 -- You may only send as yourself, and only into a thread you belong to.
@@ -174,8 +166,11 @@ create policy messages_insert on messages
   for insert with check (
     sender_id = auth.uid()
     and exists (select 1 from threads t
+                join profiles member on member.id = t.member_id
                 where t.id = thread_id
-                  and (t.member_id = auth.uid() or t.pro_id = auth.uid()))
+                  and (t.member_id = auth.uid() or t.pro_id = auth.uid())
+                  and member.role = 'member'
+                  and member.assigned_pro_id = t.pro_id)
   );
 
 -- Marking a message read is the only UPDATE the app makes.
@@ -190,30 +185,39 @@ create policy messages_insert on messages
 -- fresh install still needs that patch for it.
 create policy messages_update_read on messages
   for update using (
-    exists (select 1 from threads t
-            where t.id = thread_id
-              and (t.member_id = auth.uid() or t.pro_id = auth.uid()))
+    sender_id <> auth.uid()
+    and exists (select 1 from threads t
+                join profiles member on member.id = t.member_id
+                where t.id = thread_id
+                  and (t.member_id = auth.uid() or t.pro_id = auth.uid())
+                  and member.role = 'member'
+                  and member.assigned_pro_id = t.pro_id)
   ) with check (
-    exists (select 1 from threads t
-            where t.id = thread_id
-              and (t.member_id = auth.uid() or t.pro_id = auth.uid()))
+    sender_id <> auth.uid()
     and read_at is not null
+    and exists (select 1 from threads t
+                join profiles member on member.id = t.member_id
+                where t.id = thread_id
+                  and (t.member_id = auth.uid() or t.pro_id = auth.uid())
+                  and member.role = 'member'
+                  and member.assigned_pro_id = t.pro_id)
   );
 
 -- rewards -------------------------------------------------------------------
 create policy rewards_select on rewards
   for select using (owns_member(member_id));
 
-create policy rewards_insert_self on rewards
-  for insert with check (member_id = auth.uid());
-
 -- checkins ------------------------------------------------------------------
 create policy checkins_select on checkins
   for select using (owns_member(member_id) or scanned_by_id = auth.uid());
 
--- Only a professional records a check-in, and only by scanning.
-create policy checkins_insert_pro on checkins
-  for insert with check (is_professional() and scanned_by_id = auth.uid());
+-- Badge tokens can be minted and read only by their member. Redemption uses
+-- patch 015's checked function; there is no direct update or delete policy.
+create policy checkin_tokens_insert_self on checkin_tokens
+  for insert with check (member_id = auth.uid());
+
+create policy checkin_tokens_select_self on checkin_tokens
+  for select using (member_id = auth.uid());
 
 -- body_metrics ---------------------------------------------------------------
 -- The professional measures; the member reads.  A member editing their own
@@ -221,10 +225,9 @@ create policy checkins_insert_pro on checkins
 create policy body_metrics_select on body_metrics
   for select using (owns_member(member_id));
 
-create policy body_metrics_write_pro on body_metrics
-  for all using (is_professional() and owns_member(member_id))
-  with check (is_professional() and owns_member(member_id));
-
 -- push_subscriptions --------------------------------------------------------
 create policy push_subscriptions_all on push_subscriptions
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- app_config deliberately has no policy. RLS therefore denies every browser
+-- role, and patch 010 also removes its table grants.

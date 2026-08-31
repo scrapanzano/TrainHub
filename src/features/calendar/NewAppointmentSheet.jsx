@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Alert, Button, Drawer, MenuItem, Stack, TextField, Typography,
 } from '@mui/material'
@@ -6,7 +6,8 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { fetchClients } from '../../data/clients.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
-import { slotToISO } from '../../lib/format.js'
+import { slotToISO, todayISO } from '../../lib/format.js'
+import { createUuid } from '../../lib/uuid.js'
 import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import { useAuth } from '../auth/useAuth.js'
 
@@ -27,28 +28,13 @@ export default function NewAppointmentSheet({ open, onClose, defaultDayISO }) {
   const [time, setTime] = useState('09:00')
   const [minutes, setMinutes] = useState(60)
   const [notes, setNotes] = useState('')
+  const [now, setNow] = useState(() => Date.now())
 
-  // The sheet stays mounted -- only `open` toggles the Drawer -- so the
-  // initialisers above run once, at first mount, and never again.  Left alone,
-  // the day would go stale the moment the calendar's selection moves, and every
-  // field would carry the last booking into the next.  Correcting during render
-  // rather than in an effect is deliberate, same as `useLiveSession`: on the
-  // render where `open` flips, an effect fires in the same commit with stale
-  // state.  This is React's documented "adjust state when a prop changes"
-  // pattern -- state rather than a ref, because reading a ref during render is
-  // forbidden.
-  const [wasOpen, setWasOpen] = useState(open)
-  if (open !== wasOpen) {
-    setWasOpen(open)
-    if (open) {
-      setMemberId('')
-      setKind('training')
-      setDay(defaultDayISO)
-      setTime('09:00')
-      setMinutes(60)
-      setNotes('')
-    }
-  }
+  useEffect(() => {
+    if (!open) return
+    const id = setInterval(() => setNow(Date.now()), 30_000)
+    return () => clearInterval(id)
+  }, [open])
 
   const clients = useQuery({
     queryKey: queryKeys.clients(user.id),
@@ -59,17 +45,23 @@ export default function NewAppointmentSheet({ open, onClose, defaultDayISO }) {
 
   const create = useMutation({ mutationKey: mutationKeys.createAppointment })
   const savedOffline = create.isPending && create.isPaused
+  const selectedStart = slotToISO(day, time, Number(minutes)).startsAt
+  const isPast = day < todayISO() || new Date(selectedStart).getTime() <= now
 
   const onSubmit = (event) => {
     event.preventDefault()
     const { startsAt, endsAt } = slotToISO(day, time, Number(minutes))
+
+    // A long-open form must not turn a formerly future slot into a past
+    // appointment. The disabled state is helpful UI; this is the final guard.
+    if (new Date(startsAt).getTime() <= Date.now()) return
 
     create.mutate(
       {
         // Generated here, not by the database: this write can pause offline and
         // replay on reconnect, and the id is what makes the replay a no-op
         // instead of a second booking.
-        id: crypto.randomUUID(),
+        id: createUuid(),
         memberId,
         proId: user.id,
         kind,
@@ -103,6 +95,11 @@ export default function NewAppointmentSheet({ open, onClose, defaultDayISO }) {
         {clients.isError && clients.data === undefined ? (
           <ErrorState error={clients.error} onRetry={clients.refetch} />
         ) : null}
+        {clients.data?.length === 0 ? (
+          <Alert severity="info">
+            No clients are assigned to you yet. Add an appointment after a client is assigned.
+          </Alert>
+        ) : null}
 
         {clients.data ? (
           <TextField
@@ -135,7 +132,7 @@ export default function NewAppointmentSheet({ open, onClose, defaultDayISO }) {
           ))}
         </TextField>
 
-        <Stack direction="row" spacing={1}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
           {/* Native date and time inputs: the platform already ships a correct,
               accessible, locale-aware picker on every device this runs on. */}
           <TextField
@@ -145,7 +142,7 @@ export default function NewAppointmentSheet({ open, onClose, defaultDayISO }) {
             onChange={(event) => setDay(event.target.value)}
             required
             sx={{ flexGrow: 1 }}
-            slotProps={{ inputLabel: { shrink: true } }}
+            slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: todayISO() } }}
           />
           <TextField
             label="Start"
@@ -153,7 +150,7 @@ export default function NewAppointmentSheet({ open, onClose, defaultDayISO }) {
             value={time}
             onChange={(event) => setTime(event.target.value)}
             required
-            sx={{ width: 130 }}
+            sx={{ width: { xs: '100%', sm: 130 } }}
             slotProps={{ inputLabel: { shrink: true } }}
           />
         </Stack>
@@ -181,6 +178,8 @@ export default function NewAppointmentSheet({ open, onClose, defaultDayISO }) {
           fullWidth
         />
 
+        {isPast ? <Alert severity="warning">Choose a future date and time.</Alert> : null}
+
         {savedOffline ? (
           <Alert severity="info">
             You are offline. This booking is saved on your device and will sync when you reconnect.
@@ -197,7 +196,7 @@ export default function NewAppointmentSheet({ open, onClose, defaultDayISO }) {
           variant="contained"
           size="large"
           fullWidth
-          disabled={!memberId || create.isPending}
+          disabled={!memberId || create.isPending || isPast}
         >
           {savedOffline ? 'Saved offline' : create.isPending ? 'Booking…' : 'Book appointment'}
         </Button>

@@ -63,13 +63,26 @@ export default function LiveSessionScreen() {
 
   const live = useLiveSession(run, user.id)
   const end = useMutation({ mutationKey: mutationKeys.endRun })
-  const award = useMutation({ mutationKey: mutationKeys.awardReward })
 
-  if (isPending || openRun.isPending) return <LoadingState />
+  if (
+    isPending
+    || openRun.isPending
+    || priorRuns.isPending
+    || (run && logs.isPending)
+  ) return <LoadingState />
   // `data === undefined` means it never loaded.  With `offlineFirst` a refetch
   // can fail while the persisted cache still holds the session, and an error
   // screen instead of the workout is the wrong call in a gym basement.
   if (isError && data === undefined) return <ErrorState error={error} onRetry={refetch} />
+  if (openRun.isError && openRun.data === undefined) {
+    return <ErrorState error={openRun.error} onRetry={openRun.refetch} />
+  }
+  if (priorRuns.isError && priorRuns.data === undefined) {
+    return <ErrorState error={priorRuns.error} onRetry={priorRuns.refetch} />
+  }
+  if (run && logs.isError && logs.data === undefined) {
+    return <ErrorState error={logs.error} onRetry={logs.refetch} />
+  }
 
   // No run open for this session: there is nothing live to show.  Sending them
   // to the session screen is better than an empty clock, because that is where
@@ -102,14 +115,7 @@ export default function LiveSessionScreen() {
   )
   const points = alreadyPaid ? 0 : pointsForRun(exercises, counts)
 
-  /**
-   * Close the run and leave.
-   *
-   * The reward code is the RUN's id, not the session's.  `rewards` carries
-   * `unique (member_id, code)` and `awardReward` ignores duplicates, so a
-   * per-session code silently awarded nothing the second week the member
-   * trained the same session -- invisible until sessions began repeating.
-   */
+  /** Close the run and leave. Patch 015 creates any reward atomically. */
   const finish = (outcome) => {
     // Before the write, because the write's `onMutate` runs synchronously and
     // re-renders this screen with no open run.
@@ -127,19 +133,6 @@ export default function LiveSessionScreen() {
       pct,
     })
 
-    // Nothing earned, nothing minted: a zero-point row would clutter the
-    // rewards list with sessions the member walked out of.
-    if (outcome !== 'abandoned' && points > 0) {
-      award.mutate({
-        memberId: user.id,
-        code: `workout:${run.id}`,
-        // The rewards list is a history, so the title must not call a session
-        // stopped at 40% "completed".
-        title: outcome === 'completed' ? `Completed ${session.name}` : `${session.name} — ${pct}%`,
-        points,
-      })
-    }
-
     // Navigated now rather than in `onSuccess`: offline the write pauses and
     // `onSuccess` never fires, which would strand the member on a workout they
     // have already ended.
@@ -153,7 +146,7 @@ export default function LiveSessionScreen() {
     <Stack spacing={3} sx={{ p: 2 }}>
       <Card sx={{ position: 'sticky', top: 0, zIndex: 1 }}>
         <CardContent>
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             <IconButton
               component={Link}
               to={`/m/workout/session/${sessionId}`}
@@ -175,7 +168,7 @@ export default function LiveSessionScreen() {
 
             {/* The overflow menu is gone while a run is open: editing the
                 session you are standing inside is not on offer. */}
-            <Stack direction="row" spacing={0.5} alignItems="center">
+            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
               <IconButton
                 onClick={live.paused ? live.resume : live.pause}
                 aria-label={live.paused ? 'Resume session' : 'Pause session'}
@@ -193,7 +186,7 @@ export default function LiveSessionScreen() {
             </Stack>
           </Stack>
 
-          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ justifyContent: 'flex-end' }}>
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', justifyContent: 'flex-end' }}>
             <AccessTimeIcon fontSize="small" color="primary" aria-hidden />
             {/* No aria-label: Typography renders a <p>, whose `generic` role
                 prohibits name-from-author, so the label is dropped by several
@@ -229,7 +222,7 @@ export default function LiveSessionScreen() {
                 >
                   <CardActionArea component={Link} to={`/m/workout/exercise/${item.id}`}>
                     <CardContent>
-                      <Stack direction="row" spacing={2} alignItems="center">
+                      <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
                         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                           <Typography variant="h3" noWrap>
                             {item.exercise.name}

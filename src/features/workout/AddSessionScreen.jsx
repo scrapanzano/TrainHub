@@ -4,9 +4,11 @@ import { useNavigate } from 'react-router'
 import { fetchActivePlan, fetchExerciseCatalogue } from '../../data/workouts.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
+import { createUuid } from '../../lib/uuid.js'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import SessionForm from './SessionForm.jsx'
 import { useAuth } from '../auth/useAuth.js'
+import { buildSessionExercisePayloads } from './contracts.js'
 
 /**
  * Add one session to the plan that already exists.
@@ -54,6 +56,7 @@ export default function AddSessionScreen() {
   const onSubmit = ({ name, exercises }) => {
     create.mutate(
       {
+        id: createUuid(),
         planId: plan.data.plan.id,
         name,
         // One past the highest position in use, not `length + 1`.  The two agree
@@ -61,7 +64,7 @@ export default function AddSessionScreen() {
         // position)` rejects a reused one -- so the moment a session is deleted,
         // counting would land on a position still occupied.
         position: Math.max(0, ...plan.data.sessions.map((session) => session.position)) + 1,
-        exercises,
+        exercises: buildSessionExercisePayloads(exercises),
       },
       { onSuccess: () => navigate('/m/workout', { replace: true }) },
     )

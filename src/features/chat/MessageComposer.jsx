@@ -42,10 +42,10 @@ export default function MessageComposer({ onSend, paused, error }) {
           value={body}
           onChange={(event) => setBody(event.target.value)}
           placeholder="Write a message…"
-          aria-label="Message"
           fullWidth
           multiline
           maxRows={4}
+          slotProps={{ htmlInput: { 'aria-label': 'Message' } }}
         />
         {/* Not disabled while pending: offline a mutation stays pending until it
             reconnects, and blocking the second message would be the same trap

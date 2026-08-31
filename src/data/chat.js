@@ -10,16 +10,15 @@ const MESSAGE_COLUMNS = 'id, thread_id, sender_id, body, read_at, created_at'
  * The member's thread with their assigned professional, creating it on first
  * use.
  *
- * `threads` carries `unique (member_id, pro_id)`, so the upsert is idempotent:
- * two devices opening the chat at once land on the same row rather than racing
- * to create two.  `ignoreDuplicates` is deliberately NOT set -- it would return
- * no row on the second call, and the caller needs the id every time.
+ * The secure operation validates the current assignment and returns the same
+ * row when two devices open the pair concurrently.
  */
 export async function ensureThread({ memberId, proId }) {
   const { data, error } = await supabase
-    .from('threads')
-    .upsert({ member_id: memberId, pro_id: proId }, { onConflict: 'member_id,pro_id' })
-    .select('id')
+    .rpc('ensure_assigned_thread', {
+      p_member_id: memberId,
+      p_pro_id: proId,
+    })
     .single()
 
   if (error) throw error
@@ -43,6 +42,23 @@ export async function fetchMemberThread(memberId, proId) {
     .select('id, pro:profiles!threads_pro_id_fkey ( id, full_name, avatar_url )')
     .eq('member_id', memberId)
     .eq('pro_id', proId)
+    .maybeSingle()
+    .retry(navigator.onLine)
+
+  if (error) throw error
+  return data
+}
+
+/** One thread with both participants, used to title the conversation. */
+export async function fetchThread(threadId) {
+  const { data, error } = await supabase
+    .from('threads')
+    .select(`
+      id,
+      member:profiles!threads_member_id_fkey ( id, full_name, avatar_url ),
+      pro:profiles!threads_pro_id_fkey ( id, full_name, avatar_url )
+    `)
+    .eq('id', threadId)
     .maybeSingle()
     .retry(navigator.onLine)
 
@@ -79,7 +95,7 @@ export async function fetchThreads(proId) {
       // PostgREST does not order embedded rows, so sort here rather than
       // trusting insertion order.
       const ordered = [...(messages ?? [])].sort((a, b) =>
-        a.created_at < b.created_at ? -1 : 1,
+        a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id),
       )
       return {
         ...thread,
@@ -92,7 +108,7 @@ export async function fetchThreads(proId) {
     .sort((a, b) => {
       const at = a.lastMessage?.created_at ?? ''
       const bt = b.lastMessage?.created_at ?? ''
-      return at < bt ? 1 : -1
+      return bt.localeCompare(at) || a.id.localeCompare(b.id)
     })
 }
 
@@ -159,14 +175,23 @@ export async function sendMessage({ id, threadId, senderId, body }) {
  * Mark everything the other party sent in this thread as read.
  *
  * Idempotent by construction: rows already carrying a `read_at` are excluded by
- * the filter, so a replay updates nothing.
+ * the filter, so a replay updates nothing. `readAt` and `throughCreatedAt` are
+ * supplied by the caller and therefore remain stable if the mutation pauses
+ * offline. The boundary is the newest row actually rendered, not the device's
+ * current clock: a phone set five minutes ahead must not mark a later message
+ * as read when an offline receipt eventually replays.
  */
-export async function markThreadRead({ threadId, readerId }) {
+export async function markThreadRead({ threadId, readerId, readAt, throughCreatedAt }) {
   const { error } = await supabase
     .from('messages')
-    .update({ read_at: new Date().toISOString() })
+    .update({ read_at: readAt })
     .eq('thread_id', threadId)
     .neq('sender_id', readerId)
+    // A receipt queued offline may replay after newer messages arrive. Freeze
+    // the visible boundary as well as the timestamp so those later messages
+    // remain unread until the user actually opens the thread again.
+    // Fall back to `readAt` for a receipt persisted by an older app build.
+    .lte('created_at', throughCreatedAt ?? readAt)
     .is('read_at', null)
 
   if (error) throw error

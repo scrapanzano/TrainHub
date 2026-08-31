@@ -30,7 +30,7 @@ export default function LiveSessionBar({ sessionName, sessionId, elapsed, paused
         borderColor: 'primary.dark',
       }}
     >
-      <Stack direction="row" spacing={1} alignItems="center">
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
         {/* The dot pulses only while the clock runs, so "paused" is carried by
             motion as well as by the word next to it. */}
         <FiberManualRecordIcon

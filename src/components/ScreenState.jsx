@@ -49,10 +49,16 @@ export function ErrorState({ error, onRetry }) {
  * `action` is optional and sits below the copy: an empty state that can offer
  * the way out of itself should, and one that cannot stays exactly as it was.
  */
-export function EmptyState({ title, description, action = null }) {
+export function EmptyState({
+  title,
+  description,
+  action = null,
+  minHeight = 240,
+  padding = 4,
+}) {
   return (
-    <Box sx={centred}>
-      <Stack spacing={1} alignItems="center">
+    <Box sx={{ ...centred, minHeight, p: padding }}>
+      <Stack spacing={1} sx={{ alignItems: 'center' }}>
         <Typography variant="h3">{title}</Typography>
         {description ? <Typography color="text.secondary">{description}</Typography> : null}
       </Stack>

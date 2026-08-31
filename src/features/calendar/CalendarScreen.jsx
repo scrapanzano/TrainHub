@@ -66,42 +66,50 @@ export default function CalendarScreen() {
 
   return (
     <Stack spacing={2} sx={{ p: 2 }}>
-      <Stack direction="row" spacing={1} alignItems="center">
-        <Typography variant="h1" sx={{ minWidth: 0 }} noWrap>
-          {monthLabel(year, month)}
-        </Typography>
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        spacing={{ xs: 0.5, sm: 1 }}
+        sx={{ alignItems: { xs: 'stretch', sm: 'center' } }}
+      >
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
+          <Typography variant="h1" sx={{ minWidth: 0 }} noWrap>
+            {monthLabel(year, month)}
+          </Typography>
 
-        <IconButton
-          onClick={() => setExpanded((current) => !current)}
-          aria-label={expanded ? 'Show the week' : 'Show the whole month'}
-          aria-expanded={expanded}
-        >
-          {expanded ? <ExpandLessIcon color="primary" /> : <ExpandMoreIcon color="primary" />}
-        </IconButton>
+          <IconButton
+            onClick={() => setExpanded((current) => !current)}
+            aria-label={expanded ? 'Show the week' : 'Show the whole month'}
+            aria-expanded={expanded}
+          >
+            {expanded ? <ExpandLessIcon color="primary" /> : <ExpandMoreIcon color="primary" />}
+          </IconButton>
 
-        {/* Grouped with the view controls above rather than the `+` Fab: this
-            opens weekly availability settings, it does not book anything. */}
-        <IconButton component={Link} to="/p/calendar/availability" aria-label="Weekly availability">
-          <ScheduleIcon color="primary" />
-        </IconButton>
+          {/* Grouped with the view controls above rather than the `+` Fab: this
+              opens weekly availability settings, it does not book anything. */}
+          <IconButton component={Link} to="/p/calendar/availability" aria-label="Weekly availability">
+            <ScheduleIcon color="primary" />
+          </IconButton>
+        </Stack>
 
         <Box sx={{ flexGrow: 1 }} />
 
-        <IconButton onClick={() => step(-1)} aria-label="Previous month">
-          <ChevronLeftIcon color="primary" />
-        </IconButton>
-        <IconButton onClick={() => step(1)} aria-label="Next month">
-          <ChevronRightIcon color="primary" />
-        </IconButton>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'flex-end' }}>
+          <IconButton onClick={() => step(-1)} aria-label="Previous month">
+            <ChevronLeftIcon color="primary" />
+          </IconButton>
+          <IconButton onClick={() => step(1)} aria-label="Next month">
+            <ChevronRightIcon color="primary" />
+          </IconButton>
 
-        <Fab
-          color="primary"
-          size="small"
-          aria-label="New appointment"
-          onClick={() => setSearchParams({ new: '1' })}
-        >
-          <AddIcon />
-        </Fab>
+          <Fab
+            color="primary"
+            size="small"
+            aria-label="New appointment"
+            onClick={() => setSearchParams({ new: '1' })}
+          >
+            <AddIcon />
+          </Fab>
+        </Stack>
       </Stack>
 
       {expanded ? (
@@ -115,7 +123,7 @@ export default function CalendarScreen() {
         />
       )}
 
-      <Stack direction="row" spacing={1} alignItems="baseline">
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline' }}>
         <Typography variant="h2">{selected === todayISO() ? 'Today' : formatDate(selected)}</Typography>
         {appointments.data ? (
           <Typography variant="h3" component="span" color="text.secondary">
@@ -145,13 +153,17 @@ export default function CalendarScreen() {
         ))}
       </Stack>
 
-      <NewAppointmentSheet
-        open={searchParams.get('new') === '1'}
-        // `replace` so closing the sheet does not leave a history entry that
-        // Back would use to reopen it.
-        onClose={() => setSearchParams({}, { replace: true })}
-        defaultDayISO={selected}
-      />
+      {/* A new form instance takes the current selected day as its initial
+          value and cannot retain fields from an earlier booking. */}
+      {searchParams.get('new') === '1' ? (
+        <NewAppointmentSheet
+          open
+          // `replace` so closing the sheet does not leave a history entry that
+          // Back would use to reopen it.
+          onClose={() => setSearchParams({}, { replace: true })}
+          defaultDayISO={selected}
+        />
+      ) : null}
     </Stack>
   )
 }

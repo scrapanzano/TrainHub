@@ -2,12 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Box, Button, Card, CardContent, Stack, TextField, Typography } from '@mui/material'
 import jsQR from 'jsqr'
 import { redeemCheckinToken } from '../../data/checkin.js'
-
-const MESSAGES = {
-  unknown: 'That badge is not one of ours.',
-  used: 'That badge has already been used. Ask for a fresh one.',
-  expired: 'That badge has expired. Ask the member to reopen the screen.',
-}
+import { scanResultView } from './scanResult.js'
 
 export default function ScannerScreen() {
   const videoRef = useRef(null)
@@ -20,6 +15,7 @@ export default function ScannerScreen() {
   // the badge sits in frame during an outage.
   const cooldownTimer = useRef(null)
   const [result, setResult] = useState(null)
+  const [redeeming, setRedeeming] = useState(false)
   const [cameraError, setCameraError] = useState(null)
   const [manual, setManual] = useState('')
 
@@ -30,6 +26,8 @@ export default function ScannerScreen() {
       cooldownTimer.current = null
     }
     lastToken.current = token
+    setResult(null)
+    setRedeeming(true)
     try {
       setResult(await redeemCheckinToken(token))
     } catch (cause) {
@@ -38,6 +36,8 @@ export default function ScannerScreen() {
         lastToken.current = null
         cooldownTimer.current = null
       }, 3000)
+    } finally {
+      setRedeeming(false)
     }
   }, [])
 
@@ -99,6 +99,8 @@ export default function ScannerScreen() {
     }
   }, [redeem])
 
+  const resultView = result ? scanResultView(result) : null
+
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
       <Typography variant="h1">Scan Access Badge</Typography>
@@ -130,7 +132,9 @@ export default function ScannerScreen() {
       {/* Never rendered: it is the frame buffer jsQR reads. */}
       <Box component="canvas" ref={canvasRef} sx={{ display: 'none' }} />
 
-      {result?.status === 'ok' ? (
+      {redeeming ? <Alert severity="info">Checking badge...</Alert> : null}
+
+      {resultView?.accepted ? (
         <Card sx={{ bgcolor: 'success.main', color: 'common.white' }}>
           <CardContent>
             <Typography variant="h3">{result.full_name}</Typography>
@@ -139,8 +143,11 @@ export default function ScannerScreen() {
         </Card>
       ) : null}
 
-      {result && result.status !== 'ok' ? (
-        <Alert severity="error">{MESSAGES[result.status] ?? result.message}</Alert>
+      {resultView && !resultView.accepted ? (
+        <Alert severity="error">
+          <Typography component="span" fontWeight={700}>{resultView.title}.</Typography>{' '}
+          {resultView.message}
+        </Alert>
       ) : null}
 
       <Stack
@@ -153,6 +160,10 @@ export default function ScannerScreen() {
           const token = manual.trim().toUpperCase().replace(/\s+/g, '')
           if (token === '') return
           setManual('')
+          // Camera frames are deduplicated automatically, but pressing the
+          // manual button again is an explicit request to check the token's
+          // current server state (for example, to show `already used`).
+          lastToken.current = null
           redeem(token)
         }}
       >
@@ -166,7 +177,7 @@ export default function ScannerScreen() {
           label="Badge code"
           fullWidth
         />
-        <Button type="submit" variant="outlined" disabled={manual.trim() === ''}>
+        <Button type="submit" variant="outlined" disabled={redeeming || manual.trim() === ''}>
           Check in
         </Button>
       </Stack>

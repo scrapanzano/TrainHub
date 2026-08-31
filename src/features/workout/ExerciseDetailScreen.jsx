@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  Alert, Box, Button, Card, CardContent, Chip, IconButton, Stack, TextField, Typography,
+  Alert, Box, Button, Card, CardContent, Chip, Stack, TextField, Typography,
 } from '@mui/material'
-import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -11,9 +10,11 @@ import { fetchSessionExercise } from '../../data/workouts.js'
 import { fetchOpenRun, fetchRunLogs } from '../../data/runs.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
+import { createUuid } from '../../lib/uuid.js'
 import { setProgress } from './status.js'
 import RestTimer from './RestTimer.jsx'
 import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
+import PageHeader from '../../components/PageHeader.jsx'
 import { useAuth } from '../auth/useAuth.js'
 
 /** One prescription line, as a definition list so the pairing survives for a
@@ -24,8 +25,15 @@ function Fact({ label, value }) {
   return (
     <Stack
       direction="row"
-      justifyContent="space-between"
-      sx={{ py: 1, borderBottom: 1, borderColor: 'divider', '&:last-of-type': { borderBottom: 0 } }}
+      sx={{
+        py: 1,
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        columnGap: 2,
+        borderBottom: 1,
+        borderColor: 'divider',
+        '&:last-of-type': { borderBottom: 0 },
+      }}
     >
       <Typography component="dt" color="text.secondary">{label}</Typography>
       <Typography component="dd" sx={{ m: 0, fontWeight: 600 }}>{value}</Typography>
@@ -136,11 +144,11 @@ function LogPanel({ item, runId, sessionId, logs, memberId }) {
     submitted.current = true
 
     // Both generated in the handler: `react-hooks/purity` forbids
-    // `crypto.randomUUID()` and `new Date()` in a render body.  The id is the
+    // `createUuid()` and `new Date()` in a render body.  The id is the
     // idempotency key a replayed write upserts on, and the timestamp is the
     // caller's because this write may sit paused for hours -- the database's
     // `now()` would record an 18:00 set as happening at 23:00.
-    const id = crypto.randomUUID()
+    const id = createUuid()
     const performedAt = new Date().toISOString()
     const parsedWeight = weight === '' ? null : Number(weight)
 
@@ -234,11 +242,17 @@ export default function ExerciseDetailScreen() {
     enabled: Boolean(run?.id),
   })
 
-  if (isPending) return <LoadingState />
+  if (isPending || openRun.isPending || (run && logs.isPending)) return <LoadingState />
   // `data === undefined` means it never loaded.  With `offlineFirst` a refetch
   // can fail while the persisted cache still holds the answer, and an error
   // screen instead of that answer is the wrong call in a gym basement.
   if (isError && data === undefined) return <ErrorState error={error} onRetry={refetch} />
+  if (openRun.isError && openRun.data === undefined) {
+    return <ErrorState error={openRun.error} onRetry={openRun.refetch} />
+  }
+  if (run && logs.isError && logs.data === undefined) {
+    return <ErrorState error={logs.error} onRetry={logs.refetch} />
+  }
 
   const { exercise, session } = data
   const mineCount = (logs.data ?? []).filter(
@@ -253,26 +267,18 @@ export default function ExerciseDetailScreen() {
           pinned to the top of this screen is the same information twice.  The
           back link does change though: mid-workout it belongs to the live list,
           not to the session's read-only view. */}
-      <Stack direction="row" spacing={1} alignItems="center">
-        <IconButton
-          component={Link}
-          to={run ? `/m/workout/session/${session.id}/live` : `/m/workout/session/${session.id}`}
-          aria-label={`Back to ${session.name}`}
-          edge="start"
-        >
-          <ArrowBackIosNewIcon fontSize="small" />
-        </IconButton>
-        <Typography variant="body2" color="text.secondary" noWrap>
-          {session.name}
-        </Typography>
-      </Stack>
+      <PageHeader
+        title={exercise.name}
+        subtitle={session.name}
+        backTo={run ? `/m/workout/session/${session.id}/live` : `/m/workout/session/${session.id}`}
+        backLabel={run ? 'Back to live session' : `Back to ${session.name}`}
+      />
 
       <Box>
-        <Typography variant="h1" sx={{ mb: 2 }}>{exercise.name}</Typography>
         <ExerciseArt muscleGroup={exercise.muscle_group} />
       </Box>
 
-      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+      <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
         <Chip label={exercise.muscle_group} />
         {exercise.equipment ? <Chip label={exercise.equipment} variant="outlined" /> : null}
         {run ? (
@@ -321,7 +327,7 @@ export default function ExerciseDetailScreen() {
                         key={log.id}
                         component="li"
                         direction="row"
-                        justifyContent="space-between"
+                        sx={{ justifyContent: 'space-between', alignItems: 'baseline', columnGap: 2 }}
                       >
                         <Typography color="text.secondary">Set {log.set_number}</Typography>
                         <Typography sx={{ fontWeight: 600 }}>

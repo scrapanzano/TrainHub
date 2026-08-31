@@ -53,7 +53,7 @@ export async function fetchRun(runId) {
     .retry(navigator.onLine)
 
   if (error) throw error
-  return data
+  return data ? { ...data, server_confirmed: true } : data
 }
 
 /**
@@ -66,7 +66,7 @@ export async function fetchRun(runId) {
 export async function fetchRunsSince(memberId, sinceISO) {
   const { data, error } = await supabase
     .from('workout_runs')
-    .select(RUN_COLUMNS)
+    .select(`${RUN_COLUMNS}, session:workout_sessions ( id, name, plan_id )`)
     .eq('member_id', memberId)
     // A bare 'YYYY-MM-DD' compares correctly against a timestamptz: Postgres
     // casts it to midnight of that day in the connection's zone.
@@ -107,32 +107,30 @@ export async function fetchRunLogs(runId) {
  * because this write can sit paused for hours -- the database's clock at insert
  * time would record an 18:00 workout as starting at 23:00.
  *
- * `ignoreDuplicates` is correct here because this function is insert-only.  The
- * three below are the edit path and must not use it, or every correction to a
- * run would be a silent no-op.
+ * Patch 015 derives the member from `auth.uid()`, validates the session belongs
+ * to that member and treats an exact retry as success.
  */
-export async function startRun({ id, sessionId, memberId, startedAt }) {
+export async function startRun({ id, sessionId, startedAt }) {
   const { data, error } = await supabase
-    .from('workout_runs')
-    .upsert(
-      { id, session_id: sessionId, member_id: memberId, started_at: startedAt },
-      { onConflict: 'id', ignoreDuplicates: true },
-    )
-    .select(RUN_COLUMNS)
-    .maybeSingle()
+    .rpc('start_workout_run_secure', {
+      p_run_id: id,
+      p_session_id: sessionId,
+      p_started_at: startedAt,
+    })
+    .single()
 
   if (error) throw error
-  // `ignoreDuplicates` returns no row on a replay.  That is success, not a gap.
   return data
 }
 
 /** Freeze the clock. */
-export async function pauseRun({ id, pausedAt }) {
+export async function pauseRun({ id, expectedPausedTotalMs, pausedAt }) {
   const { data, error } = await supabase
-    .from('workout_runs')
-    .update({ paused_at: pausedAt })
-    .eq('id', id)
-    .select(RUN_COLUMNS)
+    .rpc('pause_workout_run_secure', {
+      p_run_id: id,
+      p_expected_paused_total_ms: expectedPausedTotalMs,
+      p_paused_at: pausedAt,
+    })
     .single()
 
   if (error) throw error
@@ -142,16 +140,16 @@ export async function pauseRun({ id, pausedAt }) {
 /**
  * Restart the clock, crediting the paused stretch.
  *
- * The caller computes `pausedTotalMs` with `resumeTimer` from `timer.js`, which
- * clamps a backwards clock correction: a negative total is subtracted from
- * every later reading and would inflate the clock permanently rather than once.
+ * The caller sends the pause timestamp it observed and the resume timestamp.
+ * The database verifies the expected pause and computes the credited duration.
  */
-export async function resumeRun({ id, pausedTotalMs }) {
+export async function resumeRun({ id, expectedPausedAt, resumedAt }) {
   const { data, error } = await supabase
-    .from('workout_runs')
-    .update({ paused_at: null, paused_total_ms: pausedTotalMs })
-    .eq('id', id)
-    .select(RUN_COLUMNS)
+    .rpc('resume_workout_run_secure', {
+      p_run_id: id,
+      p_expected_paused_at: expectedPausedAt,
+      p_resumed_at: resumedAt,
+    })
     .single()
 
   if (error) throw error
@@ -165,27 +163,26 @@ export async function resumeRun({ id, pausedTotalMs }) {
  * what releases the partial unique index and lets the member start something
  * else, so it is never left null on a run the member has finished with.
  *
- * `pct` is stamped here rather than derived later, from the same ratio the
- * points come from, so the plan card and the reward cannot tell opposite
- * stories about the same workout.
+ * The database counts this run's valid sets, derives percentage and final
+ * outcome, and creates any reward in the same transaction.
  *
  * The note is NOT written here -- it is asked for afterwards, on the summary,
  * and has its own `saveRunNote`.  Sending it from here would mean a screen that
  * only knows what the member typed also re-sending the outcome.
  *
- * Idempotent by nature: closing an already-closed run writes the same values,
- * which is what makes it safe to replay after a reconnect.
+ * An exact close replay returns the existing row; a conflicting close is loud.
  */
-export async function endRun({ id, endedAt, outcome, pct }) {
+export async function endRun({ id, endedAt, outcome }) {
   const { data, error } = await supabase
-    .from('workout_runs')
-    .update({ ended_at: endedAt, outcome, pct: pct ?? null })
-    .eq('id', id)
-    .select(RUN_COLUMNS)
+    .rpc('close_workout_run_secure', {
+      p_run_id: id,
+      p_ended_at: endedAt,
+      p_outcome: outcome,
+    })
     .single()
 
   if (error) throw error
-  return data
+  return { ...data, server_confirmed: true }
 }
 
 /**
@@ -197,10 +194,10 @@ export async function endRun({ id, endedAt, outcome, pct }) {
  */
 export async function saveRunNote({ id, note }) {
   const { data, error } = await supabase
-    .from('workout_runs')
-    .update({ note: note || null })
-    .eq('id', id)
-    .select(RUN_COLUMNS)
+    .rpc('save_workout_run_note_secure', {
+      p_run_id: id,
+      p_note: note || null,
+    })
     .single()
 
   if (error) throw error

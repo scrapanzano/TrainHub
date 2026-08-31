@@ -49,6 +49,7 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
   })
 
   const run = openRun.data ?? null
+  const showLiveBar = Boolean(run) && !location.pathname.endsWith('/live')
   const runId = run?.id ?? null
   const runPaused = Boolean(run?.paused_at)
   const [now, setNow] = useState(() => Date.now())
@@ -91,7 +92,7 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
       >
         {/* This swaps in without a navigation, so nothing would otherwise tell
             a screen reader the screen changed. */}
-        <Stack role="alert" spacing={2} alignItems="center" sx={{ maxWidth: 320 }}>
+        <Stack role="alert" spacing={2} sx={{ alignItems: 'center', maxWidth: 320 }}>
           <Typography variant="h3">
             {offline ? 'You are offline' : 'Profile unavailable'}
           </Typography>
@@ -121,7 +122,14 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
   }
 
   return (
-    <Box sx={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
+    <Box
+      sx={{
+        minHeight: '100dvh',
+        display: 'flex',
+        flexDirection: 'column',
+        '--trainhub-bottom-shell-height': showLiveBar ? '120px' : '56px',
+      }}
+    >
       {/* Header and sync status pin as one block.  The banner is meant to be a
           persistent indicator; left in normal flow it scrolls away and is only
           visible at the top of the page. */}
@@ -129,6 +137,7 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
         <TopHeader
           profileHref={profileHref}
           notificationCount={unread.data ?? 0}
+          notificationHref={requiredRole === 'professional' ? '/p/chat' : '/m/trainer/chat'}
           scanHref={requiredRole === 'professional' ? '/p/scan' : undefined}
         />
         <OfflineBanner />
@@ -142,7 +151,7 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
           screen taller than the viewport -- which is most of them, and exactly
           when a member has wandered away from their workout. */}
       <Box sx={{ position: 'sticky', bottom: 0, zIndex: 'appBar' }}>
-        {run && !location.pathname.endsWith('/live') ? (
+        {showLiveBar ? (
           <LiveSessionBar
             sessionName={run.session?.name ?? 'Workout'}
             sessionId={run.session_id}

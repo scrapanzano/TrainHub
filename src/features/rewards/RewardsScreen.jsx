@@ -1,5 +1,5 @@
 import {
-  Box, Card, CardContent, Divider, LinearProgress, List, ListItem, ListItemText, Stack, Typography,
+  Box, Card, CardContent, LinearProgress, List, ListItem, ListItemText, Stack, Typography,
 } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { fetchRewards } from '../../data/rewards.js'
@@ -7,6 +7,7 @@ import { queryKeys } from '../../lib/queryKeys.js'
 import { POINTS, rewardProgress } from '../workout/summary.js'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import { useAuth } from '../auth/useAuth.js'
+import PageHeader from '../../components/PageHeader.jsx'
 
 // What the member can spend points on.  A catalogue, not user data, so it lives
 // in the client until there is a reason for it to live in Postgres.
@@ -32,7 +33,7 @@ export default function RewardsScreen() {
 
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
-      <Typography variant="h1">Rewards</Typography>
+      <PageHeader title="Rewards" backTo="/m/profile" backLabel="Back to profile" />
 
       <Card>
         <CardContent>
@@ -71,9 +72,7 @@ export default function RewardsScreen() {
           </Typography>
           <List disablePadding>
             {CATALOGUE.map((reward, index) => (
-              <Box key={reward.code}>
-                {index > 0 ? <Divider component="li" /> : null}
-                <ListItem disableGutters>
+              <ListItem key={reward.code} disableGutters divider={index > 0}>
                   <ListItemText
                     primary={reward.title}
                     secondary={
@@ -82,8 +81,7 @@ export default function RewardsScreen() {
                         : `${reward.points} points`
                     }
                   />
-                </ListItem>
-              </Box>
+              </ListItem>
             ))}
           </List>
         </CardContent>
@@ -97,21 +95,9 @@ export default function RewardsScreen() {
           <Stack spacing={0.5}>
             <Typography>
               <Box component="span" sx={{ color: 'primary.main', fontWeight: 700 }}>
-                +{POINTS.checkin} points
-              </Box>{' '}
-              for each gym check-in
-            </Typography>
-            <Typography>
-              <Box component="span" sx={{ color: 'primary.main', fontWeight: 700 }}>
                 +{POINTS.workout} points
               </Box>{' '}
-              for completing a workout
-            </Typography>
-            <Typography>
-              <Box component="span" sx={{ color: 'primary.main', fontWeight: 700 }}>
-                +{POINTS.referral} points
-              </Box>{' '}
-              for each friend referred
+              maximum for one workout, weighted by the prescribed sets completed
             </Typography>
           </Stack>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>

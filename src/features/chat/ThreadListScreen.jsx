@@ -45,9 +45,9 @@ export default function ThreadListScreen() {
         placeholder="Search…"
         // A placeholder is not an accessible name: it vanishes as soon as
         // anything is typed and some readers never announce it.
-        aria-label="Search conversations"
         fullWidth
         slotProps={{
+          htmlInput: { 'aria-label': 'Search conversations' },
           input: {
             startAdornment: (
               <InputAdornment position="start">
@@ -102,7 +102,7 @@ export default function ThreadListScreen() {
           <Card key={thread.id}>
             <CardActionArea component={Link} to={`/p/chat/${thread.id}`}>
               <CardContent>
-                <Stack direction="row" spacing={2} alignItems="center">
+                <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
                   <Badge badgeContent={thread.unreadCount} color="primary">
                     <Avatar src={thread.member?.avatar_url ?? undefined}>
                       {thread.member?.full_name?.[0] ?? '?'}

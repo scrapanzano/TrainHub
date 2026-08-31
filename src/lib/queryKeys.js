@@ -24,10 +24,10 @@ export const queryKeys = {
   nutritionPlan: (memberId) => ['nutritionPlan', memberId],
   availability: (proId) => ['availability', proId],
   bodyMetrics: (memberId) => ['bodyMetrics', memberId],
-  clientTraining: (memberId) => ['clientTraining', memberId],
   // Keyed on the pair: `threads` is unique per (member, pro), so a member who
   // switches professional has one thread per professional, not one thread.
   memberThread: (memberId, proId) => ['chat', 'memberThread', memberId, proId],
+  thread: (threadId) => ['chat', 'thread', threadId],
   threads: (proId) => ['chat', 'threads', proId],
   threadMessages: (threadId) => ['chat', 'messages', threadId],
   unreadCount: (userId) => ['chat', 'unread', userId],
@@ -58,7 +58,6 @@ export const queryPrefixes = {
   nutritionPlan: ['nutritionPlan'],
   availability: ['availability'],
   bodyMetrics: ['bodyMetrics'],
-  clientTraining: ['clientTraining'],
   // Every chat key starts with 'chat', so one prefix invalidates the thread
   // list, the open conversation and the unread badge together.
   chat: ['chat'],

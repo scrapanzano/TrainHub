@@ -1,5 +1,10 @@
 import { supabase } from '../lib/supabase.js'
 
+export const PROFILE_UPDATED_EVENT = 'trainhub:profile-updated'
+
+const PROFILE_COLUMNS =
+  'id, role, specialty, full_name, avatar_url, bio, assigned_pro_id, subscription_status, subscription_until'
+
 /**
  * Every professional a member can choose from.
  *
@@ -31,9 +36,16 @@ export async function chooseProfessional({ memberId, proId }) {
     .from('profiles')
     .update({ assigned_pro_id: proId })
     .eq('id', memberId)
-    .select('id, assigned_pro_id')
+    // Return the complete shell profile. AuthProvider mirrors this row outside
+    // TanStack Query, so a partial response would either erase fields or force
+    // a page reload merely to learn the new assignment.
+    .select(PROFILE_COLUMNS)
     .single()
 
   if (error) throw error
+
+  // Dispatched by the mutation function rather than a component callback, so
+  // it also runs when a paused mutation is restored after a reload.
+  window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT, { detail: data }))
   return data
 }

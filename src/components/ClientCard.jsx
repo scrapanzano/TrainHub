@@ -11,7 +11,7 @@ export default function ClientCard({ client, to }) {
     <Card>
       <CardActionArea component={Link} to={to}>
         <CardContent>
-          <Stack direction="row" spacing={2} alignItems="center">
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
             <Avatar src={client.avatar_url ?? undefined} sx={{ width: 48, height: 48 }}>
               {client.full_name?.[0] ?? '?'}
             </Avatar>
@@ -21,7 +21,7 @@ export default function ClientCard({ client, to }) {
                 {client.full_name}
               </Typography>
 
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mt: 0.5 }}>
                 {/* The dot carries the state by hue alone, so the label sits
                     beside it and the dot itself is hidden from the reader. */}
                 <Box

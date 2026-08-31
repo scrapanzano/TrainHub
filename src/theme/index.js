@@ -36,6 +36,12 @@ const theme = createTheme({
   },
 
   components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        html: { scrollbarGutter: 'stable' },
+        body: { overscrollBehaviorY: 'none' },
+      },
+    },
     // The wireframes use soft, borderless, generously rounded cards throughout.
     MuiCard: {
       defaultProps: { elevation: 0 },

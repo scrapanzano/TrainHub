@@ -19,11 +19,14 @@ assert.deepEqual(setProgress(0, 0), { done: 0, total: 0, label: '0/0', complete:
 
 assert.deepEqual(
   planProgress([{ status: 'completed' }, { status: 'in_progress' }, { status: 'todo' }]),
-  { completed: 1, total: 3, percent: 33 },
+  { completed: 1, partial: 0, total: 3, percent: 33 },
 )
-assert.deepEqual(planProgress([{ status: 'completed' }]), { completed: 1, total: 1, percent: 100 })
+assert.deepEqual(
+  planProgress([{ status: 'completed' }]),
+  { completed: 1, partial: 0, total: 1, percent: 100 },
+)
 // Empty plan: percent must be 0, never NaN -- MUI renders NaN as an empty bar.
-assert.deepEqual(planProgress([]), { completed: 0, total: 0, percent: 0 })
+assert.deepEqual(planProgress([]), { completed: 0, partial: 0, total: 0, percent: 0 })
 // Nearly-complete must not read as complete: round() would report 100 here.
 assert.equal(planProgress(Array.from({ length: 200 }, (_, i) => ({
   status: i < 199 ? 'completed' : 'todo',
@@ -33,22 +36,20 @@ assert.equal(planProgress(Array.from({ length: 200 }, (_, i) => ({
 // "not done" nor "done as prescribed", and the card says which.
 assert.deepEqual(sessionStatusOf('partial'), { label: 'Stopped Early', color: 'warning' })
 
-// A partial counts towards the plan bar.  Counting only full completions would
-// mean a member who ended one session early never sees the week reach 100%,
-// which reads as an unfinished week rather than a finished-early one.
+// A partial is reported, but cannot fill a bar labelled "completed".
 assert.deepEqual(
   planProgress([{ status: 'completed' }, { status: 'partial' }, { status: 'todo' }]),
-  { completed: 2, total: 3, percent: 66 },
+  { completed: 1, partial: 1, total: 3, percent: 33 },
 )
 // A session being worked on right now is not yet done for the week.
 assert.deepEqual(
   planProgress([{ status: 'in_progress' }, { status: 'todo' }]),
-  { completed: 0, total: 2, percent: 0 },
+  { completed: 0, partial: 0, total: 2, percent: 0 },
 )
-// A week closed entirely with early finishes is still a closed week.
+// A week of early stops has attempts, but no completed sessions.
 assert.deepEqual(
   planProgress([{ status: 'partial' }, { status: 'partial' }]),
-  { completed: 2, total: 2, percent: 100 },
+  { completed: 0, partial: 2, total: 2, percent: 0 },
 )
 
 console.log('workout status: OK')

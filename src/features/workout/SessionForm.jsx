@@ -37,13 +37,20 @@ export default function SessionForm({
 
   const addRow = () => {
     if (!picked) return
-    setRows((current) => [...current, { exercise: picked, targetSets: 3, targetReps: 10 }])
+    setRows((current) => [...current, {
+      exercise: picked,
+      targetSets: 3,
+      targetReps: 10,
+      targetWeight: '',
+      restSeconds: 90,
+      notes: '',
+    }])
     setPicked(null)
   }
 
   const updateRow = (index, field, value) =>
     setRows((current) =>
-      current.map((row, i) => (i === index ? { ...row, [field]: Number(value) } : row)),
+      current.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
     )
 
   const removeRow = (index) => setRows((current) => current.filter((_, i) => i !== index))
@@ -55,8 +62,11 @@ export default function SessionForm({
       exercises: rows.map((row, index) => ({
         exerciseId: row.exercise.id,
         position: index + 1,
-        targetSets: row.targetSets,
-        targetReps: row.targetReps,
+        targetSets: Number(row.targetSets),
+        targetReps: Number(row.targetReps),
+        targetWeight: row.targetWeight === '' ? null : Number(row.targetWeight),
+        restSeconds: Number(row.restSeconds),
+        notes: row.notes.trim(),
       })),
     })
   }
@@ -97,7 +107,7 @@ export default function SessionForm({
           {rows.map((row, index) => (
             <Card key={`${row.exercise.id}-${index}`}>
               <CardContent>
-                <Stack direction="row" spacing={2} alignItems="center">
+                <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
                   <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                     <Typography variant="h3" noWrap>
                       {row.exercise.name}
@@ -107,23 +117,6 @@ export default function SessionForm({
                     </Typography>
                   </Box>
 
-                  <TextField
-                    label="Sets"
-                    type="number"
-                    value={row.targetSets}
-                    onChange={(event) => updateRow(index, 'targetSets', event.target.value)}
-                    slotProps={{ htmlInput: { inputMode: 'numeric', min: 1, max: 20 } }}
-                    sx={{ width: 88 }}
-                  />
-                  <TextField
-                    label="Reps"
-                    type="number"
-                    value={row.targetReps}
-                    onChange={(event) => updateRow(index, 'targetReps', event.target.value)}
-                    slotProps={{ htmlInput: { inputMode: 'numeric', min: 1, max: 100 } }}
-                    sx={{ width: 88 }}
-                  />
-
                   <IconButton
                     onClick={() => removeRow(index)}
                     aria-label={`Remove ${row.exercise.name}`}
@@ -131,6 +124,58 @@ export default function SessionForm({
                     <DeleteOutlineIcon />
                   </IconButton>
                 </Stack>
+
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' },
+                    gap: 1.5,
+                    mt: 2,
+                  }}
+                >
+                  <TextField
+                    label="Sets"
+                    type="number"
+                    value={row.targetSets}
+                    onChange={(event) => updateRow(index, 'targetSets', event.target.value)}
+                    slotProps={{ htmlInput: { inputMode: 'numeric', min: 1, max: 20 } }}
+                    required
+                  />
+                  <TextField
+                    label="Reps"
+                    type="number"
+                    value={row.targetReps}
+                    onChange={(event) => updateRow(index, 'targetReps', event.target.value)}
+                    slotProps={{ htmlInput: { inputMode: 'numeric', min: 1, max: 100 } }}
+                    required
+                  />
+                  <TextField
+                    label="Weight (kg)"
+                    type="number"
+                    value={row.targetWeight}
+                    onChange={(event) => updateRow(index, 'targetWeight', event.target.value)}
+                    slotProps={{ htmlInput: { inputMode: 'decimal', min: 0, max: 999, step: 0.5 } }}
+                    placeholder="Optional"
+                  />
+                  <TextField
+                    label="Rest (sec)"
+                    type="number"
+                    value={row.restSeconds}
+                    onChange={(event) => updateRow(index, 'restSeconds', event.target.value)}
+                    slotProps={{ htmlInput: { inputMode: 'numeric', min: 0, max: 600, step: 15 } }}
+                    required
+                  />
+                </Box>
+                <TextField
+                  label="Technique note"
+                  value={row.notes}
+                  onChange={(event) => updateRow(index, 'notes', event.target.value)}
+                  placeholder="Optional cues for the client"
+                  multiline
+                  minRows={2}
+                  fullWidth
+                  sx={{ mt: 1.5 }}
+                />
               </CardContent>
             </Card>
           ))}

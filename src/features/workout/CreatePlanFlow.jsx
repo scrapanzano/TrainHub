@@ -4,12 +4,14 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { fetchExerciseCatalogue } from '../../data/workouts.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
+import { createUuid } from '../../lib/uuid.js'
 import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import PlanForm from './PlanForm.jsx'
 import SessionForm from './SessionForm.jsx'
+import { buildSessionExercisePayloads } from './contracts.js'
 
 /**
- * Build a plan and its first session, in that order, writing both at the end.
+ * Build a plan and its first session, writing one atomic bundle at the end.
  *
  * The writes are deferred to the last step deliberately.  `fetchActivePlan`
  * takes the newest plan by `created_at`, so a plan saved before it has a
@@ -18,17 +20,11 @@ import SessionForm from './SessionForm.jsx'
  * Nothing is created until there is something worth showing, which also
  * enforces the rule that a session must hold at least one exercise.
  *
- * Both writes are fired together rather than chained through `onSuccess`.
- * Per-call callbacks are not persisted: offline, a chained pair would queue the
- * plan, and if the member closed the app before reconnecting, the replay would
- * create the plan with no callback left to create its session -- an empty plan,
- * which is the exact state this flow exists to prevent.  Fired together, both
- * are durable, and the `planWrite` scope they share in `src/data/mutations.js`
- * replays them in order so the session never lands before its plan.
- *
- * Used by both roles.  Only `memberId`, `authorId` and `onDone` differ.
+ * Patch 015 creates the plan, session and exercises in one transaction. A lost
+ * connection therefore leaves either the complete bundle or nothing, and a
+ * replay uses the client-generated IDs to return the same rows.
  */
-export default function CreatePlanFlow({ memberId, authorId, onDone }) {
+export default function CreatePlanFlow({ memberId, replacesPlanId = null, onDone }) {
   // Step and values are separate state: going Back must return to a filled-in
   // form, not an empty one.  Deriving the step from `meta === null` would clear
   // the plan's name the moment the member went back to check it.
@@ -41,11 +37,10 @@ export default function CreatePlanFlow({ memberId, authorId, onDone }) {
   })
 
   const createPlan = useMutation({ mutationKey: mutationKeys.createPlan })
-  const createSession = useMutation({ mutationKey: mutationKeys.createSession })
 
-  const pending = createPlan.isPending || createSession.isPending
-  const paused = pending && (createPlan.isPaused || createSession.isPaused)
-  const error = createPlan.error ?? createSession.error
+  const pending = createPlan.isPending
+  const paused = pending && createPlan.isPaused
+  const error = createPlan.error
 
   if (step === 1) {
     return (
@@ -70,15 +65,19 @@ export default function CreatePlanFlow({ memberId, authorId, onDone }) {
 
   const onSubmit = ({ name, exercises }) => {
     // Generated in the handler, not during render: `react-hooks/purity` forbids
-    // `crypto.randomUUID()` in a render body.  It is also the idempotency key
-    // `createPlan` upserts on, so a replayed submit lands on the same row
-    // rather than creating a second plan that hides the first.
-    const planId = crypto.randomUUID()
-
-    createPlan.mutate({ id: planId, memberId, authorId, ...meta })
-    createSession.mutate(
-      // First session of a brand new plan, so position 1 is not a count.
-      { planId, name, position: 1, exercises },
+    // `createUuid()` in a render body.  It is also the idempotency key
+    // the secure operation checks, so a replay returns the same bundle rather
+    // than creating a second plan that hides the first.
+    createPlan.mutate(
+      {
+        id: createUuid(),
+        memberId,
+        replacesPlanId,
+        ...meta,
+        sessionId: createUuid(),
+        sessionName: name,
+        exercises: buildSessionExercisePayloads(exercises),
+      },
       { onSuccess: onDone },
     )
   }

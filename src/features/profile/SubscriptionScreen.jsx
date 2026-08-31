@@ -3,6 +3,7 @@ import CheckIcon from '@mui/icons-material/Check'
 import { formatDate, todayISO } from '../../lib/format.js'
 import { subscriptionStateOf } from '../clients/subscription.js'
 import { useAuth } from '../auth/useAuth.js'
+import PageHeader from '../../components/PageHeader.jsx'
 
 // What the gym includes. Static copy: there is no products table and inventing
 // one for a fixed list would be a schema nobody writes to.
@@ -14,12 +15,12 @@ export default function SubscriptionScreen() {
 
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
-      <Typography variant="h1">Subscription</Typography>
+      <PageHeader title="Subscription" backTo="/m/profile" backLabel="Back to profile" />
 
       <Card>
         <CardContent>
           <Stack spacing={1.5}>
-            <Stack direction="row" spacing={2} alignItems="center">
+            <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
               <Typography variant="h3" sx={{ flexGrow: 1 }}>
                 Annual Membership
               </Typography>
@@ -61,7 +62,7 @@ export default function SubscriptionScreen() {
           </Typography>
           <Stack spacing={1}>
             {INCLUDED.map((item) => (
-              <Stack key={item} direction="row" spacing={1.5} alignItems="center">
+              <Stack key={item} direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
                 <CheckIcon color="success" fontSize="small" />
                 <Typography color="text.secondary">{item}</Typography>
               </Stack>

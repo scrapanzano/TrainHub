@@ -8,6 +8,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { fetchAvailability } from '../../data/availability.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
+import { createUuid } from '../../lib/uuid.js'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import { useAuth } from '../auth/useAuth.js'
 
@@ -36,12 +37,18 @@ export default function AvailabilityScreen() {
   const remove = useMutation({ mutationKey: mutationKeys.deleteAvailability })
 
   const savedOffline = add.isPending && add.isPaused
+  const removalSavedOffline = remove.isPending && remove.isPaused
   // The database rejects this too, but telling the user before the round trip
   // is better than an error message from Postgres.  String comparison is
   // correct here (not just for the common case) because `<input type="time">`
   // guarantees zero-padded 24-hour `'HH:MM'` values, which sort the same
   // lexicographically as they do chronologically.
   const invalidRange = endsAt <= startsAt
+  const overlapsExisting = (slots.data ?? []).some(
+    (slot) => slot.weekday === Number(weekday)
+      && startsAt < hhmm(slot.ends_at)
+      && endsAt > hhmm(slot.starts_at),
+  )
 
   if (slots.isPending) return <LoadingState />
   if (slots.isError && slots.data === undefined) {
@@ -78,7 +85,7 @@ export default function AvailabilityScreen() {
 
                 <Stack spacing={1}>
                   {daySlots.map((slot) => (
-                    <Stack key={slot.id} direction="row" spacing={1} alignItems="center">
+                    <Stack key={slot.id} direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                       <Typography sx={{ flexGrow: 1 }}>
                         {hhmm(slot.starts_at)} – {hhmm(slot.ends_at)}
                       </Typography>
@@ -101,6 +108,11 @@ export default function AvailabilityScreen() {
       {remove.isError ? (
         <Alert severity="error">{remove.error?.message ?? 'The slot could not be removed.'}</Alert>
       ) : null}
+      {removalSavedOffline ? (
+        <Alert severity="info">
+          The selected slot will be removed when you reconnect.
+        </Alert>
+      ) : null}
 
       <Box>
         <Typography variant="h2" sx={{ mb: 2 }}>
@@ -120,7 +132,7 @@ export default function AvailabilityScreen() {
                 // times each time. (A previous version set `weekday` back to
                 // the value it already held -- a no-op dressed as a reset.)
                 add.mutate({
-                  id: crypto.randomUUID(),
+                  id: createUuid(),
                   proId: user.id,
                   weekday: Number(weekday),
                   startsAt,
@@ -171,6 +183,11 @@ export default function AvailabilityScreen() {
                   reconnect.
                 </Alert>
               ) : null}
+              {overlapsExisting ? (
+                <Alert severity="warning">
+                  This slot overlaps another availability on the same day.
+                </Alert>
+              ) : null}
               {add.isError ? (
                 <Alert severity="error">
                   {add.error?.message ?? 'The slot could not be added.'}
@@ -181,7 +198,7 @@ export default function AvailabilityScreen() {
                 type="submit"
                 variant="contained"
                 startIcon={<AddIcon />}
-                disabled={invalidRange || add.isPending}
+                disabled={invalidRange || overlapsExisting || add.isPending}
                 fullWidth
               >
                 {savedOffline ? 'Saved offline' : add.isPending ? 'Adding…' : 'Add slot'}

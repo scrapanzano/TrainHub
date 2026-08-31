@@ -3,6 +3,8 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import { Link } from 'react-router'
 import { sessionStatusOf } from '../features/workout/status.js'
+import { localDayISO, todayISO } from '../lib/format.js'
+import { mondayOf } from '../lib/week.js'
 
 /**
  * What happened, in one line.
@@ -39,7 +41,10 @@ function detailFor(status, run, runs) {
   // case, so the session's own runs are what say whether it was ever started:
   // anything here belongs to a past week, and saying so is the whole of the
   // weekly report the plan owes the member.
-  if ((runs ?? []).length > 0) return 'Not done yet — skipped last week'
+  const trainedBeforeThisWeek = (runs ?? []).some(
+    (pastRun) => localDayISO(pastRun.started_at) < mondayOf(todayISO()),
+  )
+  if (trainedBeforeThisWeek) return 'Not done yet — last trained previously'
   return 'Not done yet'
 }
 
@@ -56,9 +61,9 @@ export default function SessionCard({ session, to, status, run, onDelete = null 
 
   const body = (
     <CardContent>
-      <Stack direction="row" spacing={2} alignItems="center">
+      <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-          <Stack direction="row" spacing={1} alignItems="baseline">
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline' }}>
             <Typography variant="h3" noWrap>
               {session.name}
             </Typography>
@@ -67,14 +72,20 @@ export default function SessionCard({ session, to, status, run, onDelete = null 
             </Typography>
           </Stack>
 
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mt: 0.5 }}>
             {/* A coloured dot alone would carry the status by hue only, so the
                 wording sits next to it and the dot is hidden from the reader. */}
             <Box
               aria-hidden
-              sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: `${color}.main` }}
+              sx={{
+                width: 8,
+                height: 8,
+                flexShrink: 0,
+                borderRadius: '50%',
+                bgcolor: `${color}.main`,
+              }}
             />
-            <Typography variant="body2" color="text.secondary" noWrap>
+            <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0 }}>
               {detailFor(status, run, session.runs)}
             </Typography>
           </Stack>
@@ -91,7 +102,7 @@ export default function SessionCard({ session, to, status, run, onDelete = null 
   if (onDelete) {
     return (
       <Card>
-        <Stack direction="row" alignItems="center">
+        <Stack direction="row" sx={{ alignItems: 'center' }}>
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>{body}</Box>
           <IconButton
             onClick={onDelete}

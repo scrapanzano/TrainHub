@@ -4,11 +4,13 @@ import PublicLayout from '../layouts/PublicLayout.jsx'
 import LoginScreen from '../features/auth/LoginScreen.jsx'
 import ForgotPasswordScreen from '../features/auth/ForgotPasswordScreen.jsx'
 import ResetPasswordScreen from '../features/auth/ResetPasswordScreen.jsx'
+import RouteErrorScreen from '../components/RouteErrorScreen.jsx'
 import { memberNav, professionalNav } from './navItems.js'
 
 const router = createBrowserRouter([
   {
     element: <PublicLayout />,
+    errorElement: <RouteErrorScreen />,
     children: [
       { path: '/login', element: <LoginScreen /> },
       { path: '/forgot-password', element: <ForgotPasswordScreen /> },
@@ -19,6 +21,7 @@ const router = createBrowserRouter([
   {
     path: '/m',
     element: <AppLayout navItems={memberNav} profileHref="/m/profile" requiredRole="member" />,
+    errorElement: <RouteErrorScreen />,
     children: [
       {
         index: true,
@@ -32,9 +35,7 @@ const router = createBrowserRouter([
       // Before the `:sessionId` route, or 'new' would be read as an id.
       {
         path: 'workout/session/new',
-        lazy: async () => ({
-          Component: (await import('../features/workout/AddSessionScreen.jsx')).default,
-        }),
+        element: <Navigate to="/m/workout" replace />,
       },
       {
         path: 'workout/session/:sessionId',
@@ -42,9 +43,7 @@ const router = createBrowserRouter([
       },
       {
         path: 'workout/session/:sessionId/exercise/new',
-        lazy: async () => ({
-          Component: (await import('../features/workout/AddExerciseScreen.jsx')).default,
-        }),
+        element: <Navigate to="/m/workout" replace />,
       },
       {
         path: 'workout/session/:sessionId/live',
@@ -70,9 +69,7 @@ const router = createBrowserRouter([
       },
       {
         path: 'workout/builder',
-        lazy: async () => ({
-          Component: (await import('../features/workout/NewPlanScreen.jsx')).default,
-        }),
+        element: <Navigate to="/m/workout" replace />,
       },
 
       {
@@ -149,6 +146,7 @@ const router = createBrowserRouter([
     element: (
       <AppLayout navItems={professionalNav} profileHref="/p/profile" requiredRole="professional" />
     ),
+    errorElement: <RouteErrorScreen />,
     children: [
       {
         index: true,
@@ -176,6 +174,18 @@ const router = createBrowserRouter([
         }),
       },
       {
+        path: 'clients/:clientId/chat',
+        lazy: async () => ({
+          Component: (await import('../features/chat/ClientChatRedirectScreen.jsx')).default,
+        }),
+      },
+      {
+        path: 'clients/:clientId/workout/session/:sessionId/exercise/new',
+        lazy: async () => ({
+          Component: (await import('../features/workout/AddExerciseScreen.jsx')).default,
+        }),
+      },
+      {
         path: 'clients/:clientId/nutrition',
         lazy: async () => ({
           Component: (await import('../features/nutrition/NutritionPlanEditorScreen.jsx')).default,
@@ -185,6 +195,12 @@ const router = createBrowserRouter([
         path: 'clients/:clientId/progress',
         lazy: async () => ({
           Component: (await import('../features/progress/ClientProgressScreen.jsx')).default,
+        }),
+      },
+      {
+        path: 'clients/:clientId/progress/run/:runId',
+        lazy: async () => ({
+          Component: (await import('../features/progress/WorkoutRunDetailScreen.jsx')).default,
         }),
       },
 

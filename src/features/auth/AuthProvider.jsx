@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase.js'
 import { persister, queryClient } from '../../lib/queryClient.js'
+import { PROFILE_UPDATED_EVENT } from '../../data/profile.js'
 import { disablePush } from '../profile/pushSubscription.js'
 import { AuthContext } from './AuthContext.js'
 
@@ -61,12 +62,25 @@ export function AuthProvider({ children }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, next) => {
+    } = supabase.auth.onAuthStateChange((event, next) => {
       // Supabase warns against awaiting its own client inside this callback:
       // doing so deadlocks the auth lock.  Only synchronous state here; the
       // profile fetch happens in the effect below.
       setSession(next)
       setSessionReady(true)
+      if (event === 'SIGNED_OUT') {
+        try {
+          localStorage.removeItem(PROFILE_CACHE_KEY)
+        } catch {
+          // Storage cleanup is best effort; memory is cleared below regardless.
+        }
+        queryClient.clear()
+        persister.removeClient().catch(() => {})
+        setProfileState(NO_PROFILE)
+        // Run outside Supabase's auth callback lock. This removes the browser
+        // subscription even when another tab initiated the sign-out.
+        setTimeout(() => disablePush().catch(() => {}), 0)
+      }
     })
 
     return () => {
@@ -78,15 +92,21 @@ export function AuthProvider({ children }) {
   const userId = session?.user?.id ?? null
 
   useEffect(() => {
+    const acceptProfileUpdate = (event) => {
+      const profile = event.detail
+      if (!profile || profile.id !== userId) return
+      writeCachedProfile(profile)
+      setProfileState({ forUserId: userId, data: profile, error: null })
+    }
+
+    window.addEventListener(PROFILE_UPDATED_EVENT, acceptProfileUpdate)
+    return () => window.removeEventListener(PROFILE_UPDATED_EVENT, acceptProfileUpdate)
+  }, [userId])
+
+  useEffect(() => {
     // Until the session is known, this effect has nothing to say.  Returning
     // early keeps it from recording a result for a user it has not looked up.
-    if (!sessionReady) return
-
-    if (!userId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setProfileState({ forUserId: null, data: null, error: null })
-      return
-    }
+    if (!sessionReady || !userId) return
 
     let active = true
 

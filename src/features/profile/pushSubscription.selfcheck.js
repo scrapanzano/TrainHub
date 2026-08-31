@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { urlBase64ToUint8Array } from './pushSubscription.js'
+import { currentSubscription, pushConfigured, urlBase64ToUint8Array } from './pushSubscription.js'
 
 // `atob` is global in Node 18+, as it is in the browser.
 
@@ -17,5 +17,16 @@ const key =
 const bytes = urlBase64ToUint8Array(key)
 assert.equal(bytes.length, 65)
 assert.equal(bytes[0], 4)
+
+// Dev mode exposes the Service Worker API but registers no worker. The old
+// `navigator.serviceWorker.ready` path never settled and blocked sign-out.
+globalThis.window = { PushManager: class {}, Notification: class {} }
+globalThis.Notification = window.Notification
+Object.defineProperty(globalThis, 'navigator', {
+  configurable: true,
+  value: { serviceWorker: { getRegistration: async () => undefined } },
+})
+assert.equal(await currentSubscription(), null)
+assert.equal(pushConfigured(), false)
 
 console.log('pushSubscription: OK')

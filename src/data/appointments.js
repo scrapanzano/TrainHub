@@ -109,41 +109,32 @@ export async function fetchAppointment(appointmentId) {
 /**
  * Book one appointment.
  *
- * The caller supplies `id`.  The column has a default, but this write can pause
- * offline and be replayed on reconnect, and a replay of a write whose response
- * was lost would otherwise book the same slot a second time.  Upserting on the
- * client's id makes the replay a no-op.
+ * The caller supplies `id` so an offline replay is idempotent. The secure
+ * operation derives the initial status from the authenticated role: a member
+ * requests `pending`, while the assigned professional books `confirmed`.
  */
 export async function createAppointment({
   id,
   memberId,
   proId,
   kind,
-  status = 'confirmed',
   startsAt,
   endsAt,
   notes,
 }) {
   const { data, error } = await supabase
-    .from('appointments')
-    .upsert(
-      {
-        id,
-        member_id: memberId,
-        pro_id: proId,
-        kind,
-        status,
-        starts_at: startsAt,
-        ends_at: endsAt,
-        notes: notes || null,
-      },
-      { onConflict: 'id', ignoreDuplicates: true },
-    )
-    .select()
-    .maybeSingle()
+    .rpc('create_appointment_secure', {
+      p_id: id,
+      p_member_id: memberId,
+      p_pro_id: proId,
+      p_kind: kind,
+      p_starts_at: startsAt,
+      p_ends_at: endsAt,
+      p_notes: notes || null,
+    })
+    .single()
 
   if (error) throw error
-  // `ignoreDuplicates` returns no row on a replay.  That is success.
   return data
 }
 
@@ -178,13 +169,14 @@ export async function fetchMemberAppointmentsInRange(memberId, fromISO, toISO) {
   return data ?? []
 }
 
-/** Move an appointment between `pending`, `confirmed`, `cancelled` and `done`. */
-export async function setAppointmentStatus({ appointmentId, status }) {
+/** Move an appointment through a checked, compare-and-set transition. */
+export async function setAppointmentStatus({ appointmentId, expectedStatus, status }) {
   const { data, error } = await supabase
-    .from('appointments')
-    .update({ status })
-    .eq('id', appointmentId)
-    .select('id, status')
+    .rpc('set_appointment_status_secure', {
+      p_appointment_id: appointmentId,
+      p_expected_status: expectedStatus,
+      p_status: status,
+    })
     .single()
 
   if (error) throw error

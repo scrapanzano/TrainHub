@@ -4,6 +4,7 @@ import QRCode from 'qrcode'
 import { generateBadgeCode, mintCheckinToken } from '../../data/checkin.js'
 import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import { useAuth } from '../auth/useAuth.js'
+import PageHeader from '../../components/PageHeader.jsx'
 
 /** mm:ss, from a count of seconds. */
 function clock(seconds) {
@@ -106,7 +107,7 @@ export default function BadgeScreen() {
 
   return (
     <Stack spacing={3} sx={{ p: 2, alignItems: 'center', textAlign: 'center' }}>
-      <Typography variant="h1">Access Badge</Typography>
+      <PageHeader title="Access Badge" backTo="/m/profile" backLabel="Back to profile" />
 
       {/* A badge cannot be minted without a network: the token is a row. This
           is the second write in the app, after the password change, where the

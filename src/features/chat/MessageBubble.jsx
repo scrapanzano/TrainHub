@@ -16,7 +16,7 @@ export default function MessageBubble({ message, mine }) {
   })
 
   return (
-    <Stack direction="row" justifyContent={mine ? 'flex-end' : 'flex-start'}>
+    <Stack direction="row" sx={{ justifyContent: mine ? 'flex-end' : 'flex-start' }}>
       <Paper
         elevation={0}
         sx={{
@@ -36,7 +36,11 @@ export default function MessageBubble({ message, mine }) {
           {message.body}
         </Typography>
 
-        <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="flex-end" sx={{ mt: 0.5 }}>
+        <Stack
+          direction="row"
+          spacing={0.5}
+          sx={{ alignItems: 'center', justifyContent: 'flex-end', mt: 0.5 }}
+        >
           <Typography variant="body2" sx={{ opacity: 0.7 }}>
             {time}
           </Typography>

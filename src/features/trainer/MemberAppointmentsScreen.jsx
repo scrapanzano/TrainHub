@@ -58,7 +58,7 @@ export default function MemberAppointmentsScreen() {
 
   return (
     <Stack spacing={2} sx={{ p: 2 }}>
-      <Stack direction="row" spacing={1} alignItems="center">
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
         <Typography variant="h1" sx={{ minWidth: 0 }} noWrap>
           {monthLabel(year, month)}
         </Typography>
@@ -73,7 +73,7 @@ export default function MemberAppointmentsScreen() {
 
       <MonthGrid cells={cells} selected={selected} onSelect={setSelected} markers={markers} />
 
-      <Stack direction="row" spacing={1} alignItems="baseline">
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline' }}>
         <Typography variant="h2">
           {selected === todayISO() ? 'Today' : formatDate(selected)}
         </Typography>
@@ -89,7 +89,12 @@ export default function MemberAppointmentsScreen() {
         <ErrorState error={appointments.error} onRetry={appointments.refetch} />
       ) : null}
       {appointments.data && onDay.length === 0 ? (
-        <EmptyState title="Nothing booked" description="This day is free." />
+        <EmptyState
+          title="Nothing booked"
+          description="This day is free."
+          minHeight={0}
+          padding={1}
+        />
       ) : null}
 
       <Stack spacing={2}>
@@ -104,7 +109,7 @@ export default function MemberAppointmentsScreen() {
         <Card sx={{ borderColor: 'primary.main' }}>
           <CardActionArea onClick={() => setBooking(true)}>
             <CardContent>
-              <Stack direction="row" spacing={2} alignItems="center">
+              <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
                 <AddIcon color="primary" />
                 <Stack>
                   <Typography variant="h3">Book for this day</Typography>
@@ -123,11 +128,17 @@ export default function MemberAppointmentsScreen() {
         />
       )}
 
-      <BookingSheet
-        open={booking}
-        onClose={() => setBooking(false)}
-        defaultDayISO={selected}
-      />
+      {/* Mount a fresh form for every opening. Besides clearing the previous
+          fields, this guarantees its initial date is the day the member just
+          selected rather than the day that was selected when this screen
+          first mounted. */}
+      {booking ? (
+        <BookingSheet
+          open
+          onClose={() => setBooking(false)}
+          defaultDayISO={selected}
+        />
+      ) : null}
     </Stack>
   )
 }
