@@ -11,6 +11,11 @@
 -- revision of 015: replacing the function alone would not repair summaries or
 -- rewards already stored by that revision.
 --
+-- Also repairs `rewards` rows written before `run_id` existed on this table
+-- (`run_id`/`workout_session_id`/`reward_day` null, `code` already set) --
+-- otherwise those rows are invisible to every join below and the final
+-- insert collides with them on `rewards_member_id_code_key`.
+--
 -- Idempotent: the function replacement and repair can be replayed safely.
 
 begin;
@@ -94,6 +99,29 @@ revoke execute on function public.close_workout_run_secure(
 grant execute on function public.close_workout_run_secure(
   uuid,timestamptz,public.run_outcome
 ) to authenticated;
+
+-- Backfill reward rows written before `run_id` was populated on this table.
+-- `code` has always been `'workout:' || run_id`, so the id is recoverable
+-- from it. Without this, every join below (all keyed on `reward.run_id`) is
+-- blind to these rows: they are never deduplicated or deleted, and the final
+-- insert collides with them on `rewards_member_id_code_key`, a constraint its
+-- `on conflict (member_id, workout_session_id, reward_day)` does not cover.
+--
+-- A code-encoded id with no matching row in `workout_runs` is a reward for a
+-- run deleted before this column existed -- setting it would violate
+-- `rewards_run_fk`, so it is deleted outright rather than backfilled.
+delete from public.rewards reward
+where reward.run_id is null
+  and reward.code like 'workout:%'
+  and not exists (
+    select 1 from public.workout_runs run
+    where run.id = substring(reward.code from 9)::uuid
+  );
+
+update public.rewards
+set run_id = substring(code from 9)::uuid
+where run_id is null
+  and code like 'workout:%';
 
 -- Calculate the correct value for every closed run. Abandoned is an explicit
 -- user decision and remains abandoned; percentages still reflect work logged.
@@ -212,6 +240,11 @@ create temporary table patch_016_checks (
 ) on commit preserve rows;
 
 insert into patch_016_checks (check_name, actual, expected) values
+  ('no orphaned reward rows remain',
+   (select (count(*) = 0)::text
+    from public.rewards
+    where run_id is null and code like 'workout:%'),
+   'true'),
   ('unlogged exercises count as zero in the function',
    (select coalesce(
       regexp_replace(lower(pg_get_functiondef(p.oid)), '[[:space:]]+', '', 'g')
