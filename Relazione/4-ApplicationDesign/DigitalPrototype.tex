@@ -1,0 +1,98 @@
+\subsection{Digital Prototype}\label{subsect:DigitalPrototype}
+% Link o QR code al progetto Figma interattivo (sul modello del QR code in
+% Hammami_Hub, fig. 3.1). Intro breve: da qui in poi i mockup digitali sono
+% raggruppati per flusso (non una schermata per sottosezione), sul modello di
+% BookIT 4.4 / Hammami_Hub 3.4 -- ogni flusso ha gli screenshot delle
+% schermate coinvolte in sequenza, e un diagramma mermaid a frecce quando il
+% flusso dirama (piu' di un percorso possibile) o le transizioni non sono
+% ovvie dal solo screenshot. Tre gruppi: comuni ai due ruoli, poi cliente,
+% poi professionista.
+
+\paragraph{Common Flows}
+
+\subsubsection{Login \& Reset Password Flow}\label{subsubsect:LoginResetFlow}
+% Login -> Forgot Password -> Reset Password, piu' il redirect post-login al
+% ruolo corretto (/m o /p, in base al profilo). Wireframe esistenti solo in
+% doc/assets/pt/01-03 (Login, Forgot Password, Set Password) -- condivisi tra
+% i due ruoli, nessun set separato lato cliente. Diagramma mermaid lineare,
+% con un ramo per "password dimenticata" e uno per il login diretto.
+
+\subsubsection{Plan Creation \& Editing Flow}\label{subsubsect:PlanCreationEditingFlow}
+% CreatePlanFlow.jsx e' condiviso testualmente tra i due ruoli ("Used by both
+% roles. Only memberId, authorId and onDone differ.") -- un solo flusso, non
+% duplicato. Ramo principale: 2 step in-pagina (nome piano -> prima sessione
+% con esercizi aggiunti via autocomplete inline), nessuna schermata di
+% riepilogo -- torna dritto alla panoramica del piano. Entry point diverso
+% per ruolo: tab Workout per il cliente, Client Detail per il professionista
+% -- da annotare nel diagramma, non da raccontare due volte.
+%
+% Ramo secondario, editing di un piano gia' esistente (aggiungere una
+% sessione o un esercizio): stesso SessionForm, ma interfaccia diversa per
+% ruolo -- lato cliente sono due schermate a parte (Add a Session, Add an
+% Exercise), lato professionista e' tutto inline dentro Client Detail /
+% Workout Plan (nessuna navigazione). Il diagramma deve mostrare questa
+% divergenza, non solo il ramo comune.
+
+\paragraph{Client Flows}
+
+\subsubsection{Home \& Global Navigation Flow}\label{subsubsect:ClientHomeNavFlow}
+% Home come screenshot d'apertura della sezione Cliente. Frecce etichettate
+% "tab bar" verso Workout, Nutrition, My Trainer; freccia etichettata
+% "avatar" verso Profile. Sono i punti d'accesso sempre raggiunti dalla shell
+% dell'app (bottom nav + top bar), non link dentro il contenuto della Home --
+% da leggere come premessa visiva ai flussi seguenti, non come schermata con
+% link propri.
+
+\subsubsection{Workout Plan Exploration Flow}\label{subsubsect:WorkoutExplorationFlow}
+% Workout Plan -> Session Detail -> Exercise Detail, senza avviare una
+% sessione live. Percorso di sola consultazione.
+
+\subsubsection{Live Session Flow}\label{subsubsect:LiveSessionFlow}
+% Session Detail -> Live Session -> Exercise Detail Live (stato inline dentro
+% Live Session, non una route separata) -> Open-Run Sheet / End-Run Sheet
+% (overlay) -> Congratulations Dialog (overlay) -> Session Summary. Diagramma
+% mermaid con frecce per le diramazioni: Open-Run Sheet quando un secondo run
+% si apre mentre uno e' gia' attivo, "Stopped Early" quando si esce da
+% End-Run Sheet senza completare.
+
+\subsubsection{Nutrition Flow}\label{subsubsect:NutritionFlow}
+% Nutrition Plan -> Meal Detail (route /m/nutrition/meal/:mealId gia'
+% esistente, wireframe ancora da fare -- nodo comunque presente, non
+% taciuto). Ramo stato vuoto (nessun piano assegnato) -> Book Appointment,
+% che rimanda al Personal Trainer \& Booking Flow.
+
+\subsubsection{Personal Trainer \& Booking Flow}\label{subsubsect:TrainerBookingFlow}
+% My Trainer -> Chat; My Trainer -> View Appointments -> Booking Sheet ->
+% conferma prenotazione. Ramo "nessun professionista assegnato" -> Browse
+% Trainers (redirect automatico da My Trainer quando non c'e' ancora un
+% professionista scelto).
+
+\subsubsection{Profile Flow}\label{subsubsect:ClientProfileFlow}
+% Profile -> Access Badge, Subscription, Rewards, Settings. Diagramma a
+% stella: tutti i rami partono da Profile, nessun collegamento tra loro.
+
+\paragraph{Professional Flows}
+
+\subsubsection{Home \& Global Navigation Flow}\label{subsubsect:ProHomeNavFlow}
+% Stessa struttura del flusso Home lato cliente: Home come screenshot
+% d'apertura, frecce "tab bar" verso Clients, Calendar, Chat; freccia
+% "avatar" verso Profile. L'agenda mostrata in Home include anche
+% un'anteprima appuntamenti che rimanda al Calendar Flow -- non ripetuta qui,
+% solo richiamata.
+
+\subsubsection{Calendar Flow}\label{subsubsect:CalendarFlow}
+% Calendar -> Availability. Calendar -> Appointment Detail (raggiungibile
+% anche dall'anteprima appuntamenti in Home). Nuovo appuntamento ("+") come
+% azione inline sulla stessa schermata di Calendar, non una route a parte.
+
+\subsubsection{Client Management Flow}\label{subsubsect:ClientManagementFlow}
+% Clients -> Client Detail -> quattro rami: Chat (stesso nodo Chat della tab
+% bar -- doppia via d'accesso, un solo screenshot di destinazione); Workout
+% Plan (rimanda al Plan Creation \& Editing Flow comune, meccanismo identico
+% a quello del cliente); Nutrition Plan (consultazione + creazione/editing
+% inline -- ramo professionista-only, il cliente non ha mai un bottone "+"
+% qui); Progress Tracking (sola consultazione, nessuna creazione).
+
+\subsubsection{Profile \& Settings Flow}\label{subsubsect:ProProfileSettingsFlow}
+% Profile -> Settings. Molto piu' corto della versione cliente: nessun badge,
+% subscription o rewards lato professionista.
