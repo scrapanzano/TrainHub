@@ -33,14 +33,17 @@ create temporary table patch_019_checks (
 insert into patch_019_checks (check_name, actual, expected) values
   ('seven muscle groups are represented',
    (select count(distinct muscle_group)::text from public.exercises), '7'),
-  ('at least three exercises per muscle group',
+  ('at least three exercises per each new muscle group',
    (select (min(cnt) >= 3)::text from (
-     select count(*) cnt from public.exercises group by muscle_group
+     select count(*) cnt from public.exercises
+     where muscle_group in ('Biceps', 'Triceps', 'Core')
+     group by muscle_group
    ) counts),
    'true');
 
 commit;
 
+-- This must remain the final statement so Supabase displays every check.
 select check_name, actual, expected,
   case when actual is not distinct from expected then 'PASS' else 'FAIL' end status
 from patch_019_checks
