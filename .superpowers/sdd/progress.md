@@ -2151,3 +2151,69 @@ Queued, in dependency order:
 The rest-timer audio story (three causes in sequence, ending at
 `navigator.audioSession.type = 'transient'`) is written up above and is direct
 material for the report's chapter on PWA constraints.
+
+
+# HOTFIX-SECURITY-INTEGRITY MERGED into main via pull request #5
+
+Merge commit e887aab, 2026-09-02. 105 files, +4568/-1978. Written by Andrea,
+reviewed and finished here. Branch `hotfix-security-integrity` kept.
+
+Covers the security debt items #3 (grants/RLS) had been carrying since Phase
+0: `patches/015` revokes direct `insert`/`update`/`delete` on every
+user-writable table project-wide and replaces every write with an
+RPC (`*_secure` naming), each `security definer set search_path = ''`. Also
+makes plan/session/exercise creation atomic (one transaction instead of two
+chained mutations sharing a `scope`), and replaces in-place session/exercise
+editing with a versioned "replace plan" model (`replaces_plan_id`) for BOTH
+roles -- deleting a session or exercise from an existing plan no longer
+exists anywhere; replacing the whole plan does.
+
+Review found two data-integrity bugs in `patches/016`'s repair of pre-existing
+reward rows, both root-caused from evidence Davide read out of the Supabase
+SQL editor rather than guessed at: legacy rows written before `run_id` existed
+on `rewards` (code-encoded, invisible to every `run_id`-keyed join, colliding
+with the final insert on `rewards_member_id_code_key`) needed a backfill; rows
+whose code-encoded run pointed at a `workout_runs` row deleted before the
+column existed needed deletion instead, or the backfill itself violated
+`rewards_run_fk`. Fixed in commit a1fb357.
+
+The security rewrite also silently narrowed WHO may create a workout plan:
+`create_workout_plan_secure` hand-rolled a professional-only authorization
+check instead of reusing the project's existing `owns_member(target)`
+predicate (`patches/011`), dropping the member's own ability to create their
+plan -- a dual-role requirement agreed before this PR existed, not an intended
+narrowing. `patches/017` restores it by switching that one check to
+`owns_member`; everything else in the function (the atomic bundle, the replay
+check, the `replaces_plan_id` concurrency check) is untouched. Commits
+e222e9f (the fix) and 5146f97 (a same-day fix to the patch's own self-check:
+a `like` pattern kept a space that `regexp_replace` had already stripped from
+the compared text, so it could never match -- the four other checks already
+showed the function itself was correct).
+
+A SECURITY REWRITE THAT TOUCHES EVERY WRITE PATH IS NOT THE PLACE TO ALSO
+NARROW WHO IS ALLOWED TO WRITE. The two are separable and got conflated once
+here; worth a second pair of eyes specifically for authorization-predicate
+drift whenever a future patch touches a `security definer` function's `if`
+guard, not just its SQL correctness.
+
+Design doc for the restoration: `docs/superpowers/specs/2026-09-02-member-
+plan-authorship-fix-design.md`.
+
+RESUME HERE. The hotfix is merged, patches 015-017 applied. Nothing is in
+flight.
+
+Queued, in dependency order:
+
+  1. The member-side workout-CREATION UX itself -- Davide wants a dedicated
+     pass on `CreatePlanFlow.jsx`/`NewPlanScreen.jsx`'s flow and visuals,
+     deliberately kept out of this hotfix. His own prompt, not started.
+  2. The PROFESSIONAL'S side of the workout rebuild from Phase 5A (`workout_
+     runs`-based, weekly-repeating) -- its own spec, still Davide's decision,
+     still the acknowledged debt of that phase.
+  3. The notification bell: still not clickable, still doesn't refresh within
+     its 60s poll.
+  4. Hardening and the report: `patches/015` covers the hardening half of what
+     was queued after Phase 5A. Still open: re-run Lighthouse, capture
+     screenshots for chapter 5, write chapters 4/5/6 and the slides, rewrite
+     section 7 of `docs/superpowers/2026-07-30-device-verification.md` against
+     the current workout flow.
