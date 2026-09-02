@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
-  Alert, Autocomplete, Box, Button, Card, CardContent, IconButton, Stack, TextField, Typography,
+  Alert, Autocomplete, Box, Button, Card, CardContent, Chip, IconButton, Stack, TextField,
+  Typography,
 } from '@mui/material'
 // `DeleteOutline` (the base glyph) is not shipped by @mui/icons-material@9.2.0;
 // only the styled variants exist.
@@ -49,6 +50,13 @@ export default function SessionForm({
       .filter((row) => row.exercise),
   )
   const [picked, setPicked] = useState(null)
+  // Narrows the picker below, not `rows` -- an exercise already added stays
+  // added regardless of which group is currently selected here.
+  const [muscleFilter, setMuscleFilter] = useState('all')
+  const muscleGroups = [...new Set(catalogue.map((item) => item.muscle_group))].sort()
+  const filteredCatalogue = muscleFilter === 'all'
+    ? catalogue
+    : catalogue.filter((item) => item.muscle_group === muscleFilter)
 
   const addRow = () => {
     if (!picked) return
@@ -97,9 +105,27 @@ export default function SessionForm({
         fullWidth
       />
 
+      <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: 1 }}>
+        <Chip
+          label="All"
+          color={muscleFilter === 'all' ? 'primary' : 'default'}
+          onClick={() => setMuscleFilter('all')}
+          aria-pressed={muscleFilter === 'all'}
+        />
+        {muscleGroups.map((group) => (
+          <Chip
+            key={group}
+            label={group}
+            color={muscleFilter === group ? 'primary' : 'default'}
+            onClick={() => setMuscleFilter(group)}
+            aria-pressed={muscleFilter === group}
+          />
+        ))}
+      </Stack>
+
       <Stack direction="row" spacing={1}>
         <Autocomplete
-          options={catalogue}
+          options={filteredCatalogue}
           getOptionLabel={(option) => option.name}
           groupBy={(option) => option.muscle_group}
           value={picked}

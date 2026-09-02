@@ -146,6 +146,10 @@ export async function fetchExerciseCatalogue() {
   const { data, error } = await supabase
     .from('exercises')
     .select('id, name, muscle_group, equipment')
+    // MUI's `groupBy` on the picker's Autocomplete requires the options to
+    // already be sorted by the grouping key, or the same group renders as
+    // several disjoint sections.
+    .order('muscle_group')
     .order('name')
     .retry(navigator.onLine)
 
