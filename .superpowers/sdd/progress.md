@@ -2272,18 +2272,26 @@ Two rounds of findings, both closed before merge rather than deferred:
 
 RESUME HERE. The wizard is merged. Nothing is in flight.
 
+Correction, found while answering Davide's question about item 1 below:
+the PROFESSIONAL'S side of the Phase 5A workout rebuild was carried as open
+debt in the hotfix entry above, but checking the actual code now shows PR
+#5 already delivered it as a side effect of its broader scope --
+`ClientProgressScreen.jsx` already uses `workoutWeekSummary` and surfaces
+`run.note` (the member's note, previously "read by nobody"),
+`WorkoutRunDetailScreen.jsx` (new in PR #5) is the per-run detail screen,
+and `ClientWorkoutScreen.jsx` already derives session status via
+`runStatusOf` against the current week rather than the old frozen column.
+Closed, not queued.
+
 Queued, in dependency order:
 
-  1. The PROFESSIONAL'S side of the Phase 5A workout rebuild (`workout_
-     runs`-based, weekly-repeating) -- its own spec, still Davide's decision,
-     still the acknowledged debt of that phase.
-  2. The notification bell: still not clickable, still doesn't refresh within
+  1. The notification bell: still not clickable, still doesn't refresh within
      its 60s poll.
-  3. Hardening and the report: re-run Lighthouse, capture screenshots for
+  2. Hardening and the report: re-run Lighthouse, capture screenshots for
      chapter 5, write chapters 4/5/6 and the slides, rewrite section 7 of
      `docs/superpowers/2026-07-30-device-verification.md` against the
      current workout flow -- now including this wizard.
-  4. A DB cleanup pass before submission, Davide's own item: `create_
+  3. A DB cleanup pass before submission, Davide's own item: `create_
      workout_session_secure`/`add_session_exercise_secure` are unreachable
      from the app since this merge but still exist and are still callable
      server-side; decide whether to drop them or leave them.
