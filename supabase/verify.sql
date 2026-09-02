@@ -5,7 +5,7 @@
 -- just the final one.
 --
 -- Run after schema.sql + policies.sql + seed.sql and every patch through 020.
--- The schema/security checks expect patches 015-016. Every row must read PASS.
+-- The schema/security checks expect patches through 020. Every row must read PASS.
 --
 -- Caveat: this runs as the dashboard's privileged role, which bypasses RLS.
 -- It proves the rows and policies EXIST; it does not prove the policies are
@@ -20,8 +20,8 @@ select
 from (
   values
     -- Schema ---------------------------------------------------------------
-    -- schema.sql now declares the complete 20-table fresh-install shape. The
-    -- historical create-if-missing patches remain safe to replay in order.
+    -- schema.sql declares 19 tables; patch 020's `notifications` makes 20.
+    -- The historical create-if-missing patches remain safe to replay in order.
     ('public tables',
      (select count(*)::text from information_schema.tables
       where table_schema = 'public' and table_type = 'BASE TABLE'), '20'),
