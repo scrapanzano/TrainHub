@@ -22,6 +22,7 @@ export default function NewPlanScreen() {
         // `replace`, so Back leaves the plan rather than reopening the form
         // that just created it.
         onDone={() => navigate('/m/workout', { replace: true })}
+        onAbandon={() => navigate('/m/workout', { replace: true })}
       />
     </Stack>
   )

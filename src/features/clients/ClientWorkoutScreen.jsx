@@ -3,23 +3,19 @@ import {
   Alert, Box, Button, Card, CardContent, Divider, IconButton, Stack, Typography,
 } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { Link, useParams } from 'react-router'
+import { useQuery } from '@tanstack/react-query'
+import { Link, useNavigate, useParams } from 'react-router'
 import { fetchClient } from '../../data/clients.js'
-import { fetchActivePlan, fetchExerciseCatalogue } from '../../data/workouts.js'
+import { fetchActivePlan } from '../../data/workouts.js'
 import { queryKeys } from '../../lib/queryKeys.js'
-import { mutationKeys } from '../../lib/mutationKeys.js'
-import { createUuid } from '../../lib/uuid.js'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import CreatePlanFlow from '../workout/CreatePlanFlow.jsx'
-import SessionForm from '../workout/SessionForm.jsx'
 import { runStatusOf } from '../../lib/week.js'
 import { sessionStatusOf } from '../workout/status.js'
-import { buildSessionExercisePayloads } from '../workout/contracts.js'
 
 export default function ClientWorkoutScreen() {
   const { clientId } = useParams()
-  const [adding, setAdding] = useState(false)
+  const navigate = useNavigate()
   const [replacing, setReplacing] = useState(false)
 
   const client = useQuery({
@@ -32,13 +28,6 @@ export default function ClientWorkoutScreen() {
     queryFn: () => fetchActivePlan(clientId),
   })
 
-  const catalogue = useQuery({
-    queryKey: queryKeys.exerciseCatalogue(),
-    queryFn: fetchExerciseCatalogue,
-  })
-
-  const createSession = useMutation({ mutationKey: mutationKeys.createSession })
-
   if (plan.isPending || client.isPending) return <LoadingState />
   if (plan.isError && plan.data === undefined) {
     return <ErrorState error={plan.error} onRetry={plan.refetch} />
@@ -49,12 +38,9 @@ export default function ClientWorkoutScreen() {
 
   const clientName = client.data?.full_name ?? 'this client'
 
-  // No plan yet.  The same two-step flow the member uses on themselves: the
-  // plan and its first session are written together at the end, so abandoning
-  // halfway leaves nothing behind.  That matters more here than it looks --
-  // `fetchActivePlan` takes the newest plan, so a plan saved with no sessions
-  // would immediately replace whatever the client was following with an empty
-  // screen reading "This plan has no sessions".
+  // No plan yet. Same wizard the member uses on themselves: everything is
+  // drafted locally and written in one atomic call, so abandoning leaves
+  // nothing behind.
   if (plan.data === null) {
     return (
       <Stack spacing={3} sx={{ p: 2 }}>
@@ -65,6 +51,7 @@ export default function ClientWorkoutScreen() {
         <CreatePlanFlow
           memberId={clientId}
           onDone={() => plan.refetch()}
+          onAbandon={() => navigate(`/p/clients/${clientId}`)}
         />
       </Stack>
     )
@@ -87,8 +74,8 @@ export default function ClientWorkoutScreen() {
             setReplacing(false)
             plan.refetch()
           }}
+          onAbandon={() => setReplacing(false)}
         />
-        <Button onClick={() => setReplacing(false)}>Cancel</Button>
       </Stack>
     )
   }
@@ -105,13 +92,13 @@ export default function ClientWorkoutScreen() {
           <ArrowBackIcon />
         </IconButton>
         <Box sx={{ minWidth: 0 }}>
-        <Typography variant="h1" noWrap>{plan.data.plan.name}</Typography>
-        <Typography color="text.secondary" noWrap>{clientName}</Typography>
-        <Typography color="text.secondary">
-          {[plan.data.plan.goal, plan.data.plan.level, `${plan.data.plan.weeks} weeks`]
-            .filter(Boolean)
-            .join(' • ')}
-        </Typography>
+          <Typography variant="h1" noWrap>{plan.data.plan.name}</Typography>
+          <Typography color="text.secondary" noWrap>{clientName}</Typography>
+          <Typography color="text.secondary">
+            {[plan.data.plan.goal, plan.data.plan.level, `${plan.data.plan.weeks} weeks`]
+              .filter(Boolean)
+              .join(' • ')}
+          </Typography>
         </Box>
       </Stack>
 
@@ -121,92 +108,30 @@ export default function ClientWorkoutScreen() {
         {sessions.length === 0 ? (
           <EmptyState
             title="No sessions yet"
-            description="The plan exists but is empty. Add the first session below."
+            description="This plan has no sessions. Replace it to add some."
           />
         ) : null}
 
         {sessions.map((session) => (
           <Card key={session.id}>
             <CardContent>
-              <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-                <Stack sx={{ flexGrow: 1, minWidth: 0 }}>
-                  <Typography variant="h3" noWrap>
-                    {session.name}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" noWrap>
-                    {/* Derived from this week's runs, not from the stored
-                        column: what the coach wants to know is whether the
-                        client trained THIS week, which a status frozen at the
-                        first ever completion cannot say. */}
-                    {session.exerciseCount} exercises •{' '}
-                    {sessionStatusOf(runStatusOf(session.runs, plan.data.weekStart).status).label}
-                  </Typography>
-                </Stack>
-
-                <Button
-                  component={Link}
-                  to={`/p/clients/${clientId}/workout/session/${session.id}/exercise/new`}
-                  size="small"
-                >
-                  Add exercise
-                </Button>
-              </Stack>
+              <Typography variant="h3" noWrap>{session.name}</Typography>
+              <Typography variant="body2" color="text.secondary" noWrap>
+                {/* Derived from this week's runs, not the stored column: the
+                    coach wants to know whether the client trained THIS week. */}
+                {session.exerciseCount} exercises •{' '}
+                {sessionStatusOf(runStatusOf(session.runs, plan.data.weekStart).status).label}
+              </Typography>
             </CardContent>
           </Card>
         ))}
-
       </Stack>
 
       <Divider />
 
-      {adding ? (
-        <Stack spacing={2}>
-          <Typography variant="h2">New session</Typography>
-
-          {catalogue.isPending ? <LoadingState /> : null}
-          {catalogue.isError && catalogue.data === undefined ? (
-            <ErrorState error={catalogue.error} onRetry={catalogue.refetch} />
-          ) : null}
-
-          {/* Only mount the form once the catalogue is real: MUI's
-              useAutocomplete calls `options.filter()` on open, and an undefined
-              `options` throws through to the router's root boundary. */}
-          {catalogue.data ? (
-            <SessionForm
-              catalogue={catalogue.data}
-              pending={createSession.isPending}
-              paused={createSession.isPending && createSession.isPaused}
-              error={createSession.error}
-              submitLabel="Add session"
-              onSubmit={({ name, exercises }) =>
-                createSession.mutate(
-                  {
-                    id: createUuid(),
-                    planId: plan.data.plan.id,
-                    name,
-                    position: Math.max(0, ...sessions.map((session) => session.position)) + 1,
-                    exercises: buildSessionExercisePayloads(exercises),
-                  },
-                  { onSuccess: () => setAdding(false) },
-                )
-              }
-            />
-          ) : null}
-
-          <Button onClick={() => setAdding(false)} disabled={createSession.isPending}>
-            Cancel
-          </Button>
-        </Stack>
-      ) : (
-        <Stack spacing={1}>
-          <Button variant="contained" size="large" fullWidth onClick={() => setAdding(true)}>
-            Add a session
-          </Button>
-          <Button variant="outlined" size="large" fullWidth onClick={() => setReplacing(true)}>
-            Create replacement plan
-          </Button>
-        </Stack>
-      )}
+      <Button variant="outlined" size="large" fullWidth onClick={() => setReplacing(true)}>
+        Create replacement plan
+      </Button>
     </Stack>
   )
 }
