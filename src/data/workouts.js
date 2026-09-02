@@ -154,24 +154,6 @@ export async function fetchExerciseCatalogue() {
 }
 
 /**
- * Create one session and all its exercises in the same database transaction.
- * The assigned professional is derived from the authenticated caller; the
- * browser cannot attach the bundle to somebody else's plan.
- */
-export async function createSession({ id, planId, name, position, exercises }) {
-  const { data, error } = await supabase.rpc('create_workout_session_secure', {
-    p_session_id: id,
-    p_plan_id: planId,
-    p_name: name,
-    p_position: position,
-    p_exercises: exercises,
-  })
-
-  if (error) throw error
-  return data
-}
-
-/**
  * Create a workout plan for a member, with all of its drafted sessions, in
  * one atomic call.
  *
@@ -195,37 +177,6 @@ export async function createPlan({
       p_level: level || null,
       p_weeks: weeks,
       p_sessions: sessions,
-    })
-    .single()
-
-  if (error) throw error
-  return data
-}
-
-/**
- * Add one prescribed exercise to a session that already exists.
- *
- * The caller supplies `id` and `position`. The secure operation treats that id
- * as the replay key and refuses to change a session that already has workout
- * history, preserving what old summaries mean.
- *
- * `position` must be `Math.max(0, ...) + 1`, never a count: `unique
- * (session_id, position)` rejects a reused one, and counting collides the
- * moment anything has been deleted.
- */
-export async function addSessionExercise({
-  id, sessionId, exerciseId, position, targetSets, targetReps, targetWeight, restSeconds,
-}) {
-  const { data, error } = await supabase
-    .rpc('add_session_exercise_secure', {
-      p_id: id,
-      p_session_id: sessionId,
-      p_exercise_id: exerciseId,
-      p_position: position,
-      p_target_sets: targetSets,
-      p_target_reps: targetReps,
-      p_target_weight: targetWeight ?? null,
-      p_rest_seconds: restSeconds,
     })
     .single()
 
