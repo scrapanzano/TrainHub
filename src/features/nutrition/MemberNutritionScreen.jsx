@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Box, Button, Card, CardActionArea, CardContent, Divider, Stack, Typography } from '@mui/material'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { fetchNutritionPlan } from '../../data/nutrition.js'
 import { queryKeys } from '../../lib/queryKeys.js'
+import { mutationKeys } from '../../lib/mutationKeys.js'
 import { todayISO } from '../../lib/format.js'
 import { weekStrip } from '../calendar/month.js'
 import WeekStrip from '../../components/WeekStrip.jsx'
@@ -37,6 +38,17 @@ export default function MemberNutritionScreen() {
     queryKey: queryKeys.nutritionPlan(user.id),
     queryFn: () => fetchNutritionPlan(user.id),
   })
+
+  // Fires once per mount, independent of how this screen was reached --
+  // clears the "New nutrition plan" notification the same way visiting it
+  // always would, bell or not (patches/020).
+  const notified = useRef(false)
+  const markNotificationsRead = useMutation({ mutationKey: mutationKeys.markNotificationsRead })
+  useEffect(() => {
+    if (notified.current) return
+    notified.current = true
+    markNotificationsRead.mutate({ url: '/m/nutrition' })
+  }, [markNotificationsRead])
 
   if (nutrition.isPending) return <LoadingState />
   if (nutrition.isError && nutrition.data === undefined) {

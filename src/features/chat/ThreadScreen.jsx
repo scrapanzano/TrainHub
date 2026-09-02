@@ -88,6 +88,21 @@ export default function ThreadScreen() {
     )
   }, [threadId, messages.data, user.id, markRead])
 
+  // A chat notification's url is role-specific (patches/020): the member's
+  // is the static thread route, the professional's names the thread. Fires
+  // once per thread, independent of the message-read-receipt effect above --
+  // that one is about individual messages, this one is about the
+  // notifications-center row this thread's messages generated.
+  const notifiedFor = useRef(null)
+  const markNotificationsRead = useMutation({ mutationKey: mutationKeys.markNotificationsRead })
+  useEffect(() => {
+    if (!threadId || notifiedFor.current === threadId) return
+    notifiedFor.current = threadId
+    markNotificationsRead.mutate({
+      url: isMember ? '/m/trainer/chat' : `/p/chat/${threadId}`,
+    })
+  }, [threadId, isMember, markNotificationsRead])
+
   useEffect(() => {
     if (!messages.data?.length) return
     messagesEnd.current?.scrollIntoView({ block: 'end' })
