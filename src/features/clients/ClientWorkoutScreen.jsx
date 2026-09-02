@@ -64,8 +64,8 @@ export default function ClientWorkoutScreen() {
       <Stack spacing={3} sx={{ p: 2 }}>
         <Typography variant="h1">Replace plan</Typography>
         <Alert severity="info">
-          The current plan stays in the client history. The new one becomes active only when its
-          first complete session is saved.
+          The current plan stays in the client history. The new one becomes active as soon as
+          you confirm it below.
         </Alert>
         <CreatePlanFlow
           memberId={clientId}

@@ -1,4 +1,4 @@
-import { Stack, Typography } from '@mui/material'
+import { Alert, Stack, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import { fetchActivePlan } from '../../data/workouts.js'
@@ -40,6 +40,12 @@ export default function NewPlanScreen() {
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
       <Typography variant="h1">Your plan</Typography>
+      {activePlan.data ? (
+        <Alert severity="info">
+          Your current plan stays in your history. This one replaces it and becomes active as
+          soon as you confirm it below.
+        </Alert>
+      ) : null}
       <CreatePlanFlow
         memberId={user.id}
         replacesPlanId={activePlan.data?.plan.id ?? null}
