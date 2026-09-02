@@ -2217,3 +2217,73 @@ Queued, in dependency order:
      screenshots for chapter 5, write chapters 4/5/6 and the slides, rewrite
      section 7 of `docs/superpowers/2026-07-30-device-verification.md` against
      the current workout flow.
+
+
+# WORKOUT-CREATION-WIZARD MERGED into main via pull request #6
+
+Merge commit 17d17c3, 2026-09-02. Branch `workout-creation-wizard`, off
+`5a7f2fa` (right after the hotfix merge). 10 commits. Built via
+`superpowers:subagent-driven-development`: 7 plan tasks, each a fresh
+Sonnet 5 implementer + a Sonnet 5 task reviewer (spec + quality), then a
+whole-branch review on Opus 5, one fix round, a focused re-review
+(`Ready to merge: Yes`), and two further rounds of fixes from Davide's own
+manual click-through. Spec: `docs/superpowers/specs/2026-09-02-workout-
+creation-redesign-design.md`. Plan: `docs/superpowers/plans/2026-09-02-
+workout-creation-wizard.md`.
+
+Item 1 of the hotfix entry's queue -- the member-side workout-creation UX
+Davide deferred out of that merge -- is this branch. `CreatePlanFlow.jsx`
+is now a local draft-then-commit wizard (plan meta -> any number of
+sessions, each add/edit/delete-able before anything is written -> one
+atomic RPC call), backed by `patches/018` extending `create_workout_plan_
+secure` to accept an array of sessions instead of one, looping the existing
+`_insert_session_bundle` helper -- atomicity and `patches/017`'s
+self-authorship check both carry over unchanged. `ClientWorkoutScreen.jsx`
+lost its inline "Add a session"/"Add exercise" paths; replacing a plan via
+the same wizard is now the only way to change an existing one, for both
+roles. The exercise catalogue grew from 4 muscle groups (10 exercises) to
+7 (22), via `patches/019`.
+
+Verified on main after the merge: lint, build, all fourteen self-checks,
+and `node supabase/probe-rls.mjs`.
+
+Two rounds of findings, both closed before merge rather than deferred:
+
+  - The whole-branch review (Opus 5) found the RPC/JS contract and
+    `patches/017`'s authorization both carried over correctly, but caught
+    four real UX gaps a task-scoped review structurally cannot see: the
+    session-drafting step had no way back to the summary except discarding
+    the whole draft; the summary screen showed sessions but not the plan's
+    own name/goal/level/weeks, with no way to fix a typo without starting
+    over; the deploy-ordering dependency on patches 018/019 existed only in
+    scratch files, not anywhere durable in the repo; and a member reaching
+    `/m/workout/builder` with an existing plan already (no route guard) would
+    draft an entire plan only to have it rejected at the very last step by
+    the optimistic-concurrency check. All fixed, re-reviewed clean.
+  - Davide's own manual pass then found two more: no visible entry point at
+    all for a member to replace an existing plan (the defensive fix above
+    only stopped it from failing, it didn't surface a button), and the
+    exercise picker's `Autocomplete` `groupBy` rendering broken/repeated
+    section headers because `fetchExerciseCatalogue` ordered by `name` only
+    -- MUI requires options pre-sorted by the grouping key. Also added the
+    muscle-group filter (`Chip` row, same pattern as `BrowseTrainersScreen`'s
+    specialty filter) that `doc/create_workout.md` had asked for and the
+    plan's Task 7 never covered (it only expanded the catalogue's content).
+
+RESUME HERE. The wizard is merged. Nothing is in flight.
+
+Queued, in dependency order:
+
+  1. The PROFESSIONAL'S side of the Phase 5A workout rebuild (`workout_
+     runs`-based, weekly-repeating) -- its own spec, still Davide's decision,
+     still the acknowledged debt of that phase.
+  2. The notification bell: still not clickable, still doesn't refresh within
+     its 60s poll.
+  3. Hardening and the report: re-run Lighthouse, capture screenshots for
+     chapter 5, write chapters 4/5/6 and the slides, rewrite section 7 of
+     `docs/superpowers/2026-07-30-device-verification.md` against the
+     current workout flow -- now including this wizard.
+  4. A DB cleanup pass before submission, Davide's own item: `create_
+     workout_session_secure`/`add_session_exercise_secure` are unreachable
+     from the app since this merge but still exist and are still callable
+     server-side; decide whether to drop them or leave them.
