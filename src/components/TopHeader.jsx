@@ -36,8 +36,8 @@ export default function TopHeader({ profileHref, notificationCount = 0, notifica
           to={notificationHref}
           aria-label={
             notificationCount === 0
-              ? 'No unread messages'
-              : `${notificationCount} unread message${notificationCount === 1 ? '' : 's'}`
+              ? 'No unread notifications'
+              : `${notificationCount} unread notification${notificationCount === 1 ? '' : 's'}`
           }
         >
           <Badge badgeContent={notificationCount} color="primary">

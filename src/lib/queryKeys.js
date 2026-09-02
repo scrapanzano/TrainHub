@@ -30,7 +30,6 @@ export const queryKeys = {
   thread: (threadId) => ['chat', 'thread', threadId],
   threads: (proId) => ['chat', 'threads', proId],
   threadMessages: (threadId) => ['chat', 'messages', threadId],
-  unreadCount: (userId) => ['chat', 'unread', userId],
   professionals: () => ['professionals'],
   memberAppointments: (memberId, fromISO, toISO) => ['appointments', memberId, 'range', fromISO, toISO],
   notifications: (userId) => ['notifications', 'list', userId],

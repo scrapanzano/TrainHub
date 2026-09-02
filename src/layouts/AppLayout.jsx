@@ -7,7 +7,7 @@ import LiveSessionBar from '../components/LiveSessionBar.jsx'
 import OfflineBanner from '../components/OfflineBanner.jsx'
 import { LoadingState } from '../components/ScreenState.jsx'
 import TopHeader from '../components/TopHeader.jsx'
-import { fetchUnreadCount } from '../data/chat.js'
+import { fetchUnreadNotificationCount } from '../data/notifications.js'
 import { fetchOpenRun } from '../data/runs.js'
 import { elapsedMs } from '../features/workout/timer.js'
 import { useAuth } from '../features/auth/useAuth.js'
@@ -27,16 +27,15 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
   const location = useLocation()
 
   const unread = useQuery({
-    queryKey: queryKeys.unreadCount(user?.id),
-    queryFn: () => fetchUnreadCount(user.id),
+    queryKey: queryKeys.unreadNotificationCount(user?.id),
+    queryFn: () => fetchUnreadNotificationCount(user.id),
     // Nothing to count until somebody is signed in.
     enabled: Boolean(user?.id),
-    // Polled rather than pushed: the chat's Realtime channel is filtered to one
-    // `thread_id` and lives on the conversation screen, so it cannot feed a
-    // badge that must count every thread. This layout never unmounts on inner
-    // navigation either, so without an interval the badge freezes at its
-    // page-load value. A shell-level subscription is the fuller answer and is
-    // not worth a second channel at this scale.
+    // Polled rather than pushed: nothing in this shell subscribes to
+    // Realtime for every notification-generating table, so a badge that
+    // must reflect messages, appointments and plans together needs a poll
+    // to notice a change made elsewhere. Same interval the chat inbox
+    // already polls at.
     refetchInterval: 60_000,
   })
 
@@ -137,7 +136,7 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
         <TopHeader
           profileHref={profileHref}
           notificationCount={unread.data ?? 0}
-          notificationHref={requiredRole === 'professional' ? '/p/chat' : '/m/trainer/chat'}
+          notificationHref={requiredRole === 'professional' ? '/p/notifications' : '/m/notifications'}
           scanHref={requiredRole === 'professional' ? '/p/scan' : undefined}
         />
         <OfflineBanner />
