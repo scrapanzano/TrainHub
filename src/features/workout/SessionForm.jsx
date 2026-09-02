@@ -37,14 +37,16 @@ export default function SessionForm({
 }) {
   const [name, setName] = useState(initial?.name ?? '')
   const [rows, setRows] = useState(() =>
-    (initial?.exercises ?? []).map((item) => ({
-      exercise: catalogue.find((option) => option.id === item.exerciseId),
-      targetSets: item.targetSets,
-      targetReps: item.targetReps,
-      targetWeight: item.targetWeight ?? '',
-      restSeconds: item.restSeconds,
-      notes: item.notes ?? '',
-    })),
+    (initial?.exercises ?? [])
+      .map((item) => ({
+        exercise: catalogue.find((option) => option.id === item.exerciseId),
+        targetSets: item.targetSets,
+        targetReps: item.targetReps,
+        targetWeight: item.targetWeight ?? '',
+        restSeconds: item.restSeconds,
+        notes: item.notes ?? '',
+      }))
+      .filter((row) => row.exercise),
   )
   const [picked, setPicked] = useState(null)
 

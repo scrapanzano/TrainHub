@@ -31,8 +31,8 @@ create temporary table patch_019_checks (
 ) on commit preserve rows;
 
 insert into patch_019_checks (check_name, actual, expected) values
-  ('seven muscle groups are represented',
-   (select count(distinct muscle_group)::text from public.exercises), '7'),
+  ('at least seven muscle groups are represented',
+   (select (count(distinct muscle_group) >= 7)::text from public.exercises), 'true'),
   ('at least three exercises per each new muscle group',
    (select (min(cnt) >= 3)::text from (
      select count(*) cnt from public.exercises

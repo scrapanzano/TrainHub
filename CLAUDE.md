@@ -173,10 +173,16 @@ credentials, so any schema work ends in a handoff to Davide.
 
 - `schema.sql`, `policies.sql`, `seed.sql` — a fresh install, in that order,
   after creating the two demo auth users with **Auto Confirm User** ticked.
-- `patches/001`…`011` — applied in order on top. They also carry their own
+- `patches/001`…`019` — applied in order on top. They also carry their own
   PASS/FAIL blocks. `009` (checkin tokens) and `010` (push notifications) are
   what Phase 4B's badge, scanner and push features depend on; `011` hardens the
   three oldest `security definer` functions against pg_temp shadowing.
+  `015` rewrites every write as a secure RPC and revokes direct table
+  grants; `017` widens plan creation to the member themselves, not only
+  their assigned professional; `018` lets one plan-creation call bundle
+  any number of sessions; `019` grows the exercise catalogue. All must be
+  applied, in order, before the current `workout-creation-wizard` branch's
+  code will work against the database.
 - `probe-rls.mjs` — `node supabase/probe-rls.mjs`. Asks every table what it
   returns to a caller holding nothing but the publishable key, which ships in
   the JS bundle. `verify.sql` structurally cannot answer this: it runs as the

@@ -6,26 +6,31 @@ import {
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 
 /**
- * Review the sessions drafted so far, before anything is written.
+ * Review the plan drafted so far, before anything is written.
  *
  * Every action here is local until `onConfirm` fires the one atomic write --
- * editing or deleting a drafted session never touches the server.
+ * editing plan details, editing or deleting a drafted session never touches
+ * the server.
  *
  * @param {object}   props
+ * @param {object}   props.meta            `{name, goal, level, weeks}`, from step 1.
  * @param {Array}    props.sessions        `{id, name, exercises}[]`, drafted so far.
  * @param {boolean}  props.pending         The create/replace write is in flight.
  * @param {boolean}  props.paused          The write is parked offline.
  * @param {?Error}   props.error           The last failure, if any.
+ * @param {Function} props.onEditMeta      Go back and edit the plan's own details.
  * @param {Function} props.onAddSession    Start drafting another session.
  * @param {Function} props.onEditSession   `(index) => void`, reopen a drafted session.
  * @param {Function} props.onDeleteSession `(index) => void`, drop a drafted session.
  * @param {Function} props.onConfirm       Fire the one atomic write.
  */
 export default function PlanSummary({
+  meta,
   sessions,
   pending,
   paused,
   error,
+  onEditMeta,
   onAddSession,
   onEditSession,
   onDeleteSession,
@@ -33,7 +38,23 @@ export default function PlanSummary({
 }) {
   return (
     <Stack spacing={3}>
-      <Typography variant="h1">Review your plan</Typography>
+      <Typography variant="h2">Review your plan</Typography>
+
+      <Card>
+        <CardContent>
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+            <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+              <Typography variant="h3" noWrap>{meta.name}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                {[meta.goal, meta.level, `${meta.weeks} weeks`].filter(Boolean).join(' • ')}
+              </Typography>
+            </Box>
+            <Button size="small" onClick={onEditMeta} disabled={pending}>
+              Edit details
+            </Button>
+          </Stack>
+        </CardContent>
+      </Card>
 
       <Stack spacing={2}>
         {sessions.map((session, index) => (
