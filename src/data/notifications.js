@@ -6,13 +6,14 @@ import { supabase } from '../lib/supabase.js'
 
 const NOTIFICATION_COLUMNS = 'id, type, title, body, url, read_at, created_at'
 
-/** Every notification for this user, newest first. */
+/** This user's 50 most recent notifications, newest first. */
 export async function fetchNotifications(userId) {
   const { data, error } = await supabase
     .from('notifications')
     .select(NOTIFICATION_COLUMNS)
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
+    .limit(50)
     .retry(navigator.onLine)
 
   if (error) throw error

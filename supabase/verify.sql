@@ -1,10 +1,10 @@
--- TrainHub database checks after patches 001-016.
+-- TrainHub database checks after patches 001-020.
 --
 -- One query on purpose: the Supabase SQL editor only renders the result of the
 -- LAST statement in a script, so a file of separate SELECTs silently shows you
 -- just the final one.
 --
--- Run after schema.sql + policies.sql + seed.sql and every patch through 016.
+-- Run after schema.sql + policies.sql + seed.sql and every patch through 020.
 -- The schema/security checks expect patches 015-016. Every row must read PASS.
 --
 -- Caveat: this runs as the dashboard's privileged role, which bypasses RLS.
@@ -20,30 +20,30 @@ select
 from (
   values
     -- Schema ---------------------------------------------------------------
-    -- schema.sql now declares the complete 19-table fresh-install shape. The
+    -- schema.sql now declares the complete 20-table fresh-install shape. The
     -- historical create-if-missing patches remain safe to replay in order.
     ('public tables',
      (select count(*)::text from information_schema.tables
-      where table_schema = 'public' and table_type = 'BASE TABLE'), '19'),
+      where table_schema = 'public' and table_type = 'BASE TABLE'), '20'),
 
     -- Security -------------------------------------------------------------
     ('tables with RLS enabled',
      (select count(*)::text from pg_tables
-      where schemaname = 'public' and rowsecurity), '19'),
+      where schemaname = 'public' and rowsecurity), '20'),
     -- RLS switched on with zero policies denies everything: it passes the
     -- check above while silently breaking every read the app makes.
     --
-    -- 18, one short of the table count, and that gap is the assertion rather
+    -- 19, one short of the table count, and that gap is the assertion rather
     -- than a gap in coverage: `app_config` holds the secret that authenticates
     -- the database to the notify Edge Function and is deliberately policy-less
     -- AND grant-less, so RLS-on-with-no-policy denies every PostgREST caller
     -- and the missing grant denies them one gate earlier.  Only
     -- `notify_user()`, which is `security definer`, reads it.  If any of the
-    -- two read rows below ever read 19, that table became reachable from the
+    -- two read rows below ever read 20, that table became reachable from the
     -- browser.
     ('tables with at least one policy',
      (select count(distinct tablename)::text from pg_policies
-      where schemaname = 'public'), '18'),
+      where schemaname = 'public'), '19'),
     -- RLS is the second gate, not the first.  PostgREST connects as `anon` and
     -- switches to `authenticated`, and Postgres checks the table GRANT before it
     -- ever evaluates a policy -- so a table with perfect RLS and no grant fails
@@ -55,7 +55,7 @@ from (
      (select count(*)::text from pg_tables
       where schemaname = 'public'
         and has_table_privilege('authenticated', format('%I.%I', schemaname, tablename), 'select')),
-     '18'),
+     '19'),
     ('tables the app role can write',
      (select count(*)::text from pg_tables
       where schemaname = 'public'

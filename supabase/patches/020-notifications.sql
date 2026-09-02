@@ -36,7 +36,8 @@ alter table public.notifications enable row level security;
 -- Postgres checks the table GRANT before it evaluates any policy -- the
 -- grant is the gate that actually runs first (patches/006).
 grant select on public.notifications to authenticated;
-revoke insert, update, delete on public.notifications from authenticated, anon;
+revoke select, insert, update, delete on public.notifications from anon;
+revoke insert, update, delete on public.notifications from authenticated;
 
 drop policy if exists notifications_select on public.notifications;
 create policy notifications_select on public.notifications
