@@ -19,3 +19,17 @@ export function buildSessionExercisePayloads(exercises, createId = createUuid) {
     notes: item.notes || null,
   }))
 }
+
+/**
+ * Freeze every drafted session into the JSON contract `create_workout_plan_
+ * secure` (patches/018) consumes: an ordered array of session bundles, each
+ * built the same way `buildSessionExercisePayloads` already builds one.
+ */
+export function buildSessionPayloads(sessions, createId = createUuid) {
+  return (sessions ?? []).map((session, index) => ({
+    id: session.id ?? createId(),
+    name: session.name,
+    position: index + 1,
+    exercises: buildSessionExercisePayloads(session.exercises, createId),
+  }))
+}

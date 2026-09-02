@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
-  Alert, Autocomplete, Box, Button, Card, CardContent, IconButton, Stack, TextField, Typography,
+  Alert, Autocomplete, Box, Button, Card, CardContent, Chip, IconButton, Stack, TextField,
+  Typography,
 } from '@mui/material'
 // `DeleteOutline` (the base glyph) is not shipped by @mui/icons-material@9.2.0;
 // only the styled variants exist.
@@ -10,10 +11,10 @@ import { EmptyState } from '../../components/ScreenState.jsx'
 /**
  * Build one session: a name and an ordered list of prescribed exercises.
  *
- * Shared by the member's own builder and the professional's plan editor,
- * because both produce exactly the same `createSession` payload.  The form owns
- * only its draft state; who is being written for, and what happens on success,
- * belong to the caller.
+ * Shared by the member's own wizard and the professional's plan wizard,
+ * because both produce exactly the same session payload. The form owns
+ * only its draft state; who is being written for, and what happens on
+ * success, belong to the caller.
  *
  * @param {object}   props
  * @param {Array}    props.catalogue   Exercises to choose from. Never undefined.
@@ -22,6 +23,9 @@ import { EmptyState } from '../../components/ScreenState.jsx'
  * @param {boolean}  props.paused      The save is parked offline.
  * @param {?Error}   props.error       The last failure, if any.
  * @param {string}   props.submitLabel Idle label for the button.
+ * @param {?object}  props.initial     `{name, exercises}` to reopen with, editing a
+ *   drafted session from the summary. `exercises` is shaped the way this
+ *   form's own `onSubmit` produces it.
  */
 export default function SessionForm({
   catalogue,
@@ -30,10 +34,29 @@ export default function SessionForm({
   paused = false,
   error = null,
   submitLabel = 'Save session',
+  initial = null,
 }) {
-  const [name, setName] = useState('')
-  const [rows, setRows] = useState([])
+  const [name, setName] = useState(initial?.name ?? '')
+  const [rows, setRows] = useState(() =>
+    (initial?.exercises ?? [])
+      .map((item) => ({
+        exercise: catalogue.find((option) => option.id === item.exerciseId),
+        targetSets: item.targetSets,
+        targetReps: item.targetReps,
+        targetWeight: item.targetWeight ?? '',
+        restSeconds: item.restSeconds,
+        notes: item.notes ?? '',
+      }))
+      .filter((row) => row.exercise),
+  )
   const [picked, setPicked] = useState(null)
+  // Narrows the picker below, not `rows` -- an exercise already added stays
+  // added regardless of which group is currently selected here.
+  const [muscleFilter, setMuscleFilter] = useState('all')
+  const muscleGroups = [...new Set(catalogue.map((item) => item.muscle_group))].sort()
+  const filteredCatalogue = muscleFilter === 'all'
+    ? catalogue
+    : catalogue.filter((item) => item.muscle_group === muscleFilter)
 
   const addRow = () => {
     if (!picked) return
@@ -82,9 +105,27 @@ export default function SessionForm({
         fullWidth
       />
 
+      <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: 1 }}>
+        <Chip
+          label="All"
+          color={muscleFilter === 'all' ? 'primary' : 'default'}
+          onClick={() => setMuscleFilter('all')}
+          aria-pressed={muscleFilter === 'all'}
+        />
+        {muscleGroups.map((group) => (
+          <Chip
+            key={group}
+            label={group}
+            color={muscleFilter === group ? 'primary' : 'default'}
+            onClick={() => setMuscleFilter(group)}
+            aria-pressed={muscleFilter === group}
+          />
+        ))}
+      </Stack>
+
       <Stack direction="row" spacing={1}>
         <Autocomplete
-          options={catalogue}
+          options={filteredCatalogue}
           getOptionLabel={(option) => option.name}
           groupBy={(option) => option.muscle_group}
           value={picked}

@@ -1,6 +1,6 @@
 // Run with: node src/features/workout/contracts.selfcheck.js
 import assert from 'node:assert/strict'
-import { buildSessionExercisePayloads } from './contracts.js'
+import { buildSessionExercisePayloads, buildSessionPayloads } from './contracts.js'
 
 let nextId = 0
 const createId = () => `exercise-${++nextId}`
@@ -30,5 +30,20 @@ const frozen = buildSessionExercisePayloads(draft, createId)
 assert.equal(frozen[1].id, 'stable-id')
 assert.equal(nextId, 2)
 assert.deepEqual(buildSessionExercisePayloads([], createId), [])
+
+const sessions = [
+  { name: 'Push Day', exercises: draft },
+  { id: 'stable-session', name: 'Pull Day', exercises: [] },
+]
+
+const built = buildSessionPayloads(sessions, createId)
+assert.equal(built.length, 2)
+assert.equal(built[0].position, 1)
+assert.equal(built[1].position, 2)
+assert.equal(built[1].id, 'stable-session')
+assert.deepEqual(built[1].exercises, [])
+// A session missing an id gets one from the factory, same as an exercise row.
+assert.equal(nextId, 4)
+assert.deepEqual(buildSessionPayloads([], createId), [])
 
 console.log('workout contracts: OK')

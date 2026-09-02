@@ -64,7 +64,19 @@ begin
     ('Pull-up',          'Back',       'Bodyweight','Full hang to chin over the bar.'),
     ('Barbell Row',      'Back',       'Barbell',   'Torso near 45 degrees, pull to the navel.'),
     ('Overhead Press',   'Shoulders',  'Barbell',   'Brace the core, press in a straight line.'),
-    ('Lateral Raise',    'Shoulders',  'Dumbbell',  'Lead with the elbows, stop at shoulder height.')
+    ('Lateral Raise',    'Shoulders',  'Dumbbell',  'Lead with the elbows, stop at shoulder height.'),
+    ('Barbell Curl',        'Biceps',  'Barbell',   'Elbows pinned to the ribs, no swing.'),
+    ('Hammer Curl',         'Biceps',  'Dumbbell',  'Neutral grip throughout, control the descent.'),
+    ('Incline Dumbbell Curl','Biceps', 'Dumbbell',  'Bench at 45 degrees for a deep stretch.'),
+    ('Cable Curl',          'Biceps',  'Cable',     'Constant tension, stop short of lockout.'),
+    ('Tricep Pushdown',     'Triceps', 'Cable',     'Elbows fixed at the sides, full extension.'),
+    ('Skull Crusher',       'Triceps', 'Barbell',   'Lower to the forehead, elbows stay narrow.'),
+    ('Overhead Tricep Extension', 'Triceps', 'Dumbbell', 'Elbows close to the head, full stretch.'),
+    ('Close-Grip Bench Press', 'Triceps', 'Barbell', 'Hands shoulder-width, elbows tucked.'),
+    ('Plank',               'Core',    'Bodyweight','Straight line from shoulders to heels.'),
+    ('Hanging Leg Raise',   'Core',    'Bodyweight','Curl the pelvis, avoid swinging.'),
+    ('Cable Crunch',        'Core',    'Cable',     'Round the spine, hips stay still.'),
+    ('Russian Twist',       'Core',    'Bodyweight','Rotate from the torso, feet may stay down.')
   on conflict (name) do nothing;
 
   -- Workout plan, mirroring gym_member/02 - Workout.png --------------------

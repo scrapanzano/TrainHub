@@ -1,6 +1,4 @@
-import {
-  addSessionExercise, createPlan, createSession, logSet,
-} from './workouts.js'
+import { createPlan, logSet } from './workouts.js'
 import { endRun, pauseRun, resumeRun, saveRunNote, startRun } from './runs.js'
 import { deleteMeal, saveMeal, saveNutritionPlan } from './nutrition.js'
 import { saveBodyMetric } from './progress.js'
@@ -175,46 +173,20 @@ export function registerMutationDefaults(queryClient) {
     },
   })
 
-  // Plan and session bundles are atomic server operations. They still share a
-  // scope because two additions to the same plan can calculate the same next
-  // position while offline. Serial replay makes the first win deterministically
-  // and lets the second surface the concurrency conflict instead of racing.
-  // `position` is
-  // `Math.max(...) + 1` read from cache, so two sessions added in parallel
-  // would compute the same position and the second would be rejected by
-  // `unique (plan_id, position)`.
-  const planWriteScope = { id: 'planWrite' }
-
-  queryClient.setMutationDefaults(mutationKeys.createSession, {
-    mutationFn: createSession,
-    scope: planWriteScope,
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
-    },
-  })
-
+  // A plan's whole write -- itself and every drafted session -- is one
+  // atomic RPC call (patches/018), so this no longer shares a scope with a
+  // sibling mutation the way it did when a session was a second, separate
+  // write. Kept regardless: if a member somehow queues two plan creations
+  // offline, replaying them in order is still the safer default over racing.
   queryClient.setMutationDefaults(mutationKeys.createPlan, {
     mutationFn: createPlan,
-    scope: planWriteScope,
+    scope: { id: 'planWrite' },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
       // `fetchClients` derives each roster row's `goal` from the client's
       // newest `workout_plans` row, so the roster goes stale the moment a new
       // plan is created unless this family is invalidated too.
       queryClient.invalidateQueries({ queryKey: queryPrefixes.clients })
-    },
-  })
-
-  // `position` is
-  // `Math.max(...) + 1` computed from cache, so two adds replayed in parallel
-  // would land on the same position and `unique (session_id, position)` would
-  // reject the second.
-  queryClient.setMutationDefaults(mutationKeys.addSessionExercise, {
-    mutationFn: addSessionExercise,
-    scope: { id: 'sessionExercises' },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
-      queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
     },
   })
 

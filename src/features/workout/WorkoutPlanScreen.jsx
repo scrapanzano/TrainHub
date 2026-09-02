@@ -1,5 +1,5 @@
 import {
-  Box, Button, Card, CardContent, LinearProgress, Stack, Typography,
+  Box, Button, Card, CardContent, Divider, LinearProgress, Stack, Typography,
 } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
@@ -150,6 +150,12 @@ export default function WorkoutPlanScreen() {
         )}
 
       </Box>
+
+      <Divider />
+
+      <Button component={Link} to="/m/workout/builder" variant="outlined" size="large" fullWidth>
+        Create replacement plan
+      </Button>
     </Stack>
   )
 }
