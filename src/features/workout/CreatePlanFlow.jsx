@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Alert, Button, Stack, Typography } from '@mui/material'
+import { Button } from '@mui/material'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { fetchExerciseCatalogue } from '../../data/workouts.js'
 import { queryKeys } from '../../lib/queryKeys.js'
@@ -8,28 +8,29 @@ import { createUuid } from '../../lib/uuid.js'
 import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import PlanForm from './PlanForm.jsx'
 import SessionForm from './SessionForm.jsx'
-import { buildSessionExercisePayloads } from './contracts.js'
+import PlanSummary from './PlanSummary.jsx'
+import { buildSessionPayloads } from './contracts.js'
 
 /**
- * Build a plan and its first session, writing one atomic bundle at the end.
+ * Build a plan as a local draft -- meta, then any number of sessions -- and
+ * write the whole thing in one atomic call when the member or professional
+ * confirms. Nothing reaches the server before that: abandoning at any step
+ * discards the draft and leaves an existing plan, if there was one, untouched.
  *
- * The writes are deferred to the last step deliberately.  `fetchActivePlan`
- * takes the newest plan by `created_at`, so a plan saved before it has a
- * session would instantly hide whatever came before it -- including one a coach
- * spent an afternoon writing -- while showing the member an empty plan.
- * Nothing is created until there is something worth showing, which also
- * enforces the rule that a session must hold at least one exercise.
+ * Used by both roles. Only `memberId`, `replacesPlanId`, `onDone` and
+ * `onAbandon` differ.
  *
- * Patch 015 creates the plan, session and exercises in one transaction. A lost
- * connection therefore leaves either the complete bundle or nothing, and a
- * replay uses the client-generated IDs to return the same rows.
+ * @param {object}   props
+ * @param {string}   props.memberId       Who the plan is for.
+ * @param {?string}  props.replacesPlanId The plan this one supersedes, if any.
+ * @param {Function} props.onDone         The atomic write succeeded.
+ * @param {Function} props.onAbandon      The user confirmed discarding the draft.
  */
-export default function CreatePlanFlow({ memberId, replacesPlanId = null, onDone }) {
-  // Step and values are separate state: going Back must return to a filled-in
-  // form, not an empty one.  Deriving the step from `meta === null` would clear
-  // the plan's name the moment the member went back to check it.
-  const [step, setStep] = useState(1)
+export default function CreatePlanFlow({ memberId, replacesPlanId = null, onDone, onAbandon }) {
+  const [step, setStep] = useState('meta') // 'meta' | 'session' | 'summary'
   const [meta, setMeta] = useState(null)
+  const [sessions, setSessions] = useState([])
+  const [editingIndex, setEditingIndex] = useState(null)
 
   const catalogue = useQuery({
     queryKey: queryKeys.exerciseCatalogue(),
@@ -38,76 +39,102 @@ export default function CreatePlanFlow({ memberId, replacesPlanId = null, onDone
 
   const createPlan = useMutation({ mutationKey: mutationKeys.createPlan })
 
-  const pending = createPlan.isPending
-  const paused = pending && createPlan.isPaused
-  const error = createPlan.error
+  const confirmAbandon = () => {
+    // `confirm` rather than a dialog component: one destructive action in one
+    // flow, already accessible and blocking. Required by the flow's own rule
+    // that leaving it is always available but always confirmed.
+    if (window.confirm('Discard this plan? Nothing entered so far will be saved.')) {
+      onAbandon()
+    }
+  }
 
-  if (step === 1) {
-    return (
+  let body
+
+  if (step === 'meta') {
+    body = (
       <PlanForm
-        initial={meta}
-        submitLabel="Continue"
         onSubmit={(values) => {
           setMeta(values)
-          setStep(2)
+          setStep('session')
+        }}
+      />
+    )
+  } else if (catalogue.isPending) {
+    body = <LoadingState />
+  } else if (catalogue.isError && catalogue.data === undefined) {
+    body = <ErrorState error={catalogue.error} onRetry={catalogue.refetch} />
+  } else if (step === 'session') {
+    // Reopening a drafted session from the summary pre-fills the form;
+    // adding a new one starts blank.
+    const editing = editingIndex !== null ? sessions[editingIndex] : null
+    body = (
+      <SessionForm
+        catalogue={catalogue.data}
+        submitLabel={editing ? 'Save changes' : 'Add session'}
+        initial={editing}
+        onSubmit={({ name, exercises }) => {
+          const drafted = { id: editing?.id ?? createUuid(), name, exercises }
+          setSessions((current) =>
+            editingIndex === null
+              ? [...current, drafted]
+              : current.map((session, index) => (index === editingIndex ? drafted : session)),
+          )
+          setEditingIndex(null)
+          setStep('summary')
+        }}
+      />
+    )
+  } else {
+    // step === 'summary'
+    body = (
+      <PlanSummary
+        sessions={sessions}
+        pending={createPlan.isPending}
+        paused={createPlan.isPending && createPlan.isPaused}
+        error={createPlan.error}
+        onAddSession={() => {
+          setEditingIndex(null)
+          setStep('session')
+        }}
+        onEditSession={(index) => {
+          setEditingIndex(index)
+          setStep('session')
+        }}
+        onDeleteSession={(index) =>
+          setSessions((current) => current.filter((_, i) => i !== index))
+        }
+        onConfirm={() => {
+          // Generated here, in the handler: `react-hooks/purity` forbids
+          // `crypto.randomUUID()` in a render body. It is also the
+          // idempotency key the secure operation checks, so a replay returns
+          // the same bundle rather than creating a second plan that hides
+          // the first.
+          createPlan.mutate(
+            {
+              id: createUuid(),
+              memberId,
+              replacesPlanId,
+              ...meta,
+              sessions: buildSessionPayloads(sessions),
+            },
+            { onSuccess: onDone },
+          )
         }}
       />
     )
   }
 
-  if (catalogue.isPending) return <LoadingState />
-  // Ungated, `catalogue.data` is undefined and MUI's useAutocomplete calls
-  // `options.filter()` the moment the popup opens.  With no errorElement in the
-  // route tree that throw replaces the whole app with the root boundary.
-  if (catalogue.isError && catalogue.data === undefined) {
-    return <ErrorState error={catalogue.error} onRetry={catalogue.refetch} />
-  }
-
-  const onSubmit = ({ name, exercises }) => {
-    // Generated in the handler, not during render: `react-hooks/purity` forbids
-    // `createUuid()` in a render body.  It is also the idempotency key
-    // the secure operation checks, so a replay returns the same bundle rather
-    // than creating a second plan that hides the first.
-    createPlan.mutate(
-      {
-        id: createUuid(),
-        memberId,
-        replacesPlanId,
-        ...meta,
-        sessionId: createUuid(),
-        sessionName: name,
-        exercises: buildSessionExercisePayloads(exercises),
-      },
-      { onSuccess: onDone },
-    )
-  }
-
   return (
-    <Stack spacing={3}>
-      <Stack spacing={0.5}>
-        <Typography variant="h2" component="h2">
-          First session
-        </Typography>
-        <Typography color="text.secondary">
-          {meta.name} needs at least one session before it can exist.
-        </Typography>
-      </Stack>
-
-      <SessionForm
-        catalogue={catalogue.data}
-        onSubmit={onSubmit}
-        pending={pending}
-        paused={paused}
-        submitLabel="Create plan"
-      />
-
-      {error ? (
-        <Alert severity="error">{error.message ?? 'The plan could not be created.'}</Alert>
-      ) : null}
-
-      <Button onClick={() => setStep(1)} disabled={pending}>
-        Back
+    <>
+      {body}
+      <Button
+        onClick={confirmAbandon}
+        disabled={createPlan.isPending}
+        sx={{ mt: 2 }}
+        fullWidth
+      >
+        Cancel
       </Button>
-    </Stack>
+    </>
   )
 }

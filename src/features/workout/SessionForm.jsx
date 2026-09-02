@@ -10,10 +10,10 @@ import { EmptyState } from '../../components/ScreenState.jsx'
 /**
  * Build one session: a name and an ordered list of prescribed exercises.
  *
- * Shared by the member's own builder and the professional's plan editor,
- * because both produce exactly the same `createSession` payload.  The form owns
- * only its draft state; who is being written for, and what happens on success,
- * belong to the caller.
+ * Shared by the member's own wizard and the professional's plan wizard,
+ * because both produce exactly the same session payload. The form owns
+ * only its draft state; who is being written for, and what happens on
+ * success, belong to the caller.
  *
  * @param {object}   props
  * @param {Array}    props.catalogue   Exercises to choose from. Never undefined.
@@ -22,6 +22,9 @@ import { EmptyState } from '../../components/ScreenState.jsx'
  * @param {boolean}  props.paused      The save is parked offline.
  * @param {?Error}   props.error       The last failure, if any.
  * @param {string}   props.submitLabel Idle label for the button.
+ * @param {?object}  props.initial     `{name, exercises}` to reopen with, editing a
+ *   drafted session from the summary. `exercises` is shaped the way this
+ *   form's own `onSubmit` produces it.
  */
 export default function SessionForm({
   catalogue,
@@ -30,9 +33,19 @@ export default function SessionForm({
   paused = false,
   error = null,
   submitLabel = 'Save session',
+  initial = null,
 }) {
-  const [name, setName] = useState('')
-  const [rows, setRows] = useState([])
+  const [name, setName] = useState(initial?.name ?? '')
+  const [rows, setRows] = useState(() =>
+    (initial?.exercises ?? []).map((item) => ({
+      exercise: catalogue.find((option) => option.id === item.exerciseId),
+      targetSets: item.targetSets,
+      targetReps: item.targetReps,
+      targetWeight: item.targetWeight ?? '',
+      restSeconds: item.restSeconds,
+      notes: item.notes ?? '',
+    })),
+  )
   const [picked, setPicked] = useState(null)
 
   const addRow = () => {
