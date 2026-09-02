@@ -172,24 +172,18 @@ export async function createSession({ id, planId, name, position, exercises }) {
 }
 
 /**
- * Create a workout plan for a member.
+ * Create a workout plan for a member, with all of its drafted sessions, in
+ * one atomic call.
  *
- * Only the currently assigned professional may call it. The predecessor ID is
- * an optimistic concurrency check: a queued plan cannot silently replace a
- * newer plan created while the device was offline. Plan, first session and all
- * exercises commit atomically and exact replays return the existing plan.
+ * Only the member themselves or their assigned professional may call it
+ * (patches/017). The predecessor ID is an optimistic concurrency check: a
+ * queued plan cannot silently replace a newer plan created while the device
+ * was offline. The plan and every session/exercise in it commit together
+ * (patches/018), and an exact replay returns the existing plan without
+ * re-inserting anything.
  */
 export async function createPlan({
-  id,
-  memberId,
-  replacesPlanId,
-  name,
-  goal,
-  level,
-  weeks,
-  sessionId,
-  sessionName,
-  exercises,
+  id, memberId, replacesPlanId, name, goal, level, weeks, sessions,
 }) {
   const { data, error } = await supabase
     .rpc('create_workout_plan_secure', {
@@ -200,9 +194,7 @@ export async function createPlan({
       p_goal: goal || null,
       p_level: level || null,
       p_weeks: weeks,
-      p_session_id: sessionId,
-      p_session_name: sessionName,
-      p_exercises: exercises,
+      p_sessions: sessions,
     })
     .single()
 
