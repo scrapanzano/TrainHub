@@ -140,6 +140,12 @@ const router = createBrowserRouter([
           Component: (await import('../features/profile/SettingsScreen.jsx')).default,
         }),
       },
+      {
+        path: 'notifications',
+        lazy: async () => ({
+          Component: (await import('../features/notifications/NotificationsScreen.jsx')).default,
+        }),
+      },
     ],
   },
 
@@ -250,6 +256,12 @@ const router = createBrowserRouter([
         path: 'profile/settings',
         lazy: async () => ({
           Component: (await import('../features/profile/SettingsScreen.jsx')).default,
+        }),
+      },
+      {
+        path: 'notifications',
+        lazy: async () => ({
+          Component: (await import('../features/notifications/NotificationsScreen.jsx')).default,
         }),
       },
     ],
