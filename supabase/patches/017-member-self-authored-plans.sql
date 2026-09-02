@@ -88,7 +88,7 @@ insert into patch_017_checks (check_name, actual, expected) values
   ('a member may author their own plan',
    (select coalesce(
       regexp_replace(lower(pg_get_functiondef(p.oid)), '[[:space:]]+', '', 'g')
-        like '%not public.owns_member(p_member_id)%',
+        like '%notpublic.owns_member(p_member_id)%',
       false)::text
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'create_workout_plan_secure'),
