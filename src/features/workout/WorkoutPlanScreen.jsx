@@ -15,8 +15,9 @@ import { useAuth } from '../auth/useAuth.js'
  * The fork a member with no plan is offered.
  *
  * Shown only here, in the empty state. A permanent banner above an active plan
- * would be noise over the thing the member came to see. Patch 015 makes the
- * assigned professional the only plan author, so this points to that workflow.
+ * would be noise over the thing the member came to see. `create_workout_plan_
+ * secure` (patches/017) authorizes both the assigned professional and the
+ * member themselves, so both paths are offered.
  */
 function NoPlan({ hasCoach }) {
   return (
@@ -24,8 +25,8 @@ function NoPlan({ hasCoach }) {
       title="No plan yet"
       description={
         hasCoach
-          ? 'Your coach can write one for you after a consultation.'
-          : 'Choose a coach who can write a plan around your goals.'
+          ? 'Your coach can write one for you after a consultation — or you can build your own.'
+          : 'A coach can write one around your goals — or you can build your own.'
       }
       action={
         <Stack spacing={1} sx={{ width: '100%', maxWidth: 320 }}>
@@ -37,6 +38,9 @@ function NoPlan({ hasCoach }) {
             fullWidth
           >
             {hasCoach ? 'Book a consultation' : 'Choose a coach'}
+          </Button>
+          <Button component={Link} to="/m/workout/builder" variant="outlined" size="large" fullWidth>
+            Build my own
           </Button>
         </Stack>
       }

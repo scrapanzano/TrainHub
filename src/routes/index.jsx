@@ -69,7 +69,9 @@ const router = createBrowserRouter([
       },
       {
         path: 'workout/builder',
-        element: <Navigate to="/m/workout" replace />,
+        lazy: async () => ({
+          Component: (await import('../features/workout/NewPlanScreen.jsx')).default,
+        }),
       },
 
       {
