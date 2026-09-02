@@ -1,4 +1,4 @@
-import { Avatar, Card, CardActionArea, CardContent, Stack, Typography } from '@mui/material'
+import { Avatar, Button, Card, CardActionArea, CardContent, Stack, Typography } from '@mui/material'
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutlineOutlined'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
@@ -34,7 +34,7 @@ export default function MyTrainerScreen() {
     <Stack spacing={3} sx={{ p: 2 }}>
       <Typography variant="h1">Personal Trainer</Typography>
 
-      <Stack spacing={1.5} alignItems="center" sx={{ textAlign: 'center' }}>
+      <Stack spacing={1.5} sx={{ alignItems: 'center', textAlign: 'center' }}>
         <Avatar src={pro?.avatar_url ?? undefined} sx={{ width: 112, height: 112 }}>
           {pro?.full_name?.[0] ?? '?'}
         </Avatar>
@@ -53,7 +53,7 @@ export default function MyTrainerScreen() {
         <Card>
           <CardActionArea component={Link} to="/m/trainer/chat">
             <CardContent>
-              <Stack direction="row" spacing={2} alignItems="center">
+              <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
                 <ChatBubbleOutlineIcon color="primary" />
                 <Typography variant="h3" sx={{ flexGrow: 1 }}>
                   Chat
@@ -67,7 +67,7 @@ export default function MyTrainerScreen() {
         <Card>
           <CardActionArea component={Link} to="/m/trainer/appointments">
             <CardContent>
-              <Stack direction="row" spacing={2} alignItems="center">
+              <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
                 <CalendarMonthIcon color="primary" />
                 <Typography variant="h3" sx={{ flexGrow: 1 }}>
                   View Appointments
@@ -78,6 +78,10 @@ export default function MyTrainerScreen() {
           </CardActionArea>
         </Card>
       </Stack>
+
+      <Button component={Link} to="/m/trainer/browse" variant="outlined" fullWidth>
+        Change professional
+      </Button>
     </Stack>
   )
 }

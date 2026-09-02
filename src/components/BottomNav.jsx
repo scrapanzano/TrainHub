@@ -46,6 +46,11 @@ export default function BottomNav({ items }) {
             to={to}
             label={label}
             icon={<Icon />}
+            sx={{
+              minWidth: 0,
+              px: 0.5,
+              '& .MuiBottomNavigationAction-label': { whiteSpace: 'nowrap' },
+            }}
           />
         ))}
       </BottomNavigation>

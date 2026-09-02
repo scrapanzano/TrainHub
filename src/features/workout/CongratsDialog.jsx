@@ -27,7 +27,7 @@ export default function CongratsDialog({
       slotProps={{ paper: { sx: { textAlign: 'center', px: 2, py: 1 } } }}
     >
       <DialogTitle id="congrats-title">
-        <Stack spacing={1} alignItems="center">
+        <Stack spacing={1} sx={{ alignItems: 'center' }}>
           <EmojiEventsIcon color="primary" sx={{ fontSize: 56 }} aria-hidden />
           <Typography variant="h2" component="span">
             Session complete

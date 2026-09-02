@@ -22,10 +22,20 @@ export function pushSupported() {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
 
+/** Whether this build carries the public key required to create subscriptions. */
+export function pushConfigured() {
+  return Boolean(import.meta.env?.VITE_VAPID_PUBLIC_KEY)
+}
+
 /** This device's current subscription, or null. */
 export async function currentSubscription() {
   if (!pushSupported()) return null
-  const registration = await navigator.serviceWorker.ready
+  // `ready` never settles when Vite dev mode has no service worker. Sign-out
+  // calls this as best-effort cleanup, so waiting there would trap the user in
+  // the signed-in shell forever. A missing registration simply means this
+  // browser has no subscription to remove.
+  const registration = await navigator.serviceWorker.getRegistration()
+  if (!registration) return null
   return registration.pushManager.getSubscription()
 }
 
@@ -39,6 +49,7 @@ export async function currentSubscription() {
  */
 export async function enablePush(userId) {
   if (!pushSupported()) throw new Error('This browser does not support notifications.')
+  if (!pushConfigured()) throw new Error('Push notifications are not configured for this build.')
 
   const permission = await Notification.requestPermission()
   if (permission !== 'granted') throw new Error('Notifications are blocked for this site.')

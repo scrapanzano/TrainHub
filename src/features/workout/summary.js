@@ -2,7 +2,7 @@
 // No imports, so the self-check runs under bare Node.
 
 /** The points table the Rewards screen also prints for the member. */
-export const POINTS = { checkin: 10, workout: 30, referral: 60 }
+export const POINTS = { workout: 30 }
 
 /** The headline figure the Rewards screen prints as what a workout is worth. */
 export function pointsForWorkout() {

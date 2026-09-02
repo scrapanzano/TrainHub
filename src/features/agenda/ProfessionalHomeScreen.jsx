@@ -20,8 +20,8 @@ export default function ProfessionalHomeScreen() {
 
   return (
     <Stack spacing={2} sx={{ p: 2 }}>
-      <Stack direction="row" spacing={1} alignItems="center">
-        <Stack direction="row" spacing={1} alignItems="baseline" sx={{ flexGrow: 1, minWidth: 0 }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline', flexGrow: 1, minWidth: 0 }}>
           <Typography variant="h1">Today</Typography>
           {/* No count until there is one: "0 activities" above a spinner states
               something the screen does not know yet. */}

@@ -36,8 +36,18 @@
 -- `patches/001-fix-profiles-anon-leak.sql`; `verify.sql` cannot catch that class
 -- of hole, so it is checked by probing RLS from an anonymous client instead.
 --
--- Idempotent: granting a privilege that is already held is a no-op.  Safe to run
--- on a healthy project.
+-- Bootstrap-only after patch 015. This guard must remain the first executable
+-- statement: the broad grants below are correct while assembling a fresh
+-- schema, but replaying them after the security patch would reopen protected
+-- browser writes before RLS is even evaluated.
+do $$
+begin
+  if to_regprocedure('public.validate_profile_authority()') is not null then
+    raise exception 'patch 006 is bootstrap-only and must not run after patch 015'
+      using errcode = '55000';
+  end if;
+end
+$$;
 
 grant usage on schema public to anon, authenticated, service_role;
 
@@ -55,7 +65,7 @@ alter default privileges in schema public
 alter default privileges in schema public
   grant all on routines to anon, authenticated, service_role;
 
--- Every row must read PASS.  A count below 16 means a table is still
+-- Every row must read PASS.  A count below 19 means a table is still
 -- unreachable and the app will fail on it with 42501.
 select
   check_name,
@@ -68,19 +78,19 @@ from (
      (select count(*)::text from pg_tables
       where schemaname = 'public'
         and has_table_privilege('authenticated', format('%I.%I', schemaname, tablename), 'select')),
-     '16'),
+     '19'),
     ('tables the app role can write',
      (select count(*)::text from pg_tables
       where schemaname = 'public'
         and has_table_privilege('authenticated', format('%I.%I', schemaname, tablename), 'insert')),
-     '16'),
+     '19'),
     -- `anon` needs the grant too: the login screen and the sign-in flow issue
     -- requests before a session exists, and RLS is what keeps those empty.
     ('tables the anonymous role can read',
      (select count(*)::text from pg_tables
       where schemaname = 'public'
         and has_table_privilege('anon', format('%I.%I', schemaname, tablename), 'select')),
-     '16'),
+     '19'),
     ('schema is usable by the app role',
      (select has_schema_privilege('authenticated', 'public', 'usage')::text), 'true')
 ) as t(check_name, actual, expected);

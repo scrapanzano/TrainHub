@@ -39,6 +39,7 @@ export default function MemberHomeScreen() {
   }))
   const current =
     states.find(({ status }) => status === 'in_progress') ??
+    states.find(({ status }) => status === 'partial') ??
     states.find(({ status }) => status === 'todo')
 
   // Three different nothings, and telling a member "every session is done" when
@@ -62,7 +63,7 @@ export default function MemberHomeScreen() {
   return (
     <Stack spacing={4} sx={{ p: 2 }}>
       <Box>
-        <Stack direction="row" spacing={1} alignItems="baseline" sx={{ mb: 2 }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline', mb: 2 }}>
           <Typography variant="h1">Today</Typography>
           {/* No count until there is one.  "0 activities" above a spinner states
               something the screen does not know yet. */}

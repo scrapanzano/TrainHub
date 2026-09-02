@@ -6,7 +6,17 @@
 -- overwrites whatever arrives with the value the code is actually worth, so the
 -- client's number becomes a hint rather than the source of truth.
 --
--- Idempotent: drops and recreates.
+-- Bootstrap-only: patch 015 replaces this trigger with checked reward creation.
+-- This guard must remain the first executable statement so replaying patch 003
+-- cannot restore the old flat 30-point rule after the security patch.
+do $$
+begin
+  if to_regprocedure('public.validate_profile_authority()') is not null then
+    raise exception 'patch 003 is bootstrap-only and must not run after patch 015'
+      using errcode = '55000';
+  end if;
+end
+$$;
 
 create or replace function public.set_reward_points() returns trigger
 language plpgsql set search_path = public as $$

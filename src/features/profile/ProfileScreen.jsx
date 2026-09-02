@@ -12,7 +12,7 @@ function Row({ icon, label, to }) {
     <Card>
       <CardActionArea component={Link} to={to}>
         <CardContent>
-          <Stack direction="row" spacing={2} alignItems="center">
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
             <Stack sx={{ color: 'primary.main' }}>{icon}</Stack>
             <Typography variant="h3" sx={{ flexGrow: 1, minWidth: 0 }} noWrap>
               {label}
@@ -33,7 +33,7 @@ export default function ProfileScreen() {
     <Stack spacing={3} sx={{ p: 2 }}>
       <Typography variant="h1">Profile</Typography>
 
-      <Stack spacing={1} alignItems="center" sx={{ textAlign: 'center' }}>
+      <Stack spacing={1} sx={{ alignItems: 'center', textAlign: 'center' }}>
         <Avatar src={profile?.avatar_url ?? undefined} sx={{ width: 112, height: 112 }}>
           {profile?.full_name?.[0] ?? '?'}
         </Avatar>

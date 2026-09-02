@@ -10,7 +10,7 @@ function greeting(hour) {
   return 'Good Evening'
 }
 
-export default function TopHeader({ profileHref, notificationCount = 0, scanHref }) {
+export default function TopHeader({ profileHref, notificationCount = 0, notificationHref, scanHref }) {
   const { profile } = useAuth()
 
   return (
@@ -32,6 +32,8 @@ export default function TopHeader({ profileHref, notificationCount = 0, scanHref
         ) : null}
 
         <IconButton
+          component={Link}
+          to={notificationHref}
           aria-label={
             notificationCount === 0
               ? 'No unread messages'

@@ -4,9 +4,10 @@ import LogoutIcon from '@mui/icons-material/Logout'
 import { supabase } from '../../lib/supabase.js'
 import { useAuth } from '../auth/useAuth.js'
 import NotificationSwitch from './NotificationSwitch.jsx'
+import PageHeader from '../../components/PageHeader.jsx'
 
 export default function SettingsScreen() {
-  const { user, signOut } = useAuth()
+  const { user, profile, signOut } = useAuth()
 
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -36,7 +37,11 @@ export default function SettingsScreen() {
 
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
-      <Typography variant="h1">Settings</Typography>
+      <PageHeader
+        title="Settings"
+        backTo={profile?.role === 'professional' ? '/p/profile' : '/m/profile'}
+        backLabel="Back to profile"
+      />
 
       <Card>
         <CardContent>

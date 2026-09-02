@@ -27,7 +27,7 @@ export default function ClientsScreen() {
 
   return (
     <Stack spacing={2} sx={{ p: 2 }}>
-      <Stack direction="row" spacing={1} alignItems="baseline">
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline' }}>
         <Typography variant="h1">Your Clients</Typography>
         {clients.data ? (
           <Typography variant="h3" component="span" color="text.secondary" noWrap>
@@ -42,9 +42,9 @@ export default function ClientsScreen() {
         placeholder="Search Client…"
         // A placeholder is not an accessible name: it disappears the moment
         // anything is typed, and some readers never announce it at all.
-        aria-label="Search clients"
         fullWidth
         slotProps={{
+          htmlInput: { 'aria-label': 'Search clients' },
           input: {
             startAdornment: (
               <InputAdornment position="start">

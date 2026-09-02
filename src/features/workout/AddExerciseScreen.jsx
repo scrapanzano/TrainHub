@@ -7,6 +7,7 @@ import { useNavigate, useParams } from 'react-router'
 import { fetchExerciseCatalogue, fetchSession } from '../../data/workouts.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
+import { createUuid } from '../../lib/uuid.js'
 import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 
 /**
@@ -19,7 +20,7 @@ import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
  * to aim for.
  */
 export default function AddExerciseScreen() {
-  const { sessionId } = useParams()
+  const { clientId, sessionId } = useParams()
   const navigate = useNavigate()
 
   const [picked, setPicked] = useState(null)
@@ -59,7 +60,7 @@ export default function AddExerciseScreen() {
       {
         // Client-generated so a replayed write upserts rather than adding the
         // exercise twice.  In the handler, never in render.
-        id: crypto.randomUUID(),
+        id: createUuid(),
         sessionId,
         exerciseId: picked.id,
         // One past the highest in use, not a count: `unique (session_id,
@@ -71,7 +72,12 @@ export default function AddExerciseScreen() {
         targetWeight: targetWeight === '' ? null : Number(targetWeight),
         restSeconds: Number(restSeconds),
       },
-      { onSuccess: () => navigate(`/m/workout/session/${sessionId}`, { replace: true }) },
+      {
+        onSuccess: () => navigate(
+          clientId ? `/p/clients/${clientId}/workout` : `/m/workout/session/${sessionId}`,
+          { replace: true },
+        ),
+      },
     )
   }
 

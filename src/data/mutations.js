@@ -1,8 +1,7 @@
 import {
-  addSessionExercise, createPlan, createSession, deleteSession, deleteSessionExercise, logSet,
+  addSessionExercise, createPlan, createSession, logSet,
 } from './workouts.js'
 import { endRun, pauseRun, resumeRun, saveRunNote, startRun } from './runs.js'
-import { awardReward } from './rewards.js'
 import { deleteMeal, saveMeal, saveNutritionPlan } from './nutrition.js'
 import { saveBodyMetric } from './progress.js'
 import { createAppointment, setAppointmentStatus } from './appointments.js'
@@ -80,7 +79,10 @@ export function registerMutationDefaults(queryClient) {
     onError: (_error, variables) => {
       // The run never opened.  Leaving it in the cache would show a mini-player
       // for a workout that does not exist and block starting a real one.
-      queryClient.setQueryData(queryKeys.openRun(variables.memberId), null)
+      const current = queryClient.getQueryData(queryKeys.openRun(variables.memberId))
+      if (current?.id === variables.id) {
+        queryClient.setQueryData(queryKeys.openRun(variables.memberId), null)
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.runs })
@@ -91,6 +93,12 @@ export function registerMutationDefaults(queryClient) {
 
   queryClient.setMutationDefaults(mutationKeys.pauseRun, {
     mutationFn: pauseRun,
+    onSuccess: (data, variables) => {
+      const current = queryClient.getQueryData(queryKeys.openRun(variables.memberId))
+      if (current?.id === variables.id) {
+        queryClient.setQueryData(queryKeys.openRun(variables.memberId), { ...current, ...data })
+      }
+    },
     scope: runScope,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.runs })
@@ -99,6 +107,12 @@ export function registerMutationDefaults(queryClient) {
 
   queryClient.setMutationDefaults(mutationKeys.resumeRun, {
     mutationFn: resumeRun,
+    onSuccess: (data, variables) => {
+      const current = queryClient.getQueryData(queryKeys.openRun(variables.memberId))
+      if (current?.id === variables.id) {
+        queryClient.setQueryData(queryKeys.openRun(variables.memberId), { ...current, ...data })
+      }
+    },
     scope: runScope,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.runs })
@@ -124,6 +138,7 @@ export function registerMutationDefaults(queryClient) {
         ended_at: variables.endedAt,
         outcome: variables.outcome,
         pct: variables.pct ?? null,
+        server_confirmed: false,
       }
 
       queryClient.setQueryData(queryKeys.run(variables.id), closed)
@@ -134,9 +149,14 @@ export function registerMutationDefaults(queryClient) {
         queryClient.setQueryData(queryKeys.openRun(variables.memberId), null)
       }
     },
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.run(data.id), data)
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.runs })
       queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
+      // Closing the run creates its reward in the same database transaction.
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.rewards })
     },
   })
 
@@ -150,23 +170,16 @@ export function registerMutationDefaults(queryClient) {
     scope: runScope,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.runs })
-      queryClient.invalidateQueries({ queryKey: queryPrefixes.clientTraining })
+      // `fetchActivePlan` embeds the run rows too, including their notes.
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
     },
   })
 
-  queryClient.setMutationDefaults(mutationKeys.awardReward, {
-    mutationFn: awardReward,
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryPrefixes.rewards })
-    },
-  })
-
-  // `createPlan` and `createSession` share a scope so a replay cannot land a
-  // session before the plan it belongs to -- `CreatePlanFlow` fires both at
-  // once precisely so neither depends on a per-call callback surviving a
-  // reload, and only an ordered replay makes that safe.
-  //
-  // It serialises two adds to the same plan as a bonus: `position` is
+  // Plan and session bundles are atomic server operations. They still share a
+  // scope because two additions to the same plan can calculate the same next
+  // position while offline. Serial replay makes the first win deterministically
+  // and lets the second surface the concurrency conflict instead of racing.
+  // `position` is
   // `Math.max(...) + 1` read from cache, so two sessions added in parallel
   // would compute the same position and the second would be rejected by
   // `unique (plan_id, position)`.
@@ -192,15 +205,7 @@ export function registerMutationDefaults(queryClient) {
     },
   })
 
-  queryClient.setMutationDefaults(mutationKeys.deleteSession, {
-    mutationFn: deleteSession,
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
-      queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
-    },
-  })
-
-  // Shares the session-write scope with the delete below: `position` is
+  // `position` is
   // `Math.max(...) + 1` computed from cache, so two adds replayed in parallel
   // would land on the same position and `unique (session_id, position)` would
   // reject the second.
@@ -209,16 +214,6 @@ export function registerMutationDefaults(queryClient) {
     scope: { id: 'sessionExercises' },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
-      queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
-    },
-  })
-
-  queryClient.setMutationDefaults(mutationKeys.deleteSessionExercise, {
-    mutationFn: deleteSessionExercise,
-    scope: { id: 'sessionExercises' },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryPrefixes.session })
-      // The plan screen prints each session's exercise count.
       queryClient.invalidateQueries({ queryKey: queryPrefixes.plan })
     },
   })
@@ -385,11 +380,20 @@ export function registerMutationDefaults(queryClient) {
       // family is stale -- the member's thread lookup, its messages and the
       // unread badge.
       //
-      // What this canNOT refresh is the member's own profile: AuthProvider
-      // holds it outside the query cache, so `assigned_pro_id` in the shell
-      // stays stale until the app reloads. The call site does that reload; see
-      // the note there and in "Deferred beyond Phase 4".
+      // `chooseProfessional` also publishes its returned full profile to
+      // AuthProvider. That happens inside the durable mutation function, so a
+      // restored offline choice refreshes the shell too.
       queryClient.invalidateQueries({ queryKey: queryPrefixes.chat })
     },
   })
+
+  // A paused mutation restored without a registered function is discarded by
+  // TanStack Query. Fail loudly during bootstrap if a future key is added at a
+  // call site but forgotten here, instead of losing that user's offline write.
+  const missing = Object.entries(mutationKeys)
+    .filter(([, key]) => typeof queryClient.getMutationDefaults(key).mutationFn !== 'function')
+    .map(([name]) => name)
+  if (missing.length > 0) {
+    throw new Error(`Missing durable mutation defaults: ${missing.join(', ')}`)
+  }
 }

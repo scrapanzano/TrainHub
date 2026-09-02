@@ -44,18 +44,17 @@ export function setProgress(loggedCount, targetSets) {
 /** Plan-level roll-up. `percent` stays an integer so it can key an aria-label. */
 export function planProgress(sessions) {
   const total = sessions.length
-  // A partial closes the session for the week just as a full completion does:
-  // the bar answers "is the week done", the cards answer "how well".  Counting
-  // only full completions would leave anyone who ever stopped early looking at
-  // a week that can never reach 100%.
-  const completed = sessions.filter(
-    (s) => s.status === 'completed' || s.status === 'partial',
-  ).length
+  // The bar says "completed", so only a session whose whole prescription was
+  // met may fill it. A partial run remains visible on its card and is counted
+  // separately; calling one exercise out of three a completed session made the
+  // plan say 1/4 when the member had plainly not finished that session.
+  const completed = sessions.filter((session) => session.status === 'completed').length
+  const partial = sessions.filter((session) => session.status === 'partial').length
   // Guard the divide: an empty plan is a real state (a member with no plan yet)
   // and 0/0 would put NaN into a progress bar.
   // Floor, not round: 199 of 200 sessions rounds to 100 and shows a full bar
   // for a plan that is not finished.  A bar may understate progress; it must
   // never claim work that has not been done.
   const percent = total === 0 ? 0 : Math.floor((completed / total) * 100)
-  return { completed, total, percent }
+  return { completed, partial, total, percent }
 }

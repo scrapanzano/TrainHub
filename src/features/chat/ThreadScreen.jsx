@@ -2,9 +2,10 @@ import { useEffect, useRef } from 'react'
 import { Avatar, Box, Stack, Typography } from '@mui/material'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router'
-import { fetchMemberThread } from '../../data/chat.js'
+import { fetchMemberThread, fetchThread } from '../../data/chat.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
+import { createUuid } from '../../lib/uuid.js'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import MessageBubble from './MessageBubble.jsx'
@@ -37,6 +38,12 @@ export default function ThreadScreen() {
     enabled: isMember && Boolean(proId),
   })
 
+  const professionalThread = useQuery({
+    queryKey: queryKeys.thread(threadIdParam),
+    queryFn: () => fetchThread(threadIdParam),
+    enabled: !isMember && Boolean(threadIdParam),
+  })
+
   const threadId = isMember ? (memberThread.data?.id ?? null) : threadIdParam
 
   const messages = useThreadMessages(threadId)
@@ -55,14 +62,36 @@ export default function ThreadScreen() {
   // `markThreadRead` is idempotent (its filter excludes already-read rows),
   // so a redundant call here would be harmless -- this guard just avoids it.
   const markedUpTo = useRef(null)
+  const messagesEnd = useRef(null)
   useEffect(() => {
     if (!threadId) return
     const unread = messages.data?.filter((m) => m.sender_id !== user.id && m.read_at === null)
-    const newestUnreadId = unread?.at(-1)?.id ?? null
+    const newestUnread = unread?.at(-1) ?? null
+    const newestUnreadId = newestUnread?.id ?? null
     if (!newestUnreadId || markedUpTo.current === newestUnreadId) return
     markedUpTo.current = newestUnreadId
-    markRead.mutate({ threadId, readerId: user.id })
+    markRead.mutate(
+      {
+        threadId,
+        readerId: user.id,
+        readAt: new Date().toISOString(),
+        throughCreatedAt: newestUnread.created_at,
+      },
+      {
+        // A permanent failure must be retryable while the same unread message
+        // remains newest. Offline mutations pause instead and keep their
+        // frozen timestamp for replay.
+        onError: () => {
+          if (markedUpTo.current === newestUnreadId) markedUpTo.current = null
+        },
+      },
+    )
   }, [threadId, messages.data, user.id, markRead])
+
+  useEffect(() => {
+    if (!messages.data?.length) return
+    messagesEnd.current?.scrollIntoView({ block: 'end' })
+  }, [messages.data?.length])
 
   // A member whose professional has never messaged them has no thread row yet.
   // Create it on first open so the composer has somewhere to write. Guarded
@@ -116,12 +145,20 @@ export default function ThreadScreen() {
     )
   }
 
-  const other = isMember ? memberThread.data?.pro : null
+  if (!isMember && professionalThread.isPending) return <LoadingState />
+  if (!isMember && professionalThread.isError && professionalThread.data === undefined) {
+    return <ErrorState error={professionalThread.error} onRetry={professionalThread.refetch} />
+  }
+  if (!isMember && !professionalThread.data) {
+    return <EmptyState title="Conversation not available" description="This chat no longer exists." />
+  }
+
+  const other = isMember ? memberThread.data?.pro : professionalThread.data?.member
 
   return (
-    <Stack sx={{ height: '100%', p: 2 }} spacing={2}>
+    <Stack sx={{ minHeight: '100%', p: 2, pb: 12 }} spacing={2}>
       {other ? (
-        <Stack direction="row" spacing={2} alignItems="center">
+        <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
           <Avatar src={other.avatar_url ?? undefined}>{other.full_name?.[0] ?? '?'}</Avatar>
           <Typography variant="h1" sx={{ fontSize: '1.5rem' }}>
             {other.full_name}
@@ -156,6 +193,7 @@ export default function ThreadScreen() {
             mine={message.sender_id === user.id}
           />
         ))}
+        <Box ref={messagesEnd} aria-hidden />
       </Stack>
 
       {/* Gated on the thread id, not merely hidden while loading: with
@@ -164,7 +202,20 @@ export default function ThreadScreen() {
           window is milliseconds; offline `ensureThread` never settles and it
           would be permanent. */}
       {threadId ? (
-        <Box sx={{ position: 'sticky', bottom: 0, bgcolor: 'background.default', pt: 1 }}>
+        <Box
+          sx={{
+            position: 'fixed',
+            left: 0,
+            right: 0,
+            bottom: 'calc(var(--trainhub-bottom-shell-height, 56px) + env(safe-area-inset-bottom))',
+            zIndex: 'appBar',
+            bgcolor: 'background.default',
+            borderTop: 1,
+            borderColor: 'divider',
+            px: 2,
+            py: 1,
+          }}
+        >
           <MessageComposer
             paused={send.isPending && send.isPaused}
             error={send.error}
@@ -174,7 +225,7 @@ export default function ThreadScreen() {
                 // and replay, and the id is what makes the replay a no-op
                 // instead of a second message. A render-time call would be
                 // impure and would defeat it.
-                id: crypto.randomUUID(),
+                id: createUuid(),
                 threadId,
                 senderId: user.id,
                 body,

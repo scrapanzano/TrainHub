@@ -1,15 +1,10 @@
-import { useState } from 'react'
 import {
-  Alert, Box, Button, Card, CardContent, IconButton, LinearProgress, Menu, MenuItem, Stack,
-  Typography,
+  Box, Button, Card, CardContent, LinearProgress, Stack, Typography,
 } from '@mui/material'
-import AddIcon from '@mui/icons-material/Add'
-import MoreVertIcon from '@mui/icons-material/MoreVert'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { Link, useNavigate } from 'react-router'
+import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router'
 import { fetchActivePlan } from '../../data/workouts.js'
 import { queryKeys } from '../../lib/queryKeys.js'
-import { mutationKeys } from '../../lib/mutationKeys.js'
 import { runStatusOf } from '../../lib/week.js'
 import { planProgress } from './status.js'
 import SessionCard from '../../components/SessionCard.jsx'
@@ -19,9 +14,10 @@ import { useAuth } from '../auth/useAuth.js'
 /**
  * The fork a member with no plan is offered.
  *
- * Shown only here, in the empty state.  A permanent banner above an active plan
- * would be noise over the thing the member came to see, and the same two paths
- * stay reachable afterwards from the overflow menu's "Create a new plan".
+ * Shown only here, in the empty state. A permanent banner above an active plan
+ * would be noise over the thing the member came to see. `create_workout_plan_
+ * secure` (patches/017) authorizes both the assigned professional and the
+ * member themselves, so both paths are offered.
  */
 function NoPlan({ hasCoach }) {
   return (
@@ -54,16 +50,11 @@ function NoPlan({ hasCoach }) {
 
 export default function WorkoutPlanScreen() {
   const { user, profile } = useAuth()
-  const navigate = useNavigate()
-  const [menuAnchor, setMenuAnchor] = useState(null)
-  const [editing, setEditing] = useState(false)
 
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: queryKeys.activePlan(user.id),
     queryFn: () => fetchActivePlan(user.id),
   })
-
-  const removeSession = useMutation({ mutationKey: mutationKeys.deleteSession })
 
   if (isPending) return <LoadingState />
   // `data === undefined` means it never loaded.  With `offlineFirst` a refetch
@@ -78,38 +69,13 @@ export default function WorkoutPlanScreen() {
   const states = sessions.map((session) => runStatusOf(session.runs, weekStart))
   const progress = planProgress(states.map(({ status }) => ({ status })))
   const subtitle = [plan.goal, plan.level].filter(Boolean).join(' - ')
-  // A plan is editable by whoever wrote it.  A member may replace a coach's
-  // plan wholesale -- that is their call -- but not reach inside it.
-  const isAuthor = plan.author?.id === user.id
-  // Editing while a workout is open would let the member delete the session
-  // they are standing in the middle of.
-  const liveHere = states.some(({ status }) => status === 'in_progress')
-
-  const closeMenu = () => setMenuAnchor(null)
-
-  const onDelete = (session) => {
-    // `confirm` rather than a dialog component: this is one destructive action
-    // and the native prompt is already accessible and already blocking.
-    if (
-      window.confirm(
-        `Delete “${session.name}”? Its ${session.exerciseCount} exercises and every set you have logged in it go too.`,
-      )
-    ) {
-      removeSession.mutate({ sessionId: session.id })
-    }
-  }
-
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
-      {/* No add button up here any more.  "Add a session" belongs to edit mode,
-          where the list it changes is visible, and "create a new plan" is a
-          replacement rather than an addition and lives in the menu behind a
-          warning. */}
       <Typography variant="h1">Workout Plan</Typography>
 
       <Card>
         <CardContent>
-          <Stack direction="row" alignItems="flex-start" spacing={1}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
             <Box sx={{ flexGrow: 1, minWidth: 0 }}>
               <Typography variant="h2" component="h3">{plan.name}</Typography>
               {subtitle ? (
@@ -117,15 +83,6 @@ export default function WorkoutPlanScreen() {
               ) : null}
             </Box>
 
-            {editing ? null : (
-              <IconButton
-                onClick={(event) => setMenuAnchor(event.currentTarget)}
-                aria-label="Plan options"
-                edge="end"
-              >
-                <MoreVertIcon />
-              </IconButton>
-            )}
           </Stack>
 
           {/* Two columns on any phone wide enough, stacked below that -- the
@@ -150,65 +107,33 @@ export default function WorkoutPlanScreen() {
             <LinearProgress
               variant="determinate"
               value={progress.percent}
-              aria-label={`${progress.completed} of ${progress.total} sessions done this week`}
+              aria-label={`${progress.completed} of ${progress.total} sessions completed this week`}
               sx={{ height: 8, borderRadius: 999 }}
             />
-            {/* "This week" is the whole point: the bar empties every Monday. */}
+            {/* "This week" is the whole point: the bar empties every Monday.
+                Early stops are disclosed without pretending they filled a
+                complete session. */}
             <Typography variant="body2" color="text.secondary" aria-hidden sx={{ mt: 0.5 }}>
-              {progress.completed} of {progress.total} sessions done this week
+              {progress.completed} of {progress.total} sessions completed this week
             </Typography>
+            {progress.partial > 0 ? (
+              <Typography variant="body2" color="warning.main" sx={{ mt: 0.25 }}>
+                {progress.partial} {progress.partial === 1 ? 'session' : 'sessions'} stopped early
+              </Typography>
+            ) : null}
           </Box>
         </CardContent>
       </Card>
 
-      <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>
-        <MenuItem
-          onClick={() => {
-            closeMenu()
-            if (
-              window.confirm(
-                `Creating a new plan replaces “${plan.name}”. It stops being shown, along with its sessions. Continue?`,
-              )
-            ) {
-              navigate('/m/workout/builder')
-            }
-          }}
-        >
-          Create a new plan
-        </MenuItem>
-        {isAuthor ? (
-          <MenuItem
-            disabled={liveHere}
-            onClick={() => {
-              closeMenu()
-              setEditing(true)
-            }}
-          >
-            Edit plan
-          </MenuItem>
-        ) : null}
-      </Menu>
-
       <Box>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+        <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
           <Typography variant="h2">Training Sessions</Typography>
-          {editing ? (
-            <Button onClick={() => setEditing(false)} disabled={removeSession.isPending}>
-              Done
-            </Button>
-          ) : null}
         </Stack>
-
-        {removeSession.isError ? (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {removeSession.error?.message ?? 'The session could not be deleted.'}
-          </Alert>
-        ) : null}
 
         {sessions.length === 0 ? (
           <EmptyState
             title="This plan has no sessions"
-            description="Add the first one to get started."
+            description="Your coach still has to add the first complete session."
           />
         ) : (
           <Stack spacing={2}>
@@ -219,25 +144,11 @@ export default function WorkoutPlanScreen() {
                 status={states[index].status}
                 run={states[index].run}
                 to={`/m/workout/session/${session.id}`}
-                onDelete={editing ? () => onDelete(session) : null}
               />
             ))}
           </Stack>
         )}
 
-        {editing ? (
-          <Button
-            component={Link}
-            to="/m/workout/session/new"
-            variant="outlined"
-            size="large"
-            fullWidth
-            startIcon={<AddIcon />}
-            sx={{ mt: 2 }}
-          >
-            Add a session
-          </Button>
-        ) : null}
       </Box>
     </Stack>
   )

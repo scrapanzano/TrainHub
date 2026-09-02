@@ -54,8 +54,9 @@ export async function mintCheckinToken({ memberId, token }) {
  *
  * The professional never reads `checkin_tokens`; this function is
  * `security definer` and does the checking server-side. It answers with a
- * `status` of 'ok', 'unknown', 'used' or 'expired' -- three different failures
- * that need three different messages -- and, on 'ok', with who just walked in.
+ * `status` of 'ok', 'unknown', 'used', 'expired' or 'suspended'. Only `ok`
+ * consumes the token and records a check-in; subscription failures return the
+ * member details so the scanner can explain the refusal.
  *
  * Not registered in `src/data/mutations.js`: replaying a check-in an hour later
  * records an entry that never happened.

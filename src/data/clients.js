@@ -33,7 +33,7 @@ export async function fetchClients(proId) {
     // The roster prints the current goal.  PostgREST does not order embedded
     // rows, so pick the newest plan here rather than trusting insertion order.
     goal:
-      [...(plans ?? [])].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0]?.goal ?? null,
+      [...(plans ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.goal ?? null,
   }))
 }
 

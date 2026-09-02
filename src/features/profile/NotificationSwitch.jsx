@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Alert, FormControlLabel, Stack, Switch, Typography } from '@mui/material'
-import { currentSubscription, disablePush, enablePush, pushSupported } from './pushSubscription.js'
+import {
+  currentSubscription, disablePush, enablePush, pushConfigured, pushSupported,
+} from './pushSubscription.js'
 import { useAuth } from '../auth/useAuth.js'
 
 export default function NotificationSwitch() {
@@ -41,6 +43,15 @@ export default function NotificationSwitch() {
       <Alert severity="info">
         This browser does not support notifications. On iPhone, add TrainHub to the Home Screen
         from Safari first.
+      </Alert>
+    )
+  }
+
+  if (!pushConfigured()) {
+    return (
+      <Alert severity="info">
+        Push notifications are not configured for this demo build. Messages and appointments
+        remain available inside the app.
       </Alert>
     )
   }

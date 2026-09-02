@@ -6,11 +6,13 @@ import SearchIcon from '@mui/icons-material/Search'
 import AddIcon from '@mui/icons-material/Add'
 import CheckIcon from '@mui/icons-material/Check'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router'
 import { fetchProfessionals } from '../../data/profile.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import { useAuth } from '../auth/useAuth.js'
+import PageHeader from '../../components/PageHeader.jsx'
 
 // The wireframe's chips read "Weight Loss / Hypertrophy / Muscle Gain", which
 // are training goals, not the `pro_specialty` enum. Filtering on something the
@@ -24,6 +26,7 @@ const FILTERS = [
 
 export default function BrowseTrainersScreen() {
   const { user, profile } = useAuth()
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
 
@@ -49,12 +52,16 @@ export default function BrowseTrainersScreen() {
 
   return (
     <Stack spacing={2} sx={{ p: 2 }}>
-      <Typography variant="h1">Personal Trainer</Typography>
+      <PageHeader
+        title="Personal Trainer"
+        backTo="/m/trainer"
+        backLabel="Back to My Trainer"
+      />
 
       {!profile?.assigned_pro_id ? (
         <Card>
           <CardContent>
-            <Stack spacing={1} alignItems="center" sx={{ textAlign: 'center' }}>
+            <Stack spacing={1} sx={{ alignItems: 'center', textAlign: 'center' }}>
               <Typography variant="h3" color="primary">
                 You have not selected a professional yet
               </Typography>
@@ -70,9 +77,9 @@ export default function BrowseTrainersScreen() {
         value={search}
         onChange={(event) => setSearch(event.target.value)}
         placeholder="Search Trainer…"
-        aria-label="Search professionals"
         fullWidth
         slotProps={{
+          htmlInput: { 'aria-label': 'Search professionals' },
           input: {
             startAdornment: (
               <InputAdornment position="start">
@@ -131,7 +138,7 @@ export default function BrowseTrainersScreen() {
           return (
             <Card key={pro.id}>
               <CardContent>
-                <Stack direction="row" spacing={2} alignItems="center">
+                <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
                   <Avatar src={pro.avatar_url ?? undefined} sx={{ width: 48, height: 48 }}>
                     {pro.full_name?.[0] ?? '?'}
                   </Avatar>
@@ -152,12 +159,10 @@ export default function BrowseTrainersScreen() {
                       choose.mutate(
                         { memberId: user.id, proId: pro.id },
                         {
-                          // AuthProvider holds the profile outside the query
-                          // cache, so invalidating would not refresh the role
-                          // or the assignment the whole shell reads. A reload
-                          // is the honest way to pick up a profile change until
-                          // AuthProvider exposes a refresh.
-                          onSuccess: () => window.location.assign('/m/trainer'),
+                          // `chooseProfessional` publishes the full updated
+                          // profile before resolving, so AuthProvider already
+                          // knows the assignment when this navigation renders.
+                          onSuccess: () => navigate('/m/trainer'),
                         },
                       )
                     }

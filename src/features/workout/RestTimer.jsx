@@ -178,7 +178,7 @@ export default function RestTimer({ seconds }) {
   return (
     <Card variant="outlined">
       <CardContent>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+        <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
           <Typography variant="h3">Rest</Typography>
           <IconButton
             onClick={toggleMute}
@@ -189,7 +189,7 @@ export default function RestTimer({ seconds }) {
           </IconButton>
         </Stack>
 
-        <Stack direction="row" alignItems="center" justifyContent="center" spacing={2}>
+        <Stack direction="row" spacing={2} sx={{ alignItems: 'center', justifyContent: 'center' }}>
           <IconButton onClick={() => adjust(-15)} disabled={running} aria-label="15 seconds less">
             <RemoveIcon />
           </IconButton>
@@ -224,7 +224,7 @@ export default function RestTimer({ seconds }) {
               variant="h1"
               component={running ? 'p' : 'button'}
               type={running ? undefined : 'button'}
-              role="timer"
+              role={running ? 'timer' : undefined}
               aria-live={running && shown === 0 ? 'assertive' : 'off'}
               onClick={running ? undefined : () => setEditing(String(base))}
               sx={{

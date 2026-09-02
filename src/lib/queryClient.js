@@ -1,6 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
 import { del, get, set } from 'idb-keyval'
+import { createMigratingPersister } from './cacheMigration.js'
 
 const ONE_WEEK = 1000 * 60 * 60 * 24 * 7
 
@@ -35,8 +36,10 @@ export const queryClient = new QueryClient({
   },
 })
 
-export const persister = createAsyncStoragePersister({
+const indexedDbPersister = createAsyncStoragePersister({
   storage: { getItem: get, setItem: set, removeItem: del },
   key: 'trainhub-query-cache',
   throttleTime: 1000,
 })
+
+export const persister = createMigratingPersister(indexedDbPersister)

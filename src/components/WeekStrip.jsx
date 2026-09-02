@@ -34,7 +34,7 @@ export default function WeekStrip({ days, selected, onSelect, markers = {} }) {
               borderColor: 'divider',
             }}
           >
-            <Stack alignItems="center" spacing={0.25} sx={{ width: '100%' }}>
+            <Stack spacing={0.25} sx={{ alignItems: 'center', width: '100%' }}>
               <Typography variant="body2" sx={{ opacity: 0.7 }}>
                 {cell.weekday}
               </Typography>

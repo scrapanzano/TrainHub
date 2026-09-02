@@ -39,7 +39,7 @@ const SESSION_EXERCISE_COLUMNS = `
 export async function fetchActivePlan(memberId) {
   const { data: plan, error: planError } = await supabase
     .from('workout_plans')
-    .select('id, name, goal, level, weeks, expires_on, author:profiles!workout_plans_author_id_fkey ( id, full_name )')
+    .select('id, name, goal, level, weeks, expires_on, created_at, replaces_plan_id, author:profiles!workout_plans_author_id_fkey ( id, full_name )')
     .eq('member_id', memberId)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -113,10 +113,8 @@ export async function fetchSessionExercise(sessionExerciseId) {
 /**
  * Record one performed set.
  *
- * The caller supplies `id`.  `set_logs.id` has no database default precisely so
- * this can be an upsert that ignores duplicates: `resumePausedMutations` will
- * replay a write whose response never arrived, and a plain insert would fail
- * that replay with a primary-key violation the user would see as a lost set.
+ * The caller supplies `id` as an idempotency key. The secure operation accepts
+ * an exact replay but rejects reuse of that id for different set content.
  *
  * The caller supplies `performedAt` for the same reason.  This write can sit
  * paused for hours and land on reconnect; leaving it to the column's `now()`
@@ -126,38 +124,20 @@ export async function fetchSessionExercise(sessionExerciseId) {
  * this write and `startRun` share a `scope` in `src/data/mutations.js` -- a
  * parallel replay could otherwise land the set before the run it references.
  */
-export async function logSet({
-  id,
-  runId,
-  sessionExerciseId,
-  memberId,
-  setNumber,
-  reps,
-  weight,
-  performedAt,
-}) {
+export async function logSet({ id, runId, sessionExerciseId, setNumber, reps, weight, performedAt }) {
   const { data, error } = await supabase
-    .from('set_logs')
-    .upsert(
-      {
-        id,
-        run_id: runId,
-        session_exercise_id: sessionExerciseId,
-        member_id: memberId,
-        set_number: setNumber,
-        reps,
-        weight: weight ?? null,
-        // Falls back to the caller's clock at call time rather than to the
-        // database default, so an omitted argument still cannot drift.
-        performed_at: performedAt ?? new Date().toISOString(),
-      },
-      { onConflict: 'id', ignoreDuplicates: true },
-    )
-    .select()
-    .maybeSingle()
+    .rpc('log_workout_set_secure', {
+      p_id: id,
+      p_run_id: runId,
+      p_session_exercise_id: sessionExerciseId,
+      p_set_number: setNumber,
+      p_reps: reps,
+      p_weight: weight ?? null,
+      p_performed_at: performedAt,
+    })
+    .single()
 
   if (error) throw error
-  // `ignoreDuplicates` returns no row on a replay.  That is success, not a gap.
   return data
 }
 
@@ -174,96 +154,68 @@ export async function fetchExerciseCatalogue() {
 }
 
 /**
- * Create one session and its exercises.
- *
- * Two statements rather than one, because PostgREST has no transaction across
- * requests: if the second fails the session exists but is empty, which the plan
- * screen already renders as "Plan not ready" rather than crashing.  A stored
- * procedure would make it atomic and is the upgrade if this ever matters.
+ * Create one session and all its exercises in the same database transaction.
+ * The assigned professional is derived from the authenticated caller; the
+ * browser cannot attach the bundle to somebody else's plan.
  */
-export async function createSession({ planId, name, position, exercises }) {
-  const { data: session, error: sessionError } = await supabase
-    .from('workout_sessions')
-    .insert({ plan_id: planId, name, position })
-    .select('id')
-    .single()
+export async function createSession({ id, planId, name, position, exercises }) {
+  const { data, error } = await supabase.rpc('create_workout_session_secure', {
+    p_session_id: id,
+    p_plan_id: planId,
+    p_name: name,
+    p_position: position,
+    p_exercises: exercises,
+  })
 
-  if (sessionError) throw sessionError
-  if (exercises.length === 0) return session
-
-  const { error: exercisesError } = await supabase.from('session_exercises').insert(
-    exercises.map((item) => ({
-      session_id: session.id,
-      exercise_id: item.exerciseId,
-      position: item.position,
-      target_sets: item.targetSets,
-      target_reps: item.targetReps,
-    })),
-  )
-
-  if (exercisesError) throw exercisesError
-  return session
+  if (error) throw error
+  return data
 }
 
 /**
  * Create a workout plan for a member.
  *
- * A professional reaches this through `workout_plans_write`, which is gated on
- * `owns_member(member_id)` -- so this succeeds for their own clients and is
- * rejected by the database for anyone else's.  `author_id` records who wrote
- * it, which the member's plan screen prints.
- *
- * The caller supplies `id`.  `workout_plans` has no unique constraint besides
- * the primary key, and `fetchActivePlan` takes `created_at desc limit 1`, so a
- * duplicate insert would be invisible rather than loud -- both the global
- * `retry: 3` re-running a lost response and a professional resubmitting after
- * a reload while the first create is still paused offline can produce one.
- * `ignoreDuplicates` is correct here because creating a plan is insert-only:
- * unlike `saveNutritionPlan`, there is no edit path through this function for
- * it to silently no-op.
+ * Only the currently assigned professional may call it. The predecessor ID is
+ * an optimistic concurrency check: a queued plan cannot silently replace a
+ * newer plan created while the device was offline. Plan, first session and all
+ * exercises commit atomically and exact replays return the existing plan.
  */
-export async function createPlan({ id, memberId, authorId, name, goal, level, weeks }) {
+export async function createPlan({
+  id,
+  memberId,
+  replacesPlanId,
+  name,
+  goal,
+  level,
+  weeks,
+  sessionId,
+  sessionName,
+  exercises,
+}) {
   const { data, error } = await supabase
-    .from('workout_plans')
-    .upsert(
-      {
-        id,
-        member_id: memberId,
-        author_id: authorId,
-        name,
-        goal: goal || null,
-        level: level || null,
-        weeks,
-      },
-      { onConflict: 'id', ignoreDuplicates: true },
-    )
-    .select('id')
-    .maybeSingle()
+    .rpc('create_workout_plan_secure', {
+      p_plan_id: id,
+      p_member_id: memberId,
+      p_replaces_plan_id: replacesPlanId ?? null,
+      p_name: name,
+      p_goal: goal || null,
+      p_level: level || null,
+      p_weeks: weeks,
+      p_session_id: sessionId,
+      p_session_name: sessionName,
+      p_exercises: exercises,
+    })
+    .single()
 
   if (error) throw error
-  // `ignoreDuplicates` returns no row on a replay.  That is success, not a gap.
   return data
-}
-
-/**
- * Delete one session.
- *
- * `session_exercises` and any `set_logs` beneath it cascade.  Idempotent by
- * nature: deleting a row that is already gone affects nothing and does not
- * error, which is what makes it safe to replay after a reconnect.
- */
-export async function deleteSession({ sessionId }) {
-  const { error } = await supabase.from('workout_sessions').delete().eq('id', sessionId)
-  if (error) throw error
 }
 
 /**
  * Add one prescribed exercise to a session that already exists.
  *
- * The caller supplies `id` and `position`.  The id makes a replay upsert
- * instead of duplicating -- this write can pause offline and be replayed on
- * reconnect -- and `ignoreDuplicates` is right because there is no edit path
- * through this function for it to silently no-op.
+ * The caller supplies `id` and `position`. The secure operation treats that id
+ * as the replay key and refuses to change a session that already has workout
+ * history, preserving what old summaries mean.
  *
  * `position` must be `Math.max(0, ...) + 1`, never a count: `unique
  * (session_id, position)` rejects a reused one, and counting collides the
@@ -273,41 +225,18 @@ export async function addSessionExercise({
   id, sessionId, exerciseId, position, targetSets, targetReps, targetWeight, restSeconds,
 }) {
   const { data, error } = await supabase
-    .from('session_exercises')
-    .upsert(
-      {
-        id,
-        session_id: sessionId,
-        exercise_id: exerciseId,
-        position,
-        target_sets: targetSets,
-        target_reps: targetReps,
-        target_weight: targetWeight ?? null,
-        rest_seconds: restSeconds,
-      },
-      { onConflict: 'id', ignoreDuplicates: true },
-    )
-    .select('id')
-    .maybeSingle()
+    .rpc('add_session_exercise_secure', {
+      p_id: id,
+      p_session_id: sessionId,
+      p_exercise_id: exerciseId,
+      p_position: position,
+      p_target_sets: targetSets,
+      p_target_reps: targetReps,
+      p_target_weight: targetWeight ?? null,
+      p_rest_seconds: restSeconds,
+    })
+    .single()
 
   if (error) throw error
-  // `ignoreDuplicates` returns no row on a replay.  That is success, not a gap.
   return data
-}
-
-/**
- * Remove one exercise from a session.
- *
- * Any `set_logs` beneath it cascade, which is why the caller confirms first.
- * Idempotent like `deleteSession`: deleting a row that is already gone affects
- * nothing and does not error, so it needs no client-generated id to be safe to
- * replay after a reconnect.
- *
- * The gap it leaves in `position` is deliberate and harmless: positions are
- * only ever read in order, and `unique (session_id, position)` is respected by
- * `Math.max(...) + 1`, never by counting.
- */
-export async function deleteSessionExercise({ sessionExerciseId }) {
-  const { error } = await supabase.from('session_exercises').delete().eq('id', sessionExerciseId)
-  if (error) throw error
 }

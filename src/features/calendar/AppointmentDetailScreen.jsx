@@ -6,6 +6,7 @@ import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
 import { formatTimeRange } from '../../lib/format.js'
 import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
+import PageHeader from '../../components/PageHeader.jsx'
 
 const KIND_LABEL = {
   training: 'Personal Training',
@@ -36,34 +37,44 @@ export default function AppointmentDetailScreen() {
   }
 
   const row = appointment.data
-  const move = (status) => setStatus.mutate({ appointmentId, status })
+  const move = (status) => setStatus.mutate({
+    appointmentId,
+    expectedStatus: row.status,
+    status,
+  })
   const savedOffline = setStatus.isPending && setStatus.isPaused
 
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
       <Stack spacing={1}>
-        <Typography variant="h1">{KIND_LABEL[row.kind] ?? 'Appointment'}</Typography>
-        <Typography color="text.secondary">
-          {new Date(row.starts_at).toLocaleDateString(undefined, {
+        <PageHeader
+          title={KIND_LABEL[row.kind] ?? 'Appointment'}
+          subtitle={`${new Date(row.starts_at).toLocaleDateString(undefined, {
             weekday: 'long',
             day: 'numeric',
             month: 'long',
-          })}
-          {' • '}
-          {formatTimeRange(row.starts_at, row.ends_at)}
-        </Typography>
+          })} • ${formatTimeRange(row.starts_at, row.ends_at)}`}
+          backTo="/p/calendar"
+          backLabel="Back to calendar"
+        />
         <Stack direction="row">
           <Chip
             size="small"
             label={STATUS_LABEL[row.status] ?? row.status}
-            color={row.status === 'cancelled' ? 'error' : row.status === 'done' ? 'success' : 'default'}
+            color={
+              row.status === 'cancelled'
+                ? 'error'
+                : row.status === 'done' || row.status === 'confirmed'
+                  ? 'success'
+                  : 'warning'
+            }
           />
         </Stack>
       </Stack>
 
       <Card>
         <CardContent>
-          <Stack direction="row" spacing={2} alignItems="center">
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
             <Avatar src={row.member?.avatar_url ?? undefined} sx={{ width: 48, height: 48 }}>
               {row.member?.full_name?.[0] ?? '?'}
             </Avatar>

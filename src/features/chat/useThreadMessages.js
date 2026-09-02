@@ -23,6 +23,9 @@ export function useThreadMessages(threadId) {
     queryKey: queryKeys.threadMessages(threadId),
     queryFn: () => fetchMessages(threadId),
     enabled: Boolean(threadId),
+    // Realtime is the fast path; polling is the recovery path if the socket is
+    // interrupted without a visible error on a mobile network.
+    refetchInterval: 60_000,
   })
 
   useEffect(() => {

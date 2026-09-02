@@ -1,25 +1,26 @@
 import { useState } from 'react'
 import {
-  Alert, Button, Card, CardContent, Divider, IconButton, Stack, Typography,
+  Alert, Box, Button, Card, CardContent, Divider, IconButton, Stack, Typography,
 } from '@mui/material'
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
+import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 import { fetchClient } from '../../data/clients.js'
 import { fetchActivePlan, fetchExerciseCatalogue } from '../../data/workouts.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
+import { createUuid } from '../../lib/uuid.js'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import CreatePlanFlow from '../workout/CreatePlanFlow.jsx'
 import SessionForm from '../workout/SessionForm.jsx'
 import { runStatusOf } from '../../lib/week.js'
 import { sessionStatusOf } from '../workout/status.js'
-import { useAuth } from '../auth/useAuth.js'
+import { buildSessionExercisePayloads } from '../workout/contracts.js'
 
 export default function ClientWorkoutScreen() {
   const { clientId } = useParams()
-  const { user } = useAuth()
   const [adding, setAdding] = useState(false)
+  const [replacing, setReplacing] = useState(false)
 
   const client = useQuery({
     queryKey: queryKeys.client(clientId),
@@ -37,11 +38,13 @@ export default function ClientWorkoutScreen() {
   })
 
   const createSession = useMutation({ mutationKey: mutationKeys.createSession })
-  const removeSession = useMutation({ mutationKey: mutationKeys.deleteSession })
 
   if (plan.isPending || client.isPending) return <LoadingState />
   if (plan.isError && plan.data === undefined) {
     return <ErrorState error={plan.error} onRetry={plan.refetch} />
+  }
+  if (client.isError && client.data === undefined) {
+    return <ErrorState error={client.error} onRetry={client.refetch} />
   }
 
   const clientName = client.data?.full_name ?? 'this client'
@@ -61,7 +64,6 @@ export default function ClientWorkoutScreen() {
         </Typography>
         <CreatePlanFlow
           memberId={clientId}
-          authorId={user.id}
           onDone={() => plan.refetch()}
         />
       </Stack>
@@ -70,15 +72,47 @@ export default function ClientWorkoutScreen() {
 
   const sessions = plan.data.sessions
 
+  if (replacing) {
+    return (
+      <Stack spacing={3} sx={{ p: 2 }}>
+        <Typography variant="h1">Replace plan</Typography>
+        <Alert severity="info">
+          The current plan stays in the client history. The new one becomes active only when its
+          first complete session is saved.
+        </Alert>
+        <CreatePlanFlow
+          memberId={clientId}
+          replacesPlanId={plan.data.plan.id}
+          onDone={() => {
+            setReplacing(false)
+            plan.refetch()
+          }}
+        />
+        <Button onClick={() => setReplacing(false)}>Cancel</Button>
+      </Stack>
+    )
+  }
+
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
-      <Stack spacing={0.5}>
-        <Typography variant="h1">{plan.data.plan.name}</Typography>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+        <IconButton
+          component={Link}
+          to={`/p/clients/${clientId}`}
+          aria-label={`Back to ${clientName}`}
+          edge="start"
+        >
+          <ArrowBackIcon />
+        </IconButton>
+        <Box sx={{ minWidth: 0 }}>
+        <Typography variant="h1" noWrap>{plan.data.plan.name}</Typography>
+        <Typography color="text.secondary" noWrap>{clientName}</Typography>
         <Typography color="text.secondary">
           {[plan.data.plan.goal, plan.data.plan.level, `${plan.data.plan.weeks} weeks`]
             .filter(Boolean)
             .join(' • ')}
         </Typography>
+        </Box>
       </Stack>
 
       <Stack spacing={2}>
@@ -94,7 +128,7 @@ export default function ClientWorkoutScreen() {
         {sessions.map((session) => (
           <Card key={session.id}>
             <CardContent>
-              <Stack direction="row" spacing={2} alignItems="center">
+              <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
                 <Stack sx={{ flexGrow: 1, minWidth: 0 }}>
                   <Typography variant="h3" noWrap>
                     {session.name}
@@ -109,35 +143,18 @@ export default function ClientWorkoutScreen() {
                   </Typography>
                 </Stack>
 
-                <IconButton
-                  aria-label={`Delete ${session.name}`}
-                  disabled={removeSession.isPending}
-                  onClick={() => {
-                    // A deletion cascades into the client's logged sets, so it
-                    // asks first.  `confirm` rather than a dialog component:
-                    // this is one destructive action on one screen, and the
-                    // native prompt is already accessible and already blocking.
-                    if (
-                      window.confirm(
-                        `Delete “${session.name}”? Any sets ${clientName} has logged in it are deleted too.`,
-                      )
-                    ) {
-                      removeSession.mutate({ sessionId: session.id })
-                    }
-                  }}
+                <Button
+                  component={Link}
+                  to={`/p/clients/${clientId}/workout/session/${session.id}/exercise/new`}
+                  size="small"
                 >
-                  <DeleteOutlineIcon />
-                </IconButton>
+                  Add exercise
+                </Button>
               </Stack>
             </CardContent>
           </Card>
         ))}
 
-        {removeSession.isError ? (
-          <Alert severity="error">
-            {removeSession.error?.message ?? 'The session could not be deleted.'}
-          </Alert>
-        ) : null}
       </Stack>
 
       <Divider />
@@ -164,10 +181,11 @@ export default function ClientWorkoutScreen() {
               onSubmit={({ name, exercises }) =>
                 createSession.mutate(
                   {
+                    id: createUuid(),
                     planId: plan.data.plan.id,
                     name,
                     position: Math.max(0, ...sessions.map((session) => session.position)) + 1,
-                    exercises,
+                    exercises: buildSessionExercisePayloads(exercises),
                   },
                   { onSuccess: () => setAdding(false) },
                 )
@@ -180,9 +198,14 @@ export default function ClientWorkoutScreen() {
           </Button>
         </Stack>
       ) : (
-        <Button variant="contained" size="large" fullWidth onClick={() => setAdding(true)}>
-          Add a session
-        </Button>
+        <Stack spacing={1}>
+          <Button variant="contained" size="large" fullWidth onClick={() => setAdding(true)}>
+            Add a session
+          </Button>
+          <Button variant="outlined" size="large" fullWidth onClick={() => setReplacing(true)}>
+            Create replacement plan
+          </Button>
+        </Stack>
       )}
     </Stack>
   )

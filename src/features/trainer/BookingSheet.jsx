@@ -1,8 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Alert, Button, Drawer, MenuItem, Stack, TextField, Typography } from '@mui/material'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { fetchAvailability } from '../../data/availability.js'
+import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
-import { slotToISO } from '../../lib/format.js'
+import { slotToISO, todayISO } from '../../lib/format.js'
+import { createUuid } from '../../lib/uuid.js'
 import { useAuth } from '../auth/useAuth.js'
 
 const KINDS = [
@@ -13,6 +16,11 @@ const KINDS = [
 
 const DURATIONS = [30, 45, 60, 90, 120]
 
+const minutesOf = (hhmm) => {
+  const [hours, minutes] = String(hhmm).slice(0, 5).split(':').map(Number)
+  return hours * 60 + minutes
+}
+
 export default function BookingSheet({ open, onClose, defaultDayISO }) {
   const { user, profile } = useAuth()
 
@@ -21,44 +29,53 @@ export default function BookingSheet({ open, onClose, defaultDayISO }) {
   const [time, setTime] = useState('09:00')
   const [minutes, setMinutes] = useState(60)
   const [notes, setNotes] = useState('')
+  const [now, setNow] = useState(() => Date.now())
 
-  // The sheet is rendered whether open or not -- only the Drawer's `open`
-  // toggles visibility -- so it never unmounts and useState's initialiser runs
-  // exactly once. Without this reset the date silently keeps whatever day was
-  // selected on first mount, and the form keeps the previous booking's values.
-  // Compared during render rather than in an effect: on the render where `open`
-  // flips, an effect fires in the same commit with stale state.
-  const [wasOpen, setWasOpen] = useState(open)
-  if (open !== wasOpen) {
-    setWasOpen(open)
-    if (open) {
-      setKind('training')
-      setDay(defaultDayISO)
-      setTime('09:00')
-      setMinutes(60)
-      setNotes('')
-    }
-  }
+  useEffect(() => {
+    if (!open) return
+    const id = setInterval(() => setNow(Date.now()), 30_000)
+    return () => clearInterval(id)
+  }, [open])
+
+  const availability = useQuery({
+    queryKey: queryKeys.availability(profile.assigned_pro_id),
+    queryFn: () => fetchAvailability(profile.assigned_pro_id),
+    enabled: open && Boolean(profile.assigned_pro_id),
+  })
 
   const create = useMutation({ mutationKey: mutationKeys.createAppointment })
   const savedOffline = create.isPending && create.isPaused
+  const [year, month, date] = day.split('-').map(Number)
+  const weekday = new Date(year, month - 1, date).getDay()
+  const startMinutes = minutesOf(time)
+  const endMinutes = startMinutes + Number(minutes)
+  const matchingSlot = (availability.data ?? []).some(
+    (slot) => slot.weekday === weekday
+      && startMinutes >= minutesOf(slot.starts_at)
+      && endMinutes <= minutesOf(slot.ends_at),
+  )
+  const selectedStart = slotToISO(day, time, Number(minutes)).startsAt
+  const isPast = day < todayISO() || new Date(selectedStart).getTime() <= now
+  const unavailable = availability.data !== undefined && !matchingSlot
 
   const onSubmit = (event) => {
     event.preventDefault()
     const { startsAt, endsAt } = slotToISO(day, time, Number(minutes))
+
+    // The sheet can stay open across the selected start time. Re-check against
+    // the real clock at submission instead of relying only on the render-time
+    // warning, so an appointment can never be created in the past.
+    if (new Date(startsAt).getTime() <= Date.now()) return
 
     create.mutate(
       {
         // Generated in the handler, not during render: this write can pause
         // offline and replay, and the id is what makes the replay a no-op
         // instead of a second booking.
-        id: crypto.randomUUID(),
+        id: createUuid(),
         memberId: user.id,
         proId: profile.assigned_pro_id,
         kind,
-        // A member requests; the professional confirms. The professional's own
-        // sheet books straight to 'confirmed' because they own the diary.
-        status: 'pending',
         startsAt,
         endsAt,
         notes,
@@ -85,6 +102,13 @@ export default function BookingSheet({ open, onClose, defaultDayISO }) {
           New Booking
         </Typography>
 
+        {availability.isPending ? (
+          <Alert severity="info">Loading the professional&rsquo;s available hours…</Alert>
+        ) : null}
+        {availability.isError && availability.data === undefined ? (
+          <Alert severity="error">Available hours could not be loaded. Try again.</Alert>
+        ) : null}
+
         <TextField
           select
           label="Type"
@@ -99,7 +123,7 @@ export default function BookingSheet({ open, onClose, defaultDayISO }) {
           ))}
         </TextField>
 
-        <Stack direction="row" spacing={1}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
           {/* Native date and time inputs: the platform already ships a correct,
               accessible, locale-aware picker on every device this runs on. */}
           <TextField
@@ -109,7 +133,7 @@ export default function BookingSheet({ open, onClose, defaultDayISO }) {
             onChange={(event) => setDay(event.target.value)}
             required
             sx={{ flexGrow: 1 }}
-            slotProps={{ inputLabel: { shrink: true } }}
+            slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: todayISO() } }}
           />
           <TextField
             label="Start"
@@ -117,7 +141,7 @@ export default function BookingSheet({ open, onClose, defaultDayISO }) {
             value={time}
             onChange={(event) => setTime(event.target.value)}
             required
-            sx={{ width: 130 }}
+            sx={{ width: { xs: '100%', sm: 130 } }}
             slotProps={{ inputLabel: { shrink: true } }}
           />
         </Stack>
@@ -146,6 +170,14 @@ export default function BookingSheet({ open, onClose, defaultDayISO }) {
           fullWidth
         />
 
+        {isPast ? (
+          <Alert severity="warning">Choose a future date and time.</Alert>
+        ) : unavailable ? (
+          <Alert severity="warning">
+            This time is outside the professional&rsquo;s available hours. Choose another time.
+          </Alert>
+        ) : null}
+
         {savedOffline ? (
           <Alert severity="info">
             You are offline. This request is saved on your device and will be sent when you
@@ -158,7 +190,13 @@ export default function BookingSheet({ open, onClose, defaultDayISO }) {
           </Alert>
         ) : null}
 
-        <Button type="submit" variant="contained" size="large" fullWidth disabled={create.isPending}>
+        <Button
+          type="submit"
+          variant="contained"
+          size="large"
+          fullWidth
+          disabled={create.isPending || availability.isPending || isPast || unavailable}
+        >
           {savedOffline ? 'Saved offline' : create.isPending ? 'Requesting…' : 'Confirm booking'}
         </Button>
         <Button onClick={onClose}>Cancel</Button>

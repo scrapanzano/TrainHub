@@ -1,4 +1,4 @@
-import { Avatar, Box, Card, CardActionArea, CardContent, Stack, Typography } from '@mui/material'
+import { Avatar, Box, Card, CardActionArea, CardContent, Chip, Stack, Typography } from '@mui/material'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked'
 import { Link } from 'react-router'
@@ -39,7 +39,7 @@ export default function AppointmentCard({ appointment, person, to }) {
 
   const body = (
     <CardContent>
-      <Stack direction="row" spacing={2} alignItems="center">
+      <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
         <Box sx={{ color: 'text.primary', display: 'flex' }}>
           {done ? (
             <CheckCircleIcon titleAccess={statusLabel} />
@@ -55,7 +55,19 @@ export default function AppointmentCard({ appointment, person, to }) {
           <Typography variant="h3" noWrap>
             {KIND_LABEL[kind] ?? 'Appointment'}
           </Typography>
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+          <Chip
+            size="small"
+            label={statusLabel}
+            color={
+              status === 'cancelled'
+                ? 'error'
+                : status === 'done' || status === 'confirmed'
+                  ? 'success'
+                  : 'warning'
+            }
+            sx={{ mt: 0.75 }}
+          />
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mt: 0.5 }}>
             <Avatar src={person?.avatar_url ?? undefined} sx={{ width: 20, height: 20 }}>
               {person?.full_name?.[0] ?? '?'}
             </Avatar>

@@ -1,19 +1,16 @@
--- TrainHub Phase 0 database checks.
+-- TrainHub database checks after patches 001-016.
 --
 -- One query on purpose: the Supabase SQL editor only renders the result of the
 -- LAST statement in a script, so a file of separate SELECTs silently shows you
 -- just the final one.
 --
--- Run after schema.sql + policies.sql + seed.sql, and after the patches.  The
--- five schema/security counts below expect `patches/009` (checkin_tokens),
--- `patches/010` (app_config) and `patches/013` (workout_runs) to have been
--- applied; run before them they read short.  Every row must read PASS, except
--- the four seed counts -- see the comment on them.
+-- Run after schema.sql + policies.sql + seed.sql and every patch through 016.
+-- The schema/security checks expect patches 015-016. Every row must read PASS.
 --
 -- Caveat: this runs as the dashboard's privileged role, which bypasses RLS.
 -- It proves the rows and policies EXIST; it does not prove the policies are
--- correct from the app's point of view. That is verified in Task 7, by signing
--- in as each demo account and seeing what comes back.
+-- correct from the app's point of view. That is verified by probe-rls.mjs and
+-- probe-security.mjs, which sign in through the same public API as the app.
 
 select
   check_name,
@@ -23,10 +20,8 @@ select
 from (
   values
     -- Schema ---------------------------------------------------------------
-    -- 19 = the 16 tables schema.sql creates, plus `checkin_tokens`
-    -- (`patches/009`), `app_config` (`patches/010`) and `workout_runs`
-    -- (`patches/013`).  The three counts further down read 18, not 19, and the
-    -- comment there says why.
+    -- schema.sql now declares the complete 19-table fresh-install shape. The
+    -- historical create-if-missing patches remain safe to replay in order.
     ('public tables',
      (select count(*)::text from information_schema.tables
       where table_schema = 'public' and table_type = 'BASE TABLE'), '19'),
@@ -44,7 +39,7 @@ from (
     -- AND grant-less, so RLS-on-with-no-policy denies every PostgREST caller
     -- and the missing grant denies them one gate earlier.  Only
     -- `notify_user()`, which is `security definer`, reads it.  If any of the
-    -- three rows below ever reads 19, that table became reachable from the
+    -- two read rows below ever read 19, that table became reachable from the
     -- browser.
     ('tables with at least one policy',
      (select count(distinct tablename)::text from pg_policies
@@ -65,39 +60,68 @@ from (
      (select count(*)::text from pg_tables
       where schemaname = 'public'
         and has_table_privilege('authenticated', format('%I.%I', schemaname, tablename), 'insert')),
-     '18'),
+     -- Patch 015 removes direct INSERT from the ten protected history and
+     -- relationship tables. The remaining eight use ordinary RLS writes.
+     '8'),
+
+    ('protected tables reject direct insert privileges',
+     (select count(*)::text from (values
+       ('workout_plans'), ('workout_sessions'), ('session_exercises'),
+       ('workout_runs'), ('set_logs'), ('rewards'), ('appointments'),
+       ('threads'), ('checkins'), ('body_metrics')
+     ) as protected(tablename)
+     where not has_table_privilege(
+       'authenticated', format('public.%I', protected.tablename), 'insert')),
+     '10'),
+
+    ('patch 015 secure operations',
+     (select count(*)::text
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.proname in (
+          'create_appointment_secure', 'set_appointment_status_secure',
+          'ensure_assigned_thread', 'save_body_metric_secure',
+          'create_workout_plan_secure', 'create_workout_session_secure',
+          'add_session_exercise_secure', 'start_workout_run_secure',
+          'pause_workout_run_secure', 'resume_workout_run_secure',
+          'log_workout_set_secure', 'close_workout_run_secure',
+          'save_workout_run_note_secure'
+        )
+        and p.prosecdef
+        and coalesce(
+          p.proconfig && array['search_path=', 'search_path=""'], false)),
+     '13'),
+
+    ('workout completion counts only logged sets',
+     (select coalesce(
+        regexp_replace(lower(pg_get_functiondef(p.oid)), '[[:space:]]+', '', 'g')
+          like '%least(coalesce(logged.amount,0),item.target_sets)%',
+        false)::text
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.proname = 'close_workout_run_secure'),
+     'true'),
 
     -- Seed contents --------------------------------------------------------
-    -- The four counts below (`profiles`, `workout_plans`, `workout_sessions`,
-    -- `appointments`) are the seed.sql-ONLY baseline: what a fresh install
-    -- reads after schema.sql + policies.sql + seed.sql and nothing else. They
-    -- are deliberately NOT bumped to match `patches/005-demo-clients.sql`,
-    -- because doing so would break this exact fresh-install-without-demo-data
-    -- path -- the whole reason the schema patch and the demo-data patch are
-    -- two separate files in the first place.
-    --
-    -- Once `patches/005-demo-clients.sql` has also been run, these four rows
-    -- read FAIL against the numbers below.  That is expected, not a bug:
-    --   profiles          2  -> 6   (Daniel + Coach Andrea + four demo clients)
-    --   workout_plans     1  -> 5   (the seeded plan + one per demo client)
-    --   workout_sessions  4  -> 16  (the seeded four + three per demo plan)
-    --   appointments      3  -> 8   (the seeded three + five from the demo patch)
-    -- `patches/005-demo-clients.sql` ends with its own PASS/FAIL block that
-    -- checks the post-patch counts directly -- use that file's output to
-    -- confirm the database once the demo data is loaded, not this one.
-    ('profiles',           (select count(*)::text from profiles),           '2'),
-    ('exercises',          (select count(*)::text from exercises),          '10'),
-    ('workout_plans',      (select count(*)::text from workout_plans),      '1'),
-    ('workout_sessions',   (select count(*)::text from workout_sessions),   '4'),
-    ('session_exercises',  (select count(*)::text from session_exercises),  '6'),
-    ('nutrition_plans',    (select count(*)::text from nutrition_plans),    '1'),
-    ('meals',              (select count(*)::text from meals),              '4'),
-    ('availability',       (select count(*)::text from availability),       '10'),
-    ('appointments',       (select count(*)::text from appointments),       '3'),
-    ('threads',            (select count(*)::text from threads),            '1'),
-    ('messages',           (select count(*)::text from messages),           '3'),
-    ('rewards',            (select count(*)::text from rewards),            '3'),
-    ('checkins',           (select count(*)::text from checkins),           '6'),
+    -- These are minimums, not exact counts: using the app legitimately adds
+    -- workouts, messages, rewards, appointments and check-ins. Exact seed
+    -- checks belong to seed.sql and patch 005 at the moment they run.
+    ('at least 6 profiles',          (select (count(*) >= 6)::text from profiles),          'true'),
+    ('at least 10 exercises',        (select (count(*) >= 10)::text from exercises),        'true'),
+    ('at least 5 workout plans',     (select (count(*) >= 5)::text from workout_plans),     'true'),
+    ('at least 16 workout sessions', (select (count(*) >= 16)::text from workout_sessions), 'true'),
+    ('at least 6 prescribed exercises',
+     (select (count(*) >= 6)::text from session_exercises), 'true'),
+    ('at least 1 nutrition plan',    (select (count(*) >= 1)::text from nutrition_plans),   'true'),
+    ('at least 4 meals',             (select (count(*) >= 4)::text from meals),             'true'),
+    ('at least 10 availability rows',(select (count(*) >= 10)::text from availability),     'true'),
+    ('at least 8 appointments',      (select (count(*) >= 8)::text from appointments),      'true'),
+    ('at least 1 thread',            (select (count(*) >= 1)::text from threads),           'true'),
+    ('at least 3 messages',          (select (count(*) >= 3)::text from messages),          'true'),
+    ('at least 3 rewards',           (select (count(*) >= 3)::text from rewards),           'true'),
+    ('at least 6 checkins',          (select (count(*) >= 6)::text from checkins),          'true'),
+    ('at least 5 body metrics',      (select (count(*) >= 5)::text from body_metrics),      'true'),
 
     -- Demo accounts --------------------------------------------------------
     ('professional profile',

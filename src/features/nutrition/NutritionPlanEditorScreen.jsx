@@ -10,8 +10,10 @@ import { fetchClient } from '../../data/clients.js'
 import { fetchNutritionPlan } from '../../data/nutrition.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
+import { createUuid } from '../../lib/uuid.js'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import { useAuth } from '../auth/useAuth.js'
+import PageHeader from '../../components/PageHeader.jsx'
 
 /** A number field that keeps '' distinct from 0 while editing. */
 function NumberField({ label, value, onChange, width }) {
@@ -65,7 +67,7 @@ function PlanHeaderForm({ plan, onSave, pending, paused, error }) {
             fullWidth
           />
 
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
             <NumberField label="kcal" value={kcal} onChange={setKcal} width={100} />
             <NumberField label="Protein g" value={protein} onChange={setProtein} width={100} />
             <NumberField label="Carbs g" value={carbs} onChange={setCarbs} width={100} />
@@ -122,13 +124,23 @@ function MealCard({ meal, onSave, onDelete, pending }) {
             })
           }}
         >
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: {
+                xs: 'minmax(0, 1fr) minmax(0, 1fr) auto',
+                sm: 'minmax(0, 1fr) 130px 100px auto',
+              },
+              gap: 1,
+              alignItems: 'center',
+            }}
+          >
             <TextField
               label="Meal"
               value={name}
               onChange={(event) => setName(event.target.value)}
               required
-              sx={{ flexGrow: 1 }}
+              sx={{ gridColumn: { xs: '1 / 3', sm: 'auto' } }}
             />
             {/* Native time input: the platform already renders a correct,
                 accessible, locale-aware picker on every target device. */}
@@ -138,15 +150,21 @@ function MealCard({ meal, onSave, onDelete, pending }) {
               value={time}
               onChange={(event) => setTime(event.target.value)}
               required
-              sx={{ width: 130 }}
+              sx={{ width: '100%', gridColumn: { xs: '1', sm: 'auto' } }}
               slotProps={{ inputLabel: { shrink: true } }}
             />
-            <NumberField label="kcal" value={kcal} onChange={setKcal} width={100} />
+            <Box sx={{ gridColumn: { xs: '2 / 4', sm: 'auto' } }}>
+              <NumberField label="kcal" value={kcal} onChange={setKcal} width="100%" />
+            </Box>
 
-            <IconButton aria-label={`Delete ${meal.name}`} onClick={() => onDelete(meal.id)}>
+            <IconButton
+              aria-label={`Delete ${meal.name}`}
+              onClick={() => onDelete(meal.id)}
+              sx={{ gridColumn: { xs: '3', sm: 'auto' }, gridRow: { xs: '1', sm: 'auto' } }}
+            >
               <DeleteOutlineIcon />
             </IconButton>
-          </Stack>
+          </Box>
 
           <Divider />
 
@@ -157,27 +175,36 @@ function MealCard({ meal, onSave, onDelete, pending }) {
           ) : null}
 
           {items.map((item, index) => (
-            <Stack key={index} direction="row" spacing={1} alignItems="center">
+            <Box
+              key={index}
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: 'minmax(0, 1fr) auto', sm: 'minmax(0, 1fr) 120px auto' },
+                gap: 1,
+                alignItems: 'center',
+              }}
+            >
               <TextField
                 label="Food"
                 value={item.food ?? ''}
                 onChange={(event) => updateItem(index, 'food', event.target.value)}
-                sx={{ flexGrow: 1 }}
+                sx={{ minWidth: 0 }}
               />
               <TextField
                 label="Quantity"
                 value={item.qty ?? ''}
                 onChange={(event) => updateItem(index, 'qty', event.target.value)}
                 placeholder="80 g"
-                sx={{ width: 120 }}
+                sx={{ width: '100%', gridColumn: { xs: '1 / 3', sm: 'auto' } }}
               />
               <IconButton
                 aria-label={`Remove ${item.food || 'item'}`}
                 onClick={() => setItems((current) => current.filter((_, i) => i !== index))}
+                sx={{ gridColumn: { xs: '2', sm: 'auto' }, gridRow: { xs: '1', sm: 'auto' } }}
               >
                 <DeleteOutlineIcon />
               </IconButton>
-            </Stack>
+            </Box>
           ))}
 
           <Stack direction="row" spacing={1}>
@@ -226,10 +253,12 @@ export default function NutritionPlanEditorScreen() {
 
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
-      <Stack spacing={0.5}>
-        <Typography variant="h1">Nutrition Plan</Typography>
-        <Typography color="text.secondary">{client.data?.full_name ?? ''}</Typography>
-      </Stack>
+      <PageHeader
+        title="Nutrition Plan"
+        subtitle={client.data?.full_name ?? ''}
+        backTo={`/p/clients/${clientId}`}
+        backLabel="Back to client profile"
+      />
 
       <PlanHeaderForm
         // Remount the form when the plan arrives or is replaced, so the fields
@@ -246,7 +275,7 @@ export default function NutritionPlanEditorScreen() {
             // duplicating -- see saveNutritionPlan's doc comment. Generated
             // here, in the submit handler, so it is a fresh value only for an
             // actual new-plan submission and not on every render.
-            id: plan?.id ?? crypto.randomUUID(),
+            id: plan?.id ?? createUuid(),
             memberId: clientId,
             authorId: user.id,
             ...values,
@@ -285,9 +314,19 @@ export default function NutritionPlanEditorScreen() {
               {saveMealMutation.error?.message ?? 'The meal could not be saved.'}
             </Alert>
           ) : null}
+          {saveMealMutation.isPending && saveMealMutation.isPaused ? (
+            <Alert severity="info">
+              This meal is saved on your device and will sync when you reconnect.
+            </Alert>
+          ) : null}
           {removeMeal.isError ? (
             <Alert severity="error">
               {removeMeal.error?.message ?? 'The meal could not be deleted.'}
+            </Alert>
+          ) : null}
+          {removeMeal.isPending && removeMeal.isPaused ? (
+            <Alert severity="info">
+              The meal will be removed when you reconnect.
             </Alert>
           ) : null}
 
@@ -301,7 +340,7 @@ export default function NutritionPlanEditorScreen() {
                 // of duplicating -- see saveMeal's doc comment. Generated
                 // here, in the click handler, so it is a fresh value only for
                 // this one new-meal action.
-                id: crypto.randomUUID(),
+                id: createUuid(),
                 planId: plan.id,
                 name: 'New meal',
                 timeOfDay: '12:00',

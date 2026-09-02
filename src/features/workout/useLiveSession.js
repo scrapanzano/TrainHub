@@ -68,26 +68,35 @@ export function useLiveSession(run, memberId) {
     // had already stopped for.
     if (!run || run.paused_at) return
     const pausedAt = new Date().toISOString()
+    const expectedPausedTotalMs = run.paused_total_ms ?? 0
     patchRun({ paused_at: pausedAt })
-    pauseRun.mutate({ id: run.id, pausedAt })
-  }, [run, patchRun, pauseRun])
+    pauseRun.mutate({ id: run.id, memberId, expectedPausedTotalMs, pausedAt })
+  }, [run, memberId, patchRun, pauseRun])
 
   const resume = useCallback(() => {
     if (!run || !run.paused_at) return
     // `resumeTimer` credits the paused stretch and clamps a backwards clock
     // correction -- a negative total would be subtracted from every later
     // reading and inflate the clock permanently rather than once.
+    const resumedAtMs = Date.now()
+    const resumedAt = new Date(resumedAtMs).toISOString()
     const next = resumeTimer(
       {
         startedAt: Date.parse(run.started_at),
         pausedAt: Date.parse(run.paused_at),
         pausedTotal: run.paused_total_ms ?? 0,
       },
-      Date.now(),
+      resumedAtMs,
     )
+    const expectedPausedAt = run.paused_at
+    // The interval does not tick while paused, so `now` may be older than the
+    // paused stretch we are about to add. Updating it in the same event keeps
+    // elapsed time monotonic instead of briefly clamping a negative value to
+    // 00:00:00 until the first post-resume tick.
+    setNow(resumedAtMs)
     patchRun({ paused_at: null, paused_total_ms: next.pausedTotal })
-    resumeRun.mutate({ id: run.id, pausedTotalMs: next.pausedTotal })
-  }, [run, patchRun, resumeRun])
+    resumeRun.mutate({ id: run.id, memberId, expectedPausedAt, resumedAt })
+  }, [run, memberId, patchRun, resumeRun])
 
   return {
     started: state !== null,

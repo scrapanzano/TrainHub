@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { Alert, Box, Snackbar, Typography } from '@mui/material'
 import CloudOffIcon from '@mui/icons-material/CloudOff'
 import { useMutationState } from '@tanstack/react-query'
+import {
+  CACHE_MIGRATION_NOTICE_EVENT, clearCacheMigrationNotice, readCacheMigrationNotice,
+} from '../lib/cacheMigration.js'
 
 const plural = (n) => (n === 1 ? '' : 's')
 
@@ -14,15 +17,19 @@ export default function OfflineBanner() {
   // latch: dismissing one failure would silence every later one, and a lost set
   // with no warning is exactly what this snackbar exists to prevent.
   const [dismissed, setDismissed] = useState(() => new Set())
+  const [migrationNotice, setMigrationNotice] = useState(() => readCacheMigrationNotice())
 
   useEffect(() => {
     const goOnline = () => setOnline(true)
     const goOffline = () => setOnline(false)
+    const showMigrationNotice = (event) => setMigrationNotice(event.detail)
     window.addEventListener('online', goOnline)
     window.addEventListener('offline', goOffline)
+    window.addEventListener(CACHE_MIGRATION_NOTICE_EVENT, showMigrationNotice)
     return () => {
       window.removeEventListener('online', goOnline)
       window.removeEventListener('offline', goOffline)
+      window.removeEventListener(CACHE_MIGRATION_NOTICE_EVENT, showMigrationNotice)
     }
   }, [])
 
@@ -90,6 +97,28 @@ export default function OfflineBanner() {
         <Alert severity="error" onClose={() => setDismissed(new Set(failedIds))}>
           {unacknowledged.length} change{plural(unacknowledged.length)} could not be saved. Try
           again.
+        </Alert>
+      </Snackbar>
+      <Snackbar
+        open={Boolean(migrationNotice)}
+        onClose={() => {
+          clearCacheMigrationNotice()
+          setMigrationNotice(null)
+        }}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        // Deliberately persistent: discarded offline work requires an explicit
+        // acknowledgement, not a toast that vanishes while the user is reading.
+      >
+        <Alert
+          severity="warning"
+          onClose={() => {
+            clearCacheMigrationNotice()
+            setMigrationNotice(null)
+          }}
+        >
+          TrainHub was updated. {migrationNotice?.discardedCount ?? 0} unsynced change
+          {plural(migrationNotice?.discardedCount ?? 0)} could not be carried over. Please repeat
+          {migrationNotice?.discardedCount === 1 ? ' it' : ' them'}.
         </Alert>
       </Snackbar>
     </>

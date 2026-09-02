@@ -16,9 +16,12 @@ import { fetchActivePlan } from '../../data/workouts.js'
 import { fetchNutritionPlan } from '../../data/nutrition.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { localDayISO, todayISO } from '../../lib/format.js'
+import { runStatusOf } from '../../lib/week.js'
 import { planProgress } from '../workout/status.js'
+import { workoutWeekSummary } from '../progress/progress.js'
 import { daysBetween, subscriptionStateOf } from './subscription.js'
 import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
+import PageHeader from '../../components/PageHeader.jsx'
 
 /** One overview card: an icon, a title, a chevron, and whatever the caller shows. */
 function OverviewCard({ icon, title, to, children }) {
@@ -26,7 +29,7 @@ function OverviewCard({ icon, title, to, children }) {
     <Card>
       <CardActionArea component={Link} to={to}>
         <CardContent>
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             <Box sx={{ color: 'primary.main', display: 'flex' }}>{icon}</Box>
             <Typography variant="h3" sx={{ flexGrow: 1, minWidth: 0 }} noWrap>
               {title}
@@ -64,7 +67,16 @@ export default function ClientDetailScreen() {
   }
 
   const state = subscriptionStateOf(client.data, todayISO())
-  const progress = planProgress(plan.data?.sessions ?? [])
+  const progress = planProgress(
+    (plan.data?.sessions ?? []).map((session) => ({
+      status: runStatusOf(session.runs, plan.data.weekStart).status,
+    })),
+  )
+  const weekly = workoutWeekSummary(
+    (plan.data?.sessions ?? []).flatMap((session) => session.runs ?? []),
+    plan.data?.sessions.length ?? 0,
+    todayISO(),
+  )
 
   // `weeks` is the plan's intended length and `created_at` is when it started,
   // so the week the client is in is derived, not stored.  Clamped at both ends:
@@ -89,13 +101,20 @@ export default function ClientDetailScreen() {
 
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
-      <Stack spacing={1.5} alignItems="center" sx={{ textAlign: 'center' }}>
+      <PageHeader title="Client profile" backTo="/p/clients" backLabel="Back to clients" />
+
+      <Stack spacing={1.5} sx={{ alignItems: 'center', textAlign: 'center' }}>
         <Avatar src={client.data.avatar_url ?? undefined} sx={{ width: 112, height: 112 }}>
           {client.data.full_name?.[0] ?? '?'}
         </Avatar>
         <Typography variant="h1">{client.data.full_name}</Typography>
 
-        <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent="center" useFlexGap>
+        <Stack
+          direction="row"
+          spacing={1}
+          useFlexGap
+          sx={{ flexWrap: 'wrap', justifyContent: 'center' }}
+        >
           {/* `profiles` carries no date of birth, so the wireframe's "Age" pill
               becomes the one date that does exist. */}
           <Chip
@@ -115,8 +134,12 @@ export default function ClientDetailScreen() {
         {/* No "Call": there is no phone number in the schema.  Chat lands on the
             thread list, which Phase 4 fills in. */}
         <Card sx={{ border: 'none', bgcolor: 'transparent' }}>
-          <CardActionArea component={Link} to="/p/chat" sx={{ borderRadius: 999, px: 3, py: 1 }}>
-            <Stack spacing={0.5} alignItems="center">
+          <CardActionArea
+            component={Link}
+            to={`/p/clients/${clientId}/chat`}
+            sx={{ borderRadius: 999, px: 3, py: 1 }}
+          >
+            <Stack spacing={0.5} sx={{ alignItems: 'center' }}>
               <ChatBubbleOutlineIcon color="primary" />
               <Typography variant="body2">Chat</Typography>
             </Stack>
@@ -197,7 +220,7 @@ export default function ClientDetailScreen() {
                 <Typography variant="h2" component="p">
                   {nutrition.data.plan.kcal_target ?? '—'} kcal
                 </Typography>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
                   <Chip size="small" label={`P: ${nutrition.data.plan.protein_g ?? '—'}g`} />
                   <Chip size="small" label={`C: ${nutrition.data.plan.carbs_g ?? '—'}g`} />
                   <Chip size="small" label={`F: ${nutrition.data.plan.fat_g ?? '—'}g`} />
@@ -210,7 +233,36 @@ export default function ClientDetailScreen() {
             icon={<TrendingUpIcon />}
             title="Progress Tracking"
             to={`/p/clients/${clientId}/progress`}
-          />
+          >
+            {plan.isError && plan.data === undefined ? (
+              <Typography variant="body2" color="text.secondary">
+                Progress is temporarily unavailable.
+              </Typography>
+            ) : plan.data === undefined ? (
+              <Typography variant="body2" color="text.secondary">Loading…</Typography>
+            ) : plan.data === null ? (
+              <Typography variant="body2" color="text.secondary">
+                Assign a workout plan to start tracking progress.
+              </Typography>
+            ) : (
+              <Stack spacing={0.75}>
+                <Typography variant="body2">
+                  This week: {weekly.done}/{weekly.total} sessions
+                </Typography>
+                {weekly.openRun ? (
+                  <Typography variant="body2" color="warning.main">
+                    {weekly.openRun.session?.name ?? 'Workout'} is currently in progress.
+                  </Typography>
+                ) : weekly.lastRun ? (
+                  <Typography variant="body2" color="text.secondary">
+                    Latest: {weekly.lastRun.session?.name ?? 'Workout'} · {weekly.lastRun.pct ?? 0}%
+                  </Typography>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">No workouts recorded yet.</Typography>
+                )}
+              </Stack>
+            )}
+          </OverviewCard>
         </Stack>
       </Box>
     </Stack>

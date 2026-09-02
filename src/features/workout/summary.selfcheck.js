@@ -64,7 +64,7 @@ assert.equal(
   7.5,
 )
 
-assert.deepEqual(POINTS, { checkin: 10, workout: 30, referral: 60 })
+assert.deepEqual(POINTS, { workout: 30 })
 assert.equal(pointsForWorkout(), 30)
 
 assert.deepEqual(rewardProgress(1020, [{ points: 1000 }, { points: 1100 }]), {

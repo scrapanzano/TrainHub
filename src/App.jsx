@@ -5,6 +5,7 @@ import theme from './theme/index.js'
 import router from './routes/index.jsx'
 import { AuthProvider } from './features/auth/AuthProvider.jsx'
 import { CACHE_MAX_AGE, persister, queryClient } from './lib/queryClient.js'
+import { QUERY_CACHE_BUSTER } from './lib/cacheMigration.js'
 import { registerMutationDefaults } from './data/mutations.js'
 
 // At module scope, not in an effect: `PersistQueryClientProvider` restores the
@@ -21,7 +22,16 @@ export default function App() {
         persistOptions={{
           persister,
           maxAge: CACHE_MAX_AGE,
+          buster: QUERY_CACHE_BUSTER,
           dehydrateOptions: {
+            // Chrome's DevTools "Offline" can leave fetch pending for a short
+            // window before TanStack marks the mutation as paused. If the user
+            // reloads inside that window, persisting only `isPaused` mutations
+            // keeps the optimistic query row but loses the write that should
+            // send it. Every mutation in this app has a registered durable
+            // default and an idempotent contract, so persist every outstanding
+            // write and let hydration resume it safely.
+            shouldDehydrateMutation: (mutation) => mutation.state.status === 'pending',
             // Persist anything that HAS data, not only what is currently
             // `success`.  Offline every query refetches, fails and flips to
             // `error` while keeping its data in memory -- and the default
