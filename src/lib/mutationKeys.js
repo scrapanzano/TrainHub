@@ -23,4 +23,6 @@ export const mutationKeys = {
   markThreadRead: ['markThreadRead'],
   ensureThread: ['ensureThread'],
   chooseProfessional: ['chooseProfessional'],
+  markNotificationRead: ['markNotificationRead'],
+  markNotificationsRead: ['markNotificationsRead'],
 }

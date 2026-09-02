@@ -6,6 +6,7 @@ import { createAppointment, setAppointmentStatus } from './appointments.js'
 import { addAvailability, deleteAvailability } from './availability.js'
 import { ensureThread, markThreadRead, sendMessage } from './chat.js'
 import { chooseProfessional } from './profile.js'
+import { markNotificationRead, markNotificationsRead } from './notifications.js'
 import { mutationKeys } from '../lib/mutationKeys.js'
 import { queryKeys, queryPrefixes } from '../lib/queryKeys.js'
 
@@ -356,6 +357,20 @@ export function registerMutationDefaults(queryClient) {
       // AuthProvider. That happens inside the durable mutation function, so a
       // restored offline choice refreshes the shell too.
       queryClient.invalidateQueries({ queryKey: queryPrefixes.chat })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.markNotificationRead, {
+    mutationFn: markNotificationRead,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.notifications })
+    },
+  })
+
+  queryClient.setMutationDefaults(mutationKeys.markNotificationsRead, {
+    mutationFn: markNotificationsRead,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.notifications })
     },
   })
 

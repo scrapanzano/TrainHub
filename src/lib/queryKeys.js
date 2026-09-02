@@ -33,6 +33,8 @@ export const queryKeys = {
   unreadCount: (userId) => ['chat', 'unread', userId],
   professionals: () => ['professionals'],
   memberAppointments: (memberId, fromISO, toISO) => ['appointments', memberId, 'range', fromISO, toISO],
+  notifications: (userId) => ['notifications', 'list', userId],
+  unreadNotificationCount: (userId) => ['notifications', 'unread', userId],
 }
 
 // Prefixes, for invalidating a whole family at once.  `invalidateQueries`
@@ -62,4 +64,5 @@ export const queryPrefixes = {
   // list, the open conversation and the unread badge together.
   chat: ['chat'],
   professionals: ['professionals'],
+  notifications: ['notifications'],
 }
