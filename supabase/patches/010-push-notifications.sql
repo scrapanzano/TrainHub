@@ -217,7 +217,7 @@ select 'pg_net installed' as check,
   (select count(*) = 1 from pg_extension where extname = 'pg_net') as ok
 union all
 select 'notify_user exists',
-  (to_regprocedure('public.notify_user(uuid,text,text,text)') is not null)
+  (to_regprocedure('public.notify_user(uuid,text,text,text,text)') is not null)
 union all
 select 'four triggers',
   (select count(*) = 4 from pg_trigger
@@ -229,6 +229,6 @@ select 'config unreadable by the app role',
 union all
 select 'notify_user not callable by the app role',
   (not has_function_privilege('authenticated',
-     'public.notify_user(uuid,text,text,text)', 'execute')
+     'public.notify_user(uuid,text,text,text,text)', 'execute')
    and not has_function_privilege('anon',
-     'public.notify_user(uuid,text,text,text)', 'execute'));
+     'public.notify_user(uuid,text,text,text,text)', 'execute'));

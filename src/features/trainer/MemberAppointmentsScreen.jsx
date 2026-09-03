@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Box, Card, CardActionArea, CardContent, IconButton, Stack, Typography } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { fetchMemberAppointmentsInRange } from '../../data/appointments.js'
 import { queryKeys } from '../../lib/queryKeys.js'
+import { mutationKeys } from '../../lib/mutationKeys.js'
 import { formatDate, localDayISO, todayISO } from '../../lib/format.js'
 import AppointmentCard from '../../components/AppointmentCard.jsx'
 import MonthGrid from '../../components/MonthGrid.jsx'
@@ -30,6 +31,17 @@ export default function MemberAppointmentsScreen() {
     queryKey: queryKeys.memberAppointments(user.id, rangeFrom, rangeTo),
     queryFn: () => fetchMemberAppointmentsInRange(user.id, rangeFrom, rangeTo),
   })
+
+  // Fires once per mount, independent of how this screen was reached --
+  // clears the "Appointment confirmed/cancelled/done" notification the same
+  // way visiting it always would, bell or not (patches/020).
+  const notified = useRef(false)
+  const markNotificationsRead = useMutation({ mutationKey: mutationKeys.markNotificationsRead })
+  useEffect(() => {
+    if (notified.current) return
+    notified.current = true
+    markNotificationsRead.mutate({ url: '/m/trainer/appointments' })
+  }, [markNotificationsRead])
 
   // `localDayISO`, not `toISOString().slice(0, 10)`: the latter gives the UTC
   // day and puts a late-evening appointment on the wrong date east of

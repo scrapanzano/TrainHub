@@ -1,10 +1,12 @@
+import { useEffect, useRef } from 'react'
 import {
   Box, Button, Card, CardContent, Divider, LinearProgress, Stack, Typography,
 } from '@mui/material'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { fetchActivePlan } from '../../data/workouts.js'
 import { queryKeys } from '../../lib/queryKeys.js'
+import { mutationKeys } from '../../lib/mutationKeys.js'
 import { runStatusOf } from '../../lib/week.js'
 import { planProgress } from './status.js'
 import SessionCard from '../../components/SessionCard.jsx'
@@ -55,6 +57,17 @@ export default function WorkoutPlanScreen() {
     queryKey: queryKeys.activePlan(user.id),
     queryFn: () => fetchActivePlan(user.id),
   })
+
+  // Fires once per mount, independent of how this screen was reached --
+  // clears the "New workout plan" notification the same way visiting it
+  // always would, bell or not (patches/020).
+  const notified = useRef(false)
+  const markNotificationsRead = useMutation({ mutationKey: mutationKeys.markNotificationsRead })
+  useEffect(() => {
+    if (notified.current) return
+    notified.current = true
+    markNotificationsRead.mutate({ url: '/m/workout' })
+  }, [markNotificationsRead])
 
   if (isPending) return <LoadingState />
   // `data === undefined` means it never loaded.  With `offlineFirst` a refetch

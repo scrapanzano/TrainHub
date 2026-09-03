@@ -42,7 +42,7 @@ const TABLES = [
   'profiles', 'exercises', 'workout_plans', 'workout_sessions', 'session_exercises',
   'set_logs', 'workout_runs', 'nutrition_plans', 'meals', 'availability', 'appointments',
   'threads', 'messages', 'rewards', 'checkins', 'checkin_tokens', 'body_metrics',
-  'push_subscriptions', 'app_config',
+  'push_subscriptions', 'app_config', 'notifications',
 ]
 
 let failures = 0

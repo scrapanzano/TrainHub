@@ -1505,9 +1505,9 @@ insert into patch_015_checks (check_name, actual, expected) values
    has_table_privilege('authenticated', 'public.app_config', 'select')::text, 'false'),
   ('notification endpoint remains uncallable from browser',
    ((not has_function_privilege(
-       'authenticated', 'public.notify_user(uuid,text,text,text)', 'execute')
+       'authenticated', 'public.notify_user(uuid,text,text,text,text)', 'execute')
      and not has_function_privilege(
-       'anon', 'public.notify_user(uuid,text,text,text)', 'execute'))::text), 'true'),
+       'anon', 'public.notify_user(uuid,text,text,text,text)', 'execute'))::text), 'true'),
   ('messages remain in Realtime publication',
    (select (count(*) = 1)::text from pg_publication_tables
     where pubname = 'supabase_realtime' and schemaname = 'public'

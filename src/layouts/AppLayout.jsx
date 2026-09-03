@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Box, Button, Stack, Typography } from '@mui/material'
 import { Navigate, Outlet, useLocation } from 'react-router'
 import BottomNav from '../components/BottomNav.jsx'
@@ -7,11 +7,12 @@ import LiveSessionBar from '../components/LiveSessionBar.jsx'
 import OfflineBanner from '../components/OfflineBanner.jsx'
 import { LoadingState } from '../components/ScreenState.jsx'
 import TopHeader from '../components/TopHeader.jsx'
-import { fetchUnreadCount } from '../data/chat.js'
+import { supabase } from '../lib/supabase.js'
+import { fetchUnreadNotificationCount } from '../data/notifications.js'
 import { fetchOpenRun } from '../data/runs.js'
 import { elapsedMs } from '../features/workout/timer.js'
 import { useAuth } from '../features/auth/useAuth.js'
-import { queryKeys } from '../lib/queryKeys.js'
+import { queryKeys, queryPrefixes } from '../lib/queryKeys.js'
 
 /**
  * The signed-in shell for both roles.  The only difference between a member's
@@ -27,18 +28,48 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
   const location = useLocation()
 
   const unread = useQuery({
-    queryKey: queryKeys.unreadCount(user?.id),
-    queryFn: () => fetchUnreadCount(user.id),
+    queryKey: queryKeys.unreadNotificationCount(user?.id),
+    queryFn: () => fetchUnreadNotificationCount(user.id),
     // Nothing to count until somebody is signed in.
     enabled: Boolean(user?.id),
-    // Polled rather than pushed: the chat's Realtime channel is filtered to one
-    // `thread_id` and lives on the conversation screen, so it cannot feed a
-    // badge that must count every thread. This layout never unmounts on inner
-    // navigation either, so without an interval the badge freezes at its
-    // page-load value. A shell-level subscription is the fuller answer and is
-    // not worth a second channel at this scale.
+    // Polled rather than pushed: nothing in this shell subscribes to
+    // Realtime for every notification-generating table, so a badge that
+    // must reflect messages, appointments and plans together needs a poll
+    // to notice a change made elsewhere. Same interval the chat inbox
+    // already polls at.
     refetchInterval: 60_000,
   })
+
+  const queryClient = useQueryClient()
+
+  // The poll above is the fallback; this is what makes the badge update
+  // without waiting up to 60s (or a full app reopen). Same pattern as
+  // `useThreadMessages.js`'s chat channel: the query stays the source of
+  // truth, Realtime only triggers a refetch. If the subscription never
+  // fires, the poll still keeps the badge eventually correct.
+  useEffect(() => {
+    if (!user?.id) return
+
+    const channel = supabase
+      .channel(`notifications:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: queryPrefixes.notifications })
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user?.id, queryClient])
 
   // The member's open workout, if any.  Members only: a professional has no
   // workout of their own to be in the middle of.
@@ -137,7 +168,7 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
         <TopHeader
           profileHref={profileHref}
           notificationCount={unread.data ?? 0}
-          notificationHref={requiredRole === 'professional' ? '/p/chat' : '/m/trainer/chat'}
+          notificationHref={requiredRole === 'professional' ? '/p/notifications' : '/m/notifications'}
           scanHref={requiredRole === 'professional' ? '/p/scan' : undefined}
         />
         <OfflineBanner />

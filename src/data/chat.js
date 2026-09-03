@@ -126,24 +126,6 @@ export async function fetchMessages(threadId) {
 }
 
 /**
- * How many messages are waiting for this user, across every thread they are in.
- *
- * RLS already scopes `messages` to threads the caller belongs to, so no join is
- * needed here -- "not sent by me and not yet read" is the whole condition.
- */
-export async function fetchUnreadCount(userId) {
-  const { count, error } = await supabase
-    .from('messages')
-    .select('id', { count: 'exact', head: true })
-    .neq('sender_id', userId)
-    .is('read_at', null)
-    .retry(navigator.onLine)
-
-  if (error) throw error
-  return count ?? 0
-}
-
-/**
  * Send one message.
  *
  * The caller supplies `id`.  `messages.id` has no database default precisely so
