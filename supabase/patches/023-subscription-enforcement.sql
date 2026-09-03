@@ -47,6 +47,7 @@ as $$
   );
 $$;
 
+revoke execute on function public.has_active_subscription(uuid) from public, anon;
 grant execute on function public.has_active_subscription(uuid) to authenticated;
 
 -- 2. The professional-side status write. ------------------------------------
@@ -92,6 +93,9 @@ begin
 end;
 $$;
 
+revoke execute on function
+  public.set_subscription_status_secure(uuid, public.subscription_status)
+  from public, anon;
 grant execute on function
   public.set_subscription_status_secure(uuid, public.subscription_status)
   to authenticated;
@@ -130,7 +134,8 @@ begin
   from public.workout_sessions session
   left join public.session_exercises item on item.session_id = session.id
   where session.id = v_row.session_id group by session.name;
-  select coalesce(sum(least(coalesce(logged.amount, 0), item.target_sets)), 0)
+  select coalesce(
+    sum(least(coalesce(logged.amount, 0), item.target_sets)), 0)
   into v_done
   from public.session_exercises item
   left join (
