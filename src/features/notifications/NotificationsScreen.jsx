@@ -192,7 +192,15 @@ export default function NotificationsScreen() {
               // `CardActionArea` never wraps the delete `IconButton` below.
               // `ListItemButton` keeps the row keyboard-focusable, unlike a
               // plain `Box` with an onClick would be.
-              <ListItemButton onClick={() => toggleSelected(item.id)} sx={{ p: 2 }}>
+              <ListItemButton
+                onClick={() => toggleSelected(item.id)}
+                // `ListItemButton` renders `role="button"`, which hides the
+                // inert checkbox from assistive tech (ARIA's presentational-
+                // children rule) -- this is what lets a screen reader hear
+                // whether the row is selected.
+                aria-pressed={selectedIds.has(item.id)}
+                sx={{ p: 2 }}
+              >
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
                   <Checkbox
                     checked={selectedIds.has(item.id)}

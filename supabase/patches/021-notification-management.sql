@@ -94,6 +94,16 @@ revoke execute on function public.delete_notifications_by_ids_secure(uuid[])
 grant execute on function public.delete_notifications_by_ids_secure(uuid[])
   to authenticated;
 
+-- Both signatures below changed shape while this patch was still in review
+-- (zero-arg to one `p_before` argument) -- a different overload as far as
+-- Postgres is concerned, same lesson patches/018 and patches/020 already
+-- documented for notify_user(). Harmless on a first apply (nothing to drop
+-- yet), but dropping the old zero-arg shape keeps a later replay of an
+-- earlier copy of this file from leaving an unbounded, still-granted
+-- version standing alongside the bounded one.
+drop function if exists public.mark_all_notifications_read_secure();
+drop function if exists public.delete_all_notifications_secure();
+
 create or replace function public.mark_all_notifications_read_secure(p_before timestamptz)
 returns void
 language plpgsql security definer set search_path = '' as $$
@@ -132,6 +142,11 @@ insert into patch_021_checks (check_name, actual, expected) values
     where pubname = 'supabase_realtime' and schemaname = 'public'
       and tablename = 'notifications'),
    'true'),
+  ('no unbounded mark-all/delete-all overload remains',
+   (select count(*)::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname in ('mark_all_notifications_read_secure', 'delete_all_notifications_secure')),
+   '2'),
   ('appointment push formats in Europe/Rome',
    (select coalesce(
       regexp_replace(lower(pg_get_functiondef(p.oid)), '[[:space:]]+', '', 'g')
