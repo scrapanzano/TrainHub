@@ -1,6 +1,6 @@
 // Run with:  node src/features/clients/subscription.selfcheck.js
 import assert from 'node:assert/strict'
-import { subscriptionStateOf } from './subscription.js'
+import { isSubscriptionActive, membershipAction, subscriptionStateOf } from './subscription.js'
 
 const TODAY = '2026-07-29'
 
@@ -62,5 +62,48 @@ assert.deepEqual(
 )
 // Neither must a missing profile.
 assert.deepEqual(subscriptionStateOf(null, TODAY), { label: 'Unknown', color: 'task.suspended' })
+
+// --- isSubscriptionActive: the boolean twin of the SQL has_active_subscription
+assert.equal(
+  isSubscriptionActive({ subscription_status: 'active', subscription_until: '2027-03-31' }, TODAY),
+  true,
+)
+// Close to expiring is still active.
+assert.equal(
+  isSubscriptionActive({ subscription_status: 'active', subscription_until: '2026-08-20' }, TODAY),
+  true,
+)
+// Elapsed date fails even while the column still says active.
+assert.equal(
+  isSubscriptionActive({ subscription_status: 'active', subscription_until: '2026-07-28' }, TODAY),
+  false,
+)
+assert.equal(
+  isSubscriptionActive({ subscription_status: 'suspended', subscription_until: '2027-01-01' }, TODAY),
+  false,
+)
+assert.equal(
+  isSubscriptionActive({ subscription_status: 'expired', subscription_until: '2027-01-01' }, TODAY),
+  false,
+)
+// Open-ended membership and unknown enum are both active; missing profile is not.
+assert.equal(
+  isSubscriptionActive({ subscription_status: 'active', subscription_until: null }, TODAY),
+  true,
+)
+assert.equal(
+  isSubscriptionActive({ subscription_status: 'trialling', subscription_until: null }, TODAY),
+  true,
+)
+assert.equal(isSubscriptionActive(null, TODAY), false)
+
+// --- membershipAction: maps a subscriptionStateOf result to the PT button
+const suspend = { label: 'Suspend membership', nextStatus: 'suspended' }
+const reactivate = { label: 'Reactivate membership', nextStatus: 'active' }
+assert.deepEqual(membershipAction({ label: 'Active', color: 'success.main' }), suspend)
+assert.deepEqual(membershipAction({ label: 'Close to Expiring', color: 'warning.main' }), suspend)
+assert.deepEqual(membershipAction({ label: 'Suspended', color: 'task.suspended' }), reactivate)
+assert.deepEqual(membershipAction({ label: 'Expired', color: 'error.main' }), reactivate)
+assert.equal(membershipAction({ label: 'Unknown', color: 'task.suspended' }), null)
 
 console.log('subscription.selfcheck OK')

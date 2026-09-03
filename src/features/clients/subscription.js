@@ -45,3 +45,36 @@ export function subscriptionStateOf(profile, todayISO) {
   if (remaining <= 30) return EXPIRING
   return ACTIVE
 }
+
+/**
+ * Whether the member may currently use paid features -- the JS twin of the SQL
+ * `has_active_subscription(member)` from patches/023. Same rule as
+ * `subscriptionStateOf`: `suspended` and `expired` always fail, and an elapsed
+ * `subscription_until` fails even while the status column still says 'active'.
+ *
+ * Pre-emptive UI only (the shell banner, disabled CTAs). The RPCs are the real
+ * boundary.
+ */
+export function isSubscriptionActive(profile, todayISO) {
+  if (!profile) return false
+  if (profile.subscription_status === 'suspended') return false
+  if (profile.subscription_status === 'expired') return false
+  const until = profile.subscription_until
+  if (!until) return true
+  return daysBetween(todayISO, until) >= 0
+}
+
+/**
+ * The professional's one context-aware membership button, given a
+ * `subscriptionStateOf` result. `null` hides the button (Unknown state -- the
+ * client row has not loaded, or has no status we can act on).
+ */
+export function membershipAction(state) {
+  if (state.label === 'Suspended' || state.label === 'Expired') {
+    return { label: 'Reactivate membership', nextStatus: 'active' }
+  }
+  if (state.label === 'Active' || state.label === 'Close to Expiring') {
+    return { label: 'Suspend membership', nextStatus: 'suspended' }
+  }
+  return null
+}
