@@ -4,6 +4,7 @@ import { Box, Button, Stack, Typography } from '@mui/material'
 import { Navigate, Outlet, useLocation } from 'react-router'
 import BottomNav from '../components/BottomNav.jsx'
 import LiveSessionBar from '../components/LiveSessionBar.jsx'
+import MembershipBanner from '../components/MembershipBanner.jsx'
 import OfflineBanner from '../components/OfflineBanner.jsx'
 import { LoadingState } from '../components/ScreenState.jsx'
 import TopHeader from '../components/TopHeader.jsx'
@@ -172,6 +173,7 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
           scanHref={requiredRole === 'professional' ? '/p/scan' : undefined}
         />
         <OfflineBanner />
+        <MembershipBanner />
       </Box>
       <Box component="main" sx={{ flexGrow: 1, pb: 2 }}>
         <Outlet />
