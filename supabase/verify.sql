@@ -34,13 +34,13 @@ from (
     -- RLS switched on with zero policies denies everything: it passes the
     -- check above while silently breaking every read the app makes.
     --
-    -- 19, one short of the table count, and that gap is the assertion rather
+    -- 20, one short of the table count, and that gap is the assertion rather
     -- than a gap in coverage: `app_config` holds the secret that authenticates
     -- the database to the notify Edge Function and is deliberately policy-less
     -- AND grant-less, so RLS-on-with-no-policy denies every PostgREST caller
     -- and the missing grant denies them one gate earlier.  Only
     -- `notify_user()`, which is `security definer`, reads it.  If any of the
-    -- two read rows below ever read 20, that table became reachable from the
+    -- two read rows below ever read 21, that table became reachable from the
     -- browser.
     ('tables with at least one policy',
      (select count(distinct tablename)::text from pg_policies
