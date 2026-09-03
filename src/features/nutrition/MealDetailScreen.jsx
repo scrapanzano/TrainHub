@@ -7,12 +7,28 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenSta
 import PageHeader from '../../components/PageHeader.jsx'
 import { useAuth } from '../auth/useAuth.js'
 
+/** One macro figure. */
+function Macro({ label, grams }) {
+  return (
+    <Stack sx={{ alignItems: 'center', flexGrow: 1 }}>
+      <Typography variant="h3" component="p">
+        {grams ?? '—'}
+        {grams == null ? '' : 'g'}
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        {label}
+      </Typography>
+    </Stack>
+  )
+}
+
 export default function MealDetailScreen() {
   const { mealId } = useParams()
   const { user } = useAuth()
 
-  // Reuses the plan query rather than adding a per-meal read: the member came
-  // from the plan screen, so this is served from cache and works offline.
+  // Reuses the plan query rather than adding a per-meal read: the member
+  // came from the plan screen, so this is served from cache and works
+  // offline.
   const nutrition = useQuery({
     queryKey: queryKeys.nutritionPlan(user.id),
     queryFn: () => fetchNutritionPlan(user.id),
@@ -23,10 +39,11 @@ export default function MealDetailScreen() {
     return <ErrorState error={nutrition.error} onRetry={nutrition.refetch} />
   }
 
-  const meal = nutrition.data?.meals.find((m) => m.id === mealId)
+  const meal = nutrition.data?.days.flatMap((day) => day.meals).find((m) => m.id === mealId)
 
-  // A meal id that is not in the plan means it was deleted, or the URL was
-  // typed. Either way this is an empty state, not a crash.
+  // A meal id that is not in the plan means it was deleted (replaced along
+  // with the rest of its plan), or the URL was typed. Either way this is an
+  // empty state, not a crash.
   if (!meal) {
     return (
       <Stack spacing={2} sx={{ p: 2 }}>
@@ -40,6 +57,7 @@ export default function MealDetailScreen() {
   }
 
   const items = Array.isArray(meal.items) ? meal.items : []
+  const hasMacros = meal.protein_g != null || meal.carbs_g != null || meal.fat_g != null
 
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
@@ -51,6 +69,18 @@ export default function MealDetailScreen() {
         backTo="/m/nutrition"
         backLabel="Back to nutrition plan"
       />
+
+      {hasMacros ? (
+        <Card>
+          <CardContent>
+            <Stack direction="row">
+              <Macro label="Proteins" grams={meal.protein_g} />
+              <Macro label="Carbs" grams={meal.carbs_g} />
+              <Macro label="Fats" grams={meal.fat_g} />
+            </Stack>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardContent>
@@ -70,6 +100,15 @@ export default function MealDetailScreen() {
           )}
         </CardContent>
       </Card>
+
+      {meal.alternatives ? (
+        <Card>
+          <CardContent>
+            <Typography variant="h3" sx={{ mb: 1 }}>Alternatives</Typography>
+            <Typography color="text.secondary">{meal.alternatives}</Typography>
+          </CardContent>
+        </Card>
+      ) : null}
     </Stack>
   )
 }
