@@ -8,6 +8,8 @@ import { queryKeys } from '../../lib/queryKeys.js'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import PageHeader from '../../components/PageHeader.jsx'
 import CreateNutritionPlanFlow from './CreateNutritionPlanFlow.jsx'
+import { isSubscriptionActive } from '../clients/subscription.js'
+import { todayISO } from '../../lib/format.js'
 
 const WEEKDAY_INITIALS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -35,6 +37,13 @@ export default function NutritionPlanEditorScreen() {
   }
 
   const clientName = client.data?.full_name ?? 'this client'
+  const membershipActive = isSubscriptionActive(client.data, todayISO())
+  const inactiveNotice = (
+    <Alert severity="warning">
+      {clientName}&rsquo;s membership is not active. Reactivate it on their
+      profile before writing a plan.
+    </Alert>
+  )
 
   // No plan yet. The professional-only wizard: everything is drafted
   // locally and written in one atomic call, so abandoning leaves nothing
@@ -49,11 +58,13 @@ export default function NutritionPlanEditorScreen() {
           backLabel="Back to client profile"
         />
         <Typography color="text.secondary">{clientName} has no nutrition plan yet.</Typography>
-        <CreateNutritionPlanFlow
-          memberId={clientId}
-          onDone={() => nutrition.refetch()}
-          onAbandon={() => navigate(`/p/clients/${clientId}`)}
-        />
+        {membershipActive ? (
+          <CreateNutritionPlanFlow
+            memberId={clientId}
+            onDone={() => nutrition.refetch()}
+            onAbandon={() => navigate(`/p/clients/${clientId}`)}
+          />
+        ) : inactiveNotice}
       </Stack>
     )
   }
@@ -73,15 +84,17 @@ export default function NutritionPlanEditorScreen() {
           The current plan stays in the client history. The new one becomes active as soon as
           you confirm it below.
         </Alert>
-        <CreateNutritionPlanFlow
-          memberId={clientId}
-          replacesPlanId={plan.id}
-          onDone={() => {
-            setReplacing(false)
-            nutrition.refetch()
-          }}
-          onAbandon={() => setReplacing(false)}
-        />
+        {membershipActive ? (
+          <CreateNutritionPlanFlow
+            memberId={clientId}
+            replacesPlanId={plan.id}
+            onDone={() => {
+              setReplacing(false)
+              nutrition.refetch()
+            }}
+            onAbandon={() => setReplacing(false)}
+          />
+        ) : inactiveNotice}
       </Stack>
     )
   }
@@ -149,9 +162,16 @@ export default function NutritionPlanEditorScreen() {
 
       <Divider />
 
-      <Button variant="outlined" size="large" fullWidth onClick={() => setReplacing(true)}>
+      <Button
+        variant="outlined"
+        size="large"
+        fullWidth
+        disabled={!membershipActive}
+        onClick={() => setReplacing(true)}
+      >
         Create replacement plan
       </Button>
+      {membershipActive ? null : inactiveNotice}
     </Stack>
   )
 }
