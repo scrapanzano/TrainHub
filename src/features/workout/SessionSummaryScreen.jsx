@@ -9,8 +9,10 @@ import { fetchRun, fetchRunLogs } from '../../data/runs.js'
 import { fetchRewards } from '../../data/rewards.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
+import { todayISO } from '../../lib/format.js'
 import { countsByExercise, pointsForRun, summariseSession } from './summary.js'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
+import { isSubscriptionActive } from '../clients/subscription.js'
 import { useAuth } from '../auth/useAuth.js'
 
 function Stat({ label, value }) {
@@ -87,6 +89,10 @@ export default function SessionSummaryScreen() {
   const reward = (rewards.data ?? []).find((item) => item.run_id === runId) ?? null
   const rewardPending = !reward
     && (run.data.server_confirmed === false || rewards.isPending || rewards.isFetching)
+  // A suspended / expired member gets no reward row (patches/023). With no reward
+  // to show, say why plainly instead of quoting an estimate or "already earned".
+  const membershipActive = isSubscriptionActive(profile, todayISO())
+  const inactiveNoReward = !membershipActive && !reward
 
   const onSaveNote = (event) => {
     event.preventDefault()
@@ -125,24 +131,28 @@ export default function SessionSummaryScreen() {
       <Card>
         <CardContent>
           <Typography variant="h3">
-            {rewardPending && estimatedPoints > 0
-              ? `Up to +${estimatedPoints} points`
-              : reward
-                ? `+${reward.points} points`
-                : 'No points this time'}
+            {inactiveNoReward
+              ? 'No points this time'
+              : rewardPending && estimatedPoints > 0
+                ? `Up to +${estimatedPoints} points`
+                : reward
+                  ? `+${reward.points} points`
+                  : 'No points this time'}
           </Typography>
           <Typography color="text.secondary" sx={{ mb: 2 }}>
-            {rewardPending
-              ? 'The workout is saved. The server will confirm the final points when synchronisation completes.'
-              : rewards.isError
-                ? 'The workout is saved, but the reward could not be checked yet.'
-                : reward
-                  ? run.data.outcome === 'completed'
-                    ? 'Confirmed by the server for finishing every prescribed set.'
-                    : 'Confirmed by the server and weighted by the prescribed sets completed.'
-                  : estimatedPoints === 0
-                    ? 'No reward is created when no prescribed sets count.'
-                    : 'This session had already earned on that day. The workout still counts.'}
+            {inactiveNoReward
+              ? 'No points while your membership is inactive. The workout is saved and your coach still sees it.'
+              : rewardPending
+                ? 'The workout is saved. The server will confirm the final points when synchronisation completes.'
+                : rewards.isError
+                  ? 'The workout is saved, but the reward could not be checked yet.'
+                  : reward
+                    ? run.data.outcome === 'completed'
+                      ? 'Confirmed by the server for finishing every prescribed set.'
+                      : 'Confirmed by the server and weighted by the prescribed sets completed.'
+                    : estimatedPoints === 0
+                      ? 'No reward is created when no prescribed sets count.'
+                      : 'This session had already earned on that day. The workout still counts.'}
           </Typography>
           <Button component={Link} to="/m/profile/rewards" variant="outlined" fullWidth>
             View rewards

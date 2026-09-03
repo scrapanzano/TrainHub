@@ -23,11 +23,12 @@ import { useLiveSession } from './useLiveSession.js'
 import CongratsDialog from './CongratsDialog.jsx'
 import EndRunSheet from './EndRunSheet.jsx'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
+import { isSubscriptionActive } from '../clients/subscription.js'
 import { useAuth } from '../auth/useAuth.js'
 
 export default function LiveSessionScreen() {
   const { sessionId } = useParams()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const navigate = useNavigate()
   const [ending, setEnding] = useState(false)
   // Set the moment the member commits to finishing, and never cleared: this
@@ -113,7 +114,11 @@ export default function LiveSessionScreen() {
     (priorRuns.data ?? []).filter((item) => item.session_id === sessionId),
     todayISO(),
   )
-  const points = alreadyPaid ? 0 : pointsForRun(exercises, counts)
+  // A suspended / expired member's run still closes and still reaches the coach,
+  // but `close_workout_run_secure` writes no reward row (patches/023). Quote zero
+  // so the end-of-workout copy does not promise points that never arrive.
+  const membershipActive = isSubscriptionActive(profile, todayISO())
+  const points = alreadyPaid || !membershipActive ? 0 : pointsForRun(exercises, counts)
 
   /** Close the run and leave. Patch 015 creates any reward atomically. */
   const finish = (outcome) => {
@@ -256,6 +261,7 @@ export default function LiveSessionScreen() {
         pct={pct}
         points={points}
         alreadyPaid={alreadyPaid}
+        membershipInactive={!membershipActive}
         setCount={setCount}
         onFinish={() => finish('partial')}
         onAbandon={() => {
@@ -275,6 +281,7 @@ export default function LiveSessionScreen() {
         setCount={setCount}
         points={points}
         alreadyPaid={alreadyPaid}
+        membershipInactive={!membershipActive}
         onFinish={() => finish('completed')}
         pending={end.isPending && !end.isPaused}
       />

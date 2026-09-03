@@ -73,6 +73,10 @@ export default function ClientDetailScreen() {
   }
 
   const state = subscriptionStateOf(client.data, todayISO())
+  const action = membershipAction(state)
+  // The mutation pauses offline, so `isPending` stays true with no `onSuccess`.
+  // Mirror BookingSheet: show it as saved rather than stuck on "Saving…".
+  const savedOffline = membership.isPending && membership.isPaused
   const progress = planProgress(
     (plan.data?.sessions ?? []).map((session) => ({
       status: runStatusOf(session.runs, plan.data.weekStart).status,
@@ -137,32 +141,33 @@ export default function ClientDetailScreen() {
           />
         </Stack>
 
-        {(() => {
-          const action = membershipAction(state)
-          if (!action) return null
-          return (
-            <Button
-              size="small"
-              variant="outlined"
-              disabled={membership.isPending}
-              onClick={() =>
-                membership.mutate(
-                  { memberId: clientId, status: action.nextStatus },
-                  {
-                    onSuccess: () =>
-                      setFeedback(
-                        action.nextStatus === 'active'
-                          ? 'Membership reactivated.'
-                          : 'Membership suspended.',
-                      ),
-                  },
-                )
-              }
-            >
-              {membership.isPending ? 'Saving…' : action.label}
-            </Button>
-          )
-        })()}
+        {action ? (
+          <Button
+            size="small"
+            variant="outlined"
+            disabled={membership.isPending}
+            onClick={() =>
+              membership.mutate(
+                { memberId: clientId, status: action.nextStatus },
+                {
+                  onSuccess: () =>
+                    setFeedback(
+                      action.nextStatus === 'active'
+                        ? 'Membership reactivated.'
+                        : 'Membership suspended.',
+                    ),
+                },
+              )
+            }
+          >
+            {savedOffline ? 'Saved offline' : membership.isPending ? 'Saving…' : action.label}
+          </Button>
+        ) : null}
+        {savedOffline ? (
+          <Alert severity="info" sx={{ width: '100%' }}>
+            You are offline. This change is saved on your device and will be sent when you reconnect.
+          </Alert>
+        ) : null}
         {membership.isError ? (
           <Alert severity="error" sx={{ width: '100%' }}>
             {membership.error?.message ?? 'The membership could not be updated.'}

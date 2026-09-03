@@ -78,6 +78,12 @@ assert.equal(
   isSubscriptionActive({ subscription_status: 'active', subscription_until: '2026-07-28' }, TODAY),
   false,
 )
+// The boundary: `subscription_until === today` is still active, matching the
+// SQL `until >= current_date`. The one input where JS and SQL could diverge.
+assert.equal(
+  isSubscriptionActive({ subscription_status: 'active', subscription_until: TODAY }, TODAY),
+  true,
+)
 assert.equal(
   isSubscriptionActive({ subscription_status: 'suspended', subscription_until: '2027-01-01' }, TODAY),
   false,

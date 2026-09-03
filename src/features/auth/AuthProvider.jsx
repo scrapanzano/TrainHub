@@ -48,6 +48,10 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [sessionReady, setSessionReady] = useState(false)
   const [profileState, setProfileState] = useState(NO_PROFILE)
+  // Bumped when the tab regains focus or the network comes back, to re-run the
+  // profile fetch below. A membership change the professional makes is otherwise
+  // invisible on a live member session until a full app restart.
+  const [refetchNonce, setRefetchNonce] = useState(0)
 
   useEffect(() => {
     let active = true
@@ -102,6 +106,23 @@ export function AuthProvider({ children }) {
     window.addEventListener(PROFILE_UPDATED_EVENT, acceptProfileUpdate)
     return () => window.removeEventListener(PROFILE_UPDATED_EVENT, acceptProfileUpdate)
   }, [userId])
+
+  useEffect(() => {
+    // A tab regaining focus, or the network returning, is the cheapest cue that
+    // the profile may be stale. Bump the nonce; the fetch effect's guard and its
+    // `active` stale-guard make an extra run harmless while logged out.
+    const bump = () => setRefetchNonce((n) => n + 1)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') bump()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('online', bump)
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('online', bump)
+    }
+  }, [])
 
   useEffect(() => {
     // Until the session is known, this effect has nothing to say.  Returning
@@ -159,7 +180,7 @@ export function AuthProvider({ children }) {
     return () => {
       active = false
     }
-  }, [sessionReady, userId])
+  }, [sessionReady, userId, refetchNonce])
 
   const signOut = useCallback(async () => {
     // Whoever signs in next on this device must not keep receiving the previous

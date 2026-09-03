@@ -116,8 +116,9 @@ export default function MemberAppointmentsScreen() {
         ))}
       </Stack>
 
-      {/* A member with no professional has nobody to book with. Say so rather
-          than opening a form whose write the database would reject. */}
+      {/* Booking is only offered when it could actually succeed: an inactive
+          membership or no assigned professional each get an explanation instead
+          of a form whose write the database would reject. Otherwise, the card. */}
       {!isSubscriptionActive(profile, todayISO()) ? (
         <EmptyState
           title="Membership not active"
