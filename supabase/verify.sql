@@ -1,11 +1,11 @@
--- TrainHub database checks after patches 001-021.
+-- TrainHub database checks after patches 001-022.
 --
 -- One query on purpose: the Supabase SQL editor only renders the result of the
 -- LAST statement in a script, so a file of separate SELECTs silently shows you
 -- just the final one.
 --
--- Run after schema.sql + policies.sql + seed.sql and every patch through 021.
--- The schema/security checks expect patches through 021. Every row must read PASS.
+-- Run after schema.sql + policies.sql + seed.sql and every patch through 022.
+-- The schema/security checks expect patches through 022. Every row must read PASS.
 --
 -- Caveat: this runs as the dashboard's privileged role, which bypasses RLS.
 -- It proves the rows and policies EXIST; it does not prove the policies are
@@ -20,16 +20,17 @@ select
 from (
   values
     -- Schema ---------------------------------------------------------------
-    -- schema.sql declares 19 tables; patch 020's `notifications` makes 20.
-    -- The historical create-if-missing patches remain safe to replay in order.
+    -- schema.sql declares 19 tables; patch 020's `notifications` and patch
+    -- 022's `nutrition_days` make 21. The historical create-if-missing
+    -- patches remain safe to replay in order.
     ('public tables',
      (select count(*)::text from information_schema.tables
-      where table_schema = 'public' and table_type = 'BASE TABLE'), '20'),
+      where table_schema = 'public' and table_type = 'BASE TABLE'), '21'),
 
     -- Security -------------------------------------------------------------
     ('tables with RLS enabled',
      (select count(*)::text from pg_tables
-      where schemaname = 'public' and rowsecurity), '20'),
+      where schemaname = 'public' and rowsecurity), '21'),
     -- RLS switched on with zero policies denies everything: it passes the
     -- check above while silently breaking every read the app makes.
     --
@@ -43,7 +44,7 @@ from (
     -- browser.
     ('tables with at least one policy',
      (select count(distinct tablename)::text from pg_policies
-      where schemaname = 'public'), '19'),
+      where schemaname = 'public'), '20'),
     -- RLS is the second gate, not the first.  PostgREST connects as `anon` and
     -- switches to `authenticated`, and Postgres checks the table GRANT before it
     -- ever evaluates a policy -- so a table with perfect RLS and no grant fails
@@ -55,24 +56,26 @@ from (
      (select count(*)::text from pg_tables
       where schemaname = 'public'
         and has_table_privilege('authenticated', format('%I.%I', schemaname, tablename), 'select')),
-     '19'),
+     '20'),
     ('tables the app role can write',
      (select count(*)::text from pg_tables
       where schemaname = 'public'
         and has_table_privilege('authenticated', format('%I.%I', schemaname, tablename), 'insert')),
-     -- Patch 015 removes direct INSERT from the ten protected history and
-     -- relationship tables. The remaining eight use ordinary RLS writes.
-     '8'),
+     -- Patch 015 removed direct INSERT from ten protected tables; patch 022
+     -- removes it from nutrition_plans and meals too (nutrition_days never
+     -- had it). The remaining six use ordinary RLS writes.
+     '6'),
 
     ('protected tables reject direct insert privileges',
      (select count(*)::text from (values
        ('workout_plans'), ('workout_sessions'), ('session_exercises'),
        ('workout_runs'), ('set_logs'), ('rewards'), ('appointments'),
-       ('threads'), ('checkins'), ('body_metrics')
+       ('threads'), ('checkins'), ('body_metrics'), ('nutrition_plans'),
+       ('nutrition_days'), ('meals')
      ) as protected(tablename)
      where not has_table_privilege(
        'authenticated', format('public.%I', protected.tablename), 'insert')),
-     '10'),
+     '13'),
 
     ('patch 015 secure operations',
      (select count(*)::text
