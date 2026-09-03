@@ -47,8 +47,11 @@ as $$
   );
 $$;
 
+-- Called only from inside other security definer functions (which run as the
+-- owner), never via .rpc() from the client -- so no grant. A grant to
+-- `authenticated` would let any signed-in user probe an arbitrary profile
+-- UUID's subscription state.
 revoke execute on function public.has_active_subscription(uuid) from public, anon;
-grant execute on function public.has_active_subscription(uuid) to authenticated;
 
 -- 2. The professional-side status write. ------------------------------------
 create or replace function public.set_subscription_status_secure(
@@ -67,7 +70,10 @@ begin
 
   -- 'expired' is a system state (an elapsed date), never something the button
   -- sets. The button only ever sends 'active' or 'suspended'.
-  if p_status not in ('active', 'suspended') then
+  -- `not in (...)` is NULL, not true, for a null argument, so a null p_status
+  -- would slip past and die on the NOT NULL column with 23502 instead. Reject
+  -- it here with the intended 22023.
+  if p_status is null or p_status not in ('active', 'suspended') then
     raise exception 'membership status must be active or suspended'
       using errcode = '22023';
   end if;
@@ -100,8 +106,11 @@ grant execute on function
   public.set_subscription_status_secure(uuid, public.subscription_status)
   to authenticated;
 
--- 3. close_workout_run_secure -- re-created verbatim from patches/015, with
---    one added guard on the reward insert. ----------------------------------
+-- 3. close_workout_run_secure -- re-created verbatim from patches/016
+--    (016-workout-summary-counts.sql), which carries the LEAST(NULL, ...)
+--    bugfix, with one added guard on the reward insert. 015 and 016 differ
+--    only in line-wrapping, so a maintainer re-deriving this from 015 would be
+--    one whitespace change away from reintroducing that bug. ----------------
 create or replace function public.close_workout_run_secure(
   p_run_id uuid, p_ended_at timestamptz, p_outcome public.run_outcome
 ) returns setof public.workout_runs
