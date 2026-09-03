@@ -2461,3 +2461,103 @@ Queued, in dependency order:
      RPCs are also absent from it) -- a real drift, not urgent, worth a
      single pass across all of `verify.sql` if the list's purpose is ever
      revisited rather than patching it once per phase.
+
+---
+
+## Subscription Enforcement (branch: subscription-enforcement)
+
+Spec: docs/superpowers/specs/2026-09-03-subscription-enforcement-design.md
+Plan: docs/superpowers/plans/2026-09-03-subscription-enforcement.md
+Base: 80f67c4 (docs commit on main)
+Execution: subagent-driven, Sonnet 5 implementer / Opus 5 final review.
+Commits: Davide's name only, NO Co-Authored-By / Claude-Session trailers (his instruction).
+
+- [x] Task 1: complete (commits 80f67c4..74cc257, review clean; 1 Minor carried: --no-verify on 7d46b20)
+- [x] Task 2: complete (commit c8d5db8, review clean; 1 Minor carried: no remaining===0 boundary assert for isSubscriptionActive)
+- [x] Task 3: complete (commit 206f0a6, review clean, no findings)
+- [x] Task 4: complete (commit b9def2e, review PASS; 2 Minors carried)
+- [x] Task 5: complete (commit bd02250, review PASS; 2 Minors carried)
+- [x] Task 6: complete (commit b1d481a, review PASS; 2 Minors carried)
+- [x] Task 7: complete (commit ac36dc6, review PASS; 3 Minors carried)
+- [x] Task 8: complete (verification all green; probe-rls unchanged from main; manual pass + patch 023 = Davide handoff)
+- [x] Final whole-branch review (Opus 5): complete. 1 Critical + 2 Important + 7 Minor all fixed (commits 5dde416, 3b4fed0, ff5cfef). Re-review found 1 I1-regression, fixed in ff5cfef. HEAD ff5cfef: lint clean, 11/11 selfchecks, build OK.
+
+### Task 1 review notes
+- Task 1 review 1: Important — missing `revoke execute ... from public,anon` on both new fns (leaks has_active_subscription to anon + FAIL row). Fix dispatched.
+- Minor (carried to final review): close_workout_run_secure latest def is patch 016 not 015 (fixer re-copying from 016).
+- Minor (carried): implementer used --no-verify (no hooks, no effect). Reinforced in fix dispatch.
+
+### Task 4 review notes (Approved, Minors carried to final review)
+- Minor: ClientDetailScreen.jsx membership button uses IIFE (brief-mandated); reviewer prefers `const action = membershipAction(state)` beside `state` + ternary. Style.
+- Minor: membership error Alert has no dismiss, persists until next mutate.
+
+### Task 5 review notes (Approved, Minors carried)
+- Minor: `{membershipActive ? null : inactiveNotice}` inverted ternary (brief-verbatim); prefer `!cond ? notice : null`.
+- Minor: disabled Button drops tab order (brief-prescribed); adjacent Alert conveys reason.
+
+### Task 6 review notes (Approved, Minors carried)
+- Minor: MembershipBanner sx block duplicated from OfflineBanner (~10 lines). Leave unless a 3rd banner appears.
+- Minor: two stacked role="status" regions when both banners show.
+
+### Task 7 review notes (Approved, Minors carried)
+- Minor: MemberAppointmentsScreen.jsx:119 comment now stale (sits above membership-first branch).
+- Minor: NewPlanScreen — for a suspended member with an existing plan, the "replaces it" info Alert still shows above the inactive warning (mildly contradictory copy).
+- Minor: profile-null flash concern investigated, unfounded (AppLayout gates the Outlet on profile).
+
+### Subscription Enforcement — verification
+
+Whole-feature verification (Task 8) on branch `subscription-enforcement`
+@ ac36dc6. No source modified.
+
+- **11/11 self-checks OK**, `npm run lint` clean, `npm run build` succeeds
+  (106 precache entries, `dist/sw.js` written; the lone `inlineDynamicImports`
+  deprecation warning is pre-existing, not from this branch).
+- `node supabase/probe-rls.mjs` → **All probes PASS**, identical to `main`.
+  `probe-rls.mjs` is unmodified; the branch adds no table policies and no table
+  grants — patch 023 adds only `execute` on two functions plus a status check
+  inside the guarded RPCs — so anon table-read exposure is unchanged.
+
+**Five gated flows:**
+1. QR check-in — already enforced before this branch (`redeem_checkin_token`
+   refuses a suspended member); unchanged.
+2. Booking, member branch of `create_appointment_secure` — new guard.
+3. Workout plan creation (`create_workout_plan_secure`) — new guard.
+4. Nutrition plan creation (`create_nutrition_plan_secure`) — new guard.
+5. Reward-point earning in `close_workout_run_secure` — new guard: the run is
+   still recorded, but no reward row / point delta for an inactive member.
+
+**Patch 023 is a pending Davide handoff.** Apply after 015 / 018 / 022; its
+in-file PASS/FAIL block must read all green before the branch code works
+against the database.
+
+**No status-change history on the professional side** — `set_subscription_status_secure`
+flips `profiles` status in place (with the 12-month reactivation rule); there is
+no audit/history table for suspend/reactivate events.
+
+- **Deferred to human:** Step 5 (manual device pass, both accounts) — needs
+  patch 023 applied first.
+
+### Final whole-branch review (Opus 5) — With fixes
+- C1 (Critical): end-of-workout UI (LiveSessionScreen/EndRunSheet/CongratsDialog/SessionSummaryScreen) quotes a point total a suspended member won't get, then SessionSummaryScreen line 145 explains the absence with the wrong reason ("already earned on that day"). Cross-cutting, no task owned it. -> fix wave.
+- I1 (Important): AuthProvider never refetches profile after boot -> suspend/reactivate invisible on a live member session; demo step 5.4 fails without app restart. -> asked user.
+- I2 (Important): membership button has no offline affordance; paused mutation = isPending forever = "Saving..." stuck. Mirror BookingSheet's savedOffline pattern. -> fix wave.
+- M1: has_active_subscription granted to authenticated but only called internally -> drop the grant, keep revoke. (patch 023 unapplied)
+- M2: NULL p_status bypasses validation -> 23502 not 22023. add `is null` check. (patch 023 unapplied)
+- M3: subscription.selfcheck missing until===today boundary assert. -> fix wave.
+- M4: NewPlanScreen contradictory alerts for suspended member w/ existing plan. -> fix wave.
+- M5: MemberAppointmentsScreen stale comment. -> fix wave.
+- M6: MembershipBanner drop role="status" (static condition, not a state change; also fixes double live-region). -> fix wave.
+- M7: ClientDetailScreen IIFE -> hoist action next to state, ternary (plan-mandated shape; folding in). -> fix wave.
+- Rec6: amend close_workout_run_secure header comment to name patch 016 as source revision. -> fix wave.
+- M8/M9/M10: leave (house style / plan-mandated / non-issue).
+
+### Fix wave applied (commits 5dde416, 3b4fed0) — all 10 items addressed, 11/11 selfchecks + lint + build green. Re-review in progress.
+
+### Re-review (Opus 5): all 13 findings resolved, but I1 introduced a regression.
+- CONFIRMED Important: AuthProvider recurring fetch discards good cached profile on a failed *refetch* (non-offline error) -> whole app replaced by "Profile unavailable". Fix: functional setProfileState keeps prev.data / cache on error-path.
+- Also reverting M6: re-add role="status" to MembershipBanner (I1 makes the banner a genuine mid-session state change now).
+- Minor (leave): ClientDetailScreen shows stale status chip beside "Saved offline" button until replay (mirrors BookingSheet, I2-requested).
+- Fix pass 2 dispatched.
+
+### Device-verified 2026-09-03
+Davide applied patch 023 (PASS/FAIL all PASS) and ran the full manual pass on both demo accounts + the I1 regression check. All flows pass. Branch subscription-enforcement (HEAD ff5cfef) ready to integrate.
