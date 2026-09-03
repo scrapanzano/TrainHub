@@ -5,6 +5,8 @@ import { fetchActivePlan } from '../../data/workouts.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import CreatePlanFlow from './CreatePlanFlow.jsx'
+import { isSubscriptionActive } from '../clients/subscription.js'
+import { todayISO } from '../../lib/format.js'
 import { useAuth } from '../auth/useAuth.js'
 
 /**
@@ -24,7 +26,7 @@ import { useAuth } from '../auth/useAuth.js'
  * open, tracked in the design spec.
  */
 export default function NewPlanScreen() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const navigate = useNavigate()
 
   const activePlan = useQuery({
@@ -37,6 +39,8 @@ export default function NewPlanScreen() {
     return <ErrorState error={activePlan.error} onRetry={activePlan.refetch} />
   }
 
+  const membershipActive = isSubscriptionActive(profile, todayISO())
+
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
       <Typography variant="h1">Your plan</Typography>
@@ -46,14 +50,20 @@ export default function NewPlanScreen() {
           soon as you confirm it below.
         </Alert>
       ) : null}
-      <CreatePlanFlow
-        memberId={user.id}
-        replacesPlanId={activePlan.data?.plan.id ?? null}
-        // `replace`, so Back leaves the plan rather than reopening the form
-        // that just created it.
-        onDone={() => navigate('/m/workout', { replace: true })}
-        onAbandon={() => navigate('/m/workout', { replace: true })}
-      />
+      {membershipActive ? (
+        <CreatePlanFlow
+          memberId={user.id}
+          replacesPlanId={activePlan.data?.plan.id ?? null}
+          // `replace`, so Back leaves the plan rather than reopening the form
+          // that just created it.
+          onDone={() => navigate('/m/workout', { replace: true })}
+          onAbandon={() => navigate('/m/workout', { replace: true })}
+        />
+      ) : (
+        <Alert severity="warning">
+          Your membership is not active. It needs to be reactivated before you can build a plan.
+        </Alert>
+      )}
     </Stack>
   )
 }

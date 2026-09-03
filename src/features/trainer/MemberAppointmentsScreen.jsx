@@ -13,6 +13,7 @@ import MonthGrid from '../../components/MonthGrid.jsx'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { monthGrid, monthLabel, shiftMonth } from '../calendar/month.js'
+import { isSubscriptionActive } from '../clients/subscription.js'
 import BookingSheet from './BookingSheet.jsx'
 
 export default function MemberAppointmentsScreen() {
@@ -117,7 +118,12 @@ export default function MemberAppointmentsScreen() {
 
       {/* A member with no professional has nobody to book with. Say so rather
           than opening a form whose write the database would reject. */}
-      {profile?.assigned_pro_id ? (
+      {!isSubscriptionActive(profile, todayISO()) ? (
+        <EmptyState
+          title="Membership not active"
+          description="Ask your trainer to reactivate it before booking."
+        />
+      ) : profile?.assigned_pro_id ? (
         <Card sx={{ borderColor: 'primary.main' }}>
           <CardActionArea onClick={() => setBooking(true)}>
             <CardContent>
