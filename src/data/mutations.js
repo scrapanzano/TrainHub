@@ -1,6 +1,6 @@
 import { createPlan, logSet } from './workouts.js'
 import { endRun, pauseRun, resumeRun, saveRunNote, startRun } from './runs.js'
-import { deleteMeal, saveMeal, saveNutritionPlan } from './nutrition.js'
+import { createNutritionPlan } from './nutrition.js'
 import { saveBodyMetric } from './progress.js'
 import { createAppointment, setAppointmentStatus } from './appointments.js'
 import { addAvailability, deleteAvailability } from './availability.js'
@@ -194,31 +194,11 @@ export function registerMutationDefaults(queryClient) {
     },
   })
 
-  // Scoped for the same reason as `saveMeal` below: two edits to the same plan
-  // replayed in parallel land in whichever order the network settles them, and
-  // the older can win.
-  queryClient.setMutationDefaults(mutationKeys.saveNutritionPlan, {
-    mutationFn: saveNutritionPlan,
-    scope: { id: 'nutritionPlan' },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryPrefixes.nutritionPlan })
-    },
-  })
-
-  // Meals share a scope so replays run in insertion order.  Without it,
-  // `resumePausedMutations` replays in parallel and two edits to the same meal
-  // land in whichever order the network settles them -- the older one can win.
-  queryClient.setMutationDefaults(mutationKeys.saveMeal, {
-    mutationFn: saveMeal,
-    scope: { id: 'meals' },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryPrefixes.nutritionPlan })
-    },
-  })
-
-  queryClient.setMutationDefaults(mutationKeys.deleteMeal, {
-    mutationFn: deleteMeal,
-    scope: { id: 'meals' },
+  // No scope needed: the whole plan -- meta, every day, every meal -- is
+  // one atomic write, so there is no multi-step ordering left to protect
+  // (matching how the workout wizard's createPlan needs none either).
+  queryClient.setMutationDefaults(mutationKeys.createNutritionPlan, {
+    mutationFn: createNutritionPlan,
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.nutritionPlan })
     },
