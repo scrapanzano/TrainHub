@@ -80,6 +80,19 @@ do $$ begin
 exception when duplicate_object then null;
 end $$;
 
+-- `RENAME COLUMN` above updates meals_select's stored expression by
+-- attribute number rather than dropping it, so its qual silently became
+-- `n.id = day_id` -- comparing nutrition_plans.id against meals.day_id,
+-- which now holds nutrition_days.id values. That predicate is always
+-- false. Replace it with a policy that joins through nutrition_days.
+drop policy if exists meals_select on public.meals;
+create policy meals_select on public.meals
+  for select using (
+    exists (select 1 from public.nutrition_days d
+            join public.nutrition_plans plan on plan.id = d.plan_id
+            where d.id = day_id and public.owns_member(plan.member_id))
+  );
+
 alter table public.meals
   add column if not exists protein_g int,
   add column if not exists carbs_g int,
@@ -261,6 +274,19 @@ insert into patch_022_checks (check_name, actual, expected) values
       false)::text
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'create_nutrition_plan_secure'),
+   'true'),
+  ('creation does not call owns_member',
+   (select coalesce(
+      not (regexp_replace(lower(pg_get_functiondef(p.oid)), '[[:space:]]+', '', 'g')
+        like '%owns_member%'),
+      false)::text
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'create_nutrition_plan_secure'),
+   'true'),
+  ('meals_select policy joins through nutrition_days',
+   (select coalesce(qual like '%nutrition_days%', false)::text
+    from pg_policies
+    where schemaname = 'public' and tablename = 'meals' and policyname = 'meals_select'),
    'true'),
   ('plan creation loops over multiple days',
    (select coalesce(
