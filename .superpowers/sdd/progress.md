@@ -2352,17 +2352,112 @@ Davide's second manual pass (after all of the above) found two more, both
 UI-only, no SQL: the per-row delete had no confirmation (every other delete
 action on the screen did), and selection mode had no bulk select-all.
 
-RESUME HERE. The notification center is merged. Nothing is in flight.
+## Nutrition Plan redesign (merged 2026-09-03, PR #8)
+
+Nutrition Plan brought to parity with the Workout Plan wizard: "Giorni
+Tipo" (Day Types -- named, weekday-assignable meal templates, `nutrition_
+days` with a plain `smallint[] weekdays` column rather than a junction
+table), one atomic `create_nutrition_plan_secure` RPC (patch 022) writing
+the plan, every day and every meal together, per-meal macros and free-text
+alternatives, a general-plan `notes` field, and a draft-then-commit wizard
+mirroring `CreatePlanFlow.jsx` exactly. Deliberate divergence from Workout
+Plan: creation stays professional-only (`member.assigned_pro_id = auth.
+uid()`, no `owns_member` self-authorship branch) -- `doc/nutrition_plan.md`
+is explicit a client only ever views a nutrition plan. Spec:
+`docs/superpowers/specs/2026-09-03-nutrition-plan-redesign-design.md`.
+Plan: `docs/superpowers/plans/2026-09-03-nutrition-plan-redesign.md`.
+
+Subagent-Driven (Sonnet 5 implementer, Sonnet 5 per-task reviewer, Opus 5
+final reviewer), 9 tasks, one Critical caught and fixed mid-build:
+
+  - Task 1's own reviewer caught a Critical before the patch ever reached
+    Davide: renaming `meals.plan_id` to `day_id` silently breaks `meals_
+    select`'s RLS policy. Postgres updates a renamed column's references
+    inside a stored policy by attribute number rather than dropping it, so
+    the qual quietly became `nutrition_plans.id = meals.day_id` -- comparing
+    against a `nutrition_days.id` value, permanently false. Fixed with a
+    policy rewritten to join through `nutrition_days`.
+
+The whole-branch Opus review (after all 9 tasks passed individually) found
+3 Critical, 3 Important, 6 Minor -- the largest single haul this project's
+final-review gate has produced:
+
+  - **C1**: patch 022's `add constraint meals_day_id_fkey` validates
+    existing rows by default; every row on the shared demo DB still held a
+    `nutrition_plans.id` in the just-renamed `day_id` column, so the patch
+    would `23503` on first apply. Fixed with a guarded `delete from
+    nutrition_plans` that only fires when `meals.plan_id` still exists (old
+    shape) -- never against a fresh install or a harmless replay.
+  - **C2**: the rewritten `seed.sql` (Task 8) needs the Day Types shape,
+    but the documented fresh-install order is schema.sql -> policies.sql ->
+    seed.sql -> patches, and schema.sql/policies.sql never got it. Fixed by
+    back-porting patch 022's DDL directly into both, using identical
+    constraint/policy names so the patch's own idempotent guards genuinely
+    no-op against a schema.sql-installed database -- the same pattern
+    `workout_plans.replaces_plan_id` already established.
+  - **C3**: `queryKeys.nutritionPlan`'s persisted shape changed (`{plan,
+    meals}` -> `{plan, days}`) with no cache versioning; three screens
+    destructure `days` unguarded, so a stale offline cache would crash on
+    render with no way to recover without connectivity. Fixed by versioning
+    the key (`'v2'` segment) rather than extending the mutation-only cache
+    migration to cover queries too.
+  - **Important**: the spec's own reasoning for skipping a DB-level weekday-
+    uniqueness constraint ("the wizard has one selector per weekday") was
+    already false against the plan's actual per-day-type-chip design, and
+    the shipped SQL comment repeated the false claim. Davide chose to
+    enforce it in the UI (chips for a weekday another drafted day already
+    claims are disabled, `onClick` unset so they are also keyboard-inert)
+    rather than accept silent last-wins; the comment now describes the
+    real mechanism. Also fixed: a day type with zero weekdays was
+    reachable through the UI and only rejected at RPC replay time; four
+    buttons inside `DayForm`'s own `<form>` had no explicit `type`,
+    discovered while fixing the sibling "meal time field lost `required`"
+    finding -- any of them could have prematurely submitted the whole day
+    draft.
+  - **Minor**: `contracts.js` (the payload-freezing chain feeding the RPC)
+    had no selfcheck, unlike its Workout Plan twin; a bounds check on
+    `nutrition_days.weekdays` values; `doc/nutrition_plan.md` -- the
+    document driving this entire phase, cited by the spec, the plan, patch
+    022's own header comment, and two source files -- had never actually
+    been committed to git in any branch, invisible to anyone who checked
+    the branch out. Fixed directly by the controller (pushed to `main`,
+    merged into the feature branch) rather than through the subagent loop.
+
+Re-review (same Opus reviewer, after the fix pass) verified all seven
+claimed fixes independently rather than trusting the fix report, and found
+one further Minor: `createNutritionPlan`'s mutation registration had no
+`scope`, unlike `createPlan`'s -- same optimistic-concurrency risk on a
+paused-offline replay. Fixed directly, no further review round (one line,
+directly mirrors an already-reviewed sibling pattern). Verdict: ready to
+merge.
+
+Also notable: this is the third time in a row the Opus API returned `529
+Overloaded` on dispatch -- five consecutive attempts across roughly 90
+minutes before it cleared. Waited rather than retrying blind or falling
+back to a lesser model for the one review step this project's whole
+process depends on.
+
+RESUME HERE. Nutrition Plan is merged. Nothing is in flight.
 
 Queued, in dependency order:
 
   1. Hardening and the report: re-run Lighthouse, capture screenshots for
      chapter 5, write chapters 4/5/6 and the slides, rewrite section 7 of
      `docs/superpowers/2026-07-30-device-verification.md` against the
-     current workout flow and the notification center.
+     current workout flow, notification center and nutrition redesign.
   2. A DB cleanup pass before submission, Davide's own item: `create_
      workout_session_secure`/`add_session_exercise_secure` (unreachable
      since the workout-wizard merge) are still worth a decision -- drop or
      leave. The professional side never got an event type in
      `notify_user()`'s four triggers (all four notify only the member) --
      out of scope when noted, still true, a separate decision if wanted.
+  3. Visual redesign pass (`/impeccable`) over the finished Nutrition Plan
+     screens -- deliberately deferred from this phase's own spec, to run
+     after the functional work landed, matching how the Workout Plan
+     wizard's own graphics were sequenced.
+  4. `verify.sql`'s "patch 015 secure operations" 13-function list was
+     deliberately NOT extended to include `create_nutrition_plan_secure`
+     during this phase (matching the existing precedent that patch 020's
+     RPCs are also absent from it) -- a real drift, not urgent, worth a
+     single pass across all of `verify.sql` if the list's purpose is ever
+     revisited rather than patching it once per phase.
