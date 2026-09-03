@@ -21,7 +21,14 @@ export const queryKeys = {
   // serves both the per-day dots and the selected day's list.
   agendaRange: (proId, fromISO, toISO) => ['agenda', proId, 'range', fromISO, toISO],
   appointment: (appointmentId) => ['appointment', appointmentId],
-  nutritionPlan: (memberId) => ['nutritionPlan', memberId],
+  // Versioned: patch 022 changed the shape this query resolves to
+  // ({plan, meals} -> {plan, days}). A persisted pre-022 cache entry under
+  // the OLD key is simply never read by the new code rather than crashing
+  // MemberNutritionScreen/MealDetailScreen/NutritionPlanEditorScreen, which
+  // all destructure `days` unguarded. queryPrefixes.nutritionPlan below
+  // still matches this via prefix (partialMatchKey walks only the given
+  // key's length), so invalidation is unaffected.
+  nutritionPlan: (memberId) => ['nutritionPlan', 'v2', memberId],
   availability: (proId) => ['availability', proId],
   bodyMetrics: (memberId) => ['bodyMetrics', memberId],
   // Keyed on the pair: `threads` is unique per (member, pro), so a member who

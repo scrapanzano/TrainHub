@@ -85,6 +85,7 @@ function MealBuilder({ onAdd }) {
               type="time"
               value={time}
               onChange={(event) => setTime(event.target.value)}
+              required
               slotProps={{ inputLabel: { shrink: true } }}
             />
             <NumberField label="kcal" value={kcal} onChange={setKcal} width="100%" />
@@ -132,6 +133,7 @@ function MealBuilder({ onAdd }) {
                 sx={{ width: '100%', gridColumn: { xs: '1 / 3', sm: 'auto' } }}
               />
               <IconButton
+                type="button"
                 aria-label={`Remove ${item.food || 'item'}`}
                 onClick={() => setItems((current) => current.filter((_, i) => i !== index))}
                 sx={{ gridColumn: { xs: '2', sm: 'auto' }, gridRow: { xs: '1', sm: 'auto' } }}
@@ -142,6 +144,7 @@ function MealBuilder({ onAdd }) {
           ))}
 
           <Button
+            type="button"
             startIcon={<AddIcon />}
             onClick={() => setItems((current) => [...current, { food: '', qty: '' }])}
           >
@@ -149,6 +152,7 @@ function MealBuilder({ onAdd }) {
           </Button>
 
           <Button
+            type="button"
             variant="outlined"
             disabled={!name.trim()}
             onClick={() => {
@@ -182,11 +186,17 @@ function MealBuilder({ onAdd }) {
  * create.
  *
  * @param {object}   props
- * @param {Function} props.onSubmit    `({name, weekdays, meals}) => void`
- * @param {?object}  props.initial     `{name, weekdays, meals}` to reopen with.
- * @param {string}   props.submitLabel Idle label for the button.
+ * @param {Function} props.onSubmit         `({name, weekdays, meals}) => void`
+ * @param {?object}  props.initial          `{name, weekdays, meals}` to reopen with.
+ * @param {string}   props.submitLabel      Idle label for the button.
+ * @param {Set<number>} props.takenWeekdays Weekdays already claimed by another
+ *   drafted day type -- their chips are disabled here, which is what makes
+ *   "a weekday belongs to at most one day type" true (there is no database
+ *   constraint for it; see `patches/022`'s comment on `nutrition_days.weekdays`).
  */
-export default function DayForm({ onSubmit, initial = null, submitLabel = 'Save day' }) {
+export default function DayForm({
+  onSubmit, initial = null, submitLabel = 'Save day', takenWeekdays = new Set(),
+}) {
   const [name, setName] = useState(initial?.name ?? '')
   const [weekdays, setWeekdays] = useState(() => new Set(initial?.weekdays ?? []))
   const [meals, setMeals] = useState(initial?.meals ?? [])
@@ -221,17 +231,25 @@ export default function DayForm({ onSubmit, initial = null, submitLabel = 'Save 
           Which days of the week is this?
         </Typography>
         <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
-          {WEEKDAYS.map(({ value, label }) => (
-            <Chip
-              key={value}
-              label={label}
-              color={weekdays.has(value) ? 'primary' : 'default'}
-              onClick={() => toggleWeekday(value)}
-              aria-pressed={weekdays.has(value)}
-            />
-          ))}
+          {WEEKDAYS.map(({ value, label }) => {
+            const taken = takenWeekdays.has(value)
+            return (
+              <Chip
+                key={value}
+                label={label}
+                color={weekdays.has(value) ? 'primary' : 'default'}
+                onClick={taken ? undefined : () => toggleWeekday(value)}
+                disabled={taken}
+                aria-pressed={weekdays.has(value)}
+              />
+            )
+          })}
         </Stack>
       </Box>
+
+      {weekdays.size === 0 ? (
+        <Alert severity="warning">Select at least one weekday for this day type.</Alert>
+      ) : null}
 
       <Divider />
 
@@ -251,6 +269,7 @@ export default function DayForm({ onSubmit, initial = null, submitLabel = 'Save 
                     </Typography>
                   </Box>
                   <IconButton
+                    type="button"
                     aria-label={`Remove ${meal.name}`}
                     onClick={() => setMeals((current) => current.filter((_, i) => i !== index))}
                   >
@@ -269,7 +288,13 @@ export default function DayForm({ onSubmit, initial = null, submitLabel = 'Save 
         <Alert severity="warning">A day needs at least one meal before it can be saved.</Alert>
       ) : null}
 
-      <Button type="submit" variant="contained" size="large" fullWidth disabled={meals.length === 0}>
+      <Button
+        type="submit"
+        variant="contained"
+        size="large"
+        fullWidth
+        disabled={weekdays.size === 0 || meals.length === 0}
+      >
         {submitLabel}
       </Button>
     </Stack>

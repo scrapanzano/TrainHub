@@ -32,6 +32,7 @@ node src/features/clients/subscription.selfcheck.js
 node src/features/calendar/month.selfcheck.js
 node src/features/progress/progress.selfcheck.js
 node src/features/profile/pushSubscription.selfcheck.js
+node src/features/nutrition/contracts.selfcheck.js
 ```
 
 ## What this is

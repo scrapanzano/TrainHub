@@ -58,11 +58,21 @@ export default function CreateNutritionPlanFlow({ memberId, replacesPlanId = nul
     // Reopening a drafted day from the summary pre-fills the form; adding a
     // new one starts blank.
     const editing = editingIndex !== null ? days[editingIndex] : null
+    // Weekdays already claimed by another drafted day type, so DayForm can
+    // disable those chips -- the wizard is what makes "a weekday belongs to
+    // at most one day type" true, since there is no database constraint for
+    // it (patches/022's own comment on nutrition_days.weekdays explains
+    // why). The day currently being edited is excluded so its own already-
+    // chosen weekdays stay selectable.
+    const takenWeekdays = new Set(
+      days.flatMap((day, index) => (index === editingIndex ? [] : day.weekdays)),
+    )
     body = (
       <Stack spacing={2}>
         <DayForm
           submitLabel={editing ? 'Save changes' : 'Add day'}
           initial={editing}
+          takenWeekdays={takenWeekdays}
           onSubmit={({ name, weekdays, meals }) => {
             const drafted = { id: editing?.id ?? createUuid(), name, weekdays, meals }
             setDays((current) =>
