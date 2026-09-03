@@ -151,16 +151,20 @@ export function AuthProvider({ children }) {
           return
         }
 
-        // Offline with a cached profile is not a failure -- it is the case this
-        // app exists to handle.  Fall back to the cache and let the shell render;
-        // only a denial, or an offline start that was never online, is an error.
+        // A failed refetch must not wipe a good profile off the screen. Keep the
+        // one already loaded for this user; else fall back to the localStorage
+        // mirror when offline. Only a denial with nothing cached is an error --
+        // AppLayout replaces the whole app with a panel on that.
         const offline = isOfflineError(error)
-        const cached = offline ? readCachedProfile(userId) : null
 
-        setProfileState({
-          forUserId: userId,
-          data: cached,
-          error: cached ? null : { ...error, offline },
+        setProfileState((prev) => {
+          const kept = prev.forUserId === userId ? prev.data : null
+          const cached = kept ?? (offline ? readCachedProfile(userId) : null)
+          return {
+            forUserId: userId,
+            data: cached,
+            error: cached ? null : { ...error, offline },
+          }
         })
       })
       .catch((cause) => {

@@ -27,6 +27,7 @@ export default function MembershipBanner() {
 
   return (
     <Box
+      role="status"
       sx={{
         display: 'flex',
         alignItems: 'center',
