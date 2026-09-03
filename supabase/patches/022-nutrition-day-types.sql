@@ -21,6 +21,25 @@
 
 begin;
 
+-- Existing nutrition data predates the day-type schema and cannot survive
+-- the meals.plan_id -> day_id rename below: every existing meal's day_id
+-- would then hold a nutrition_plans.id with no matching nutrition_days row,
+-- and the meals_day_id_fkey constraint added further down would reject the
+-- whole table. This only matters the FIRST time this patch runs against a
+-- database that still has the old shape -- guarded on meals still having
+-- its old plan_id column, so a fresh install (schema.sql already declares
+-- the new shape, and seed.sql already seeds it there) or a replay of this
+-- same patch never wipes real data.
+do $$ begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'meals'
+      and column_name = 'plan_id'
+  ) then
+    delete from public.nutrition_plans;
+  end if;
+end $$;
+
 alter table public.nutrition_plans
   add column if not exists replaces_plan_id uuid,
   add column if not exists notes text;
@@ -42,15 +61,16 @@ create table if not exists public.nutrition_days (
   plan_id  uuid not null references public.nutrition_plans(id) on delete cascade,
   name     text not null,
   position int  not null,
-  -- 0 = Sunday .. 6 = Saturday, matching JS `Date#getDay()` so the client
-  -- needs no day-index translation. A weekday belongs to at most one day
-  -- type -- enforced by construction in the wizard (one control per
-  -- weekday, not per day type), not by a database constraint: there is no
-  -- second UI path that could produce an overlap for a constraint to guard
-  -- against, mirroring how `position` stays a plain client-computed
-  -- integer elsewhere in this codebase.
+  -- 0 = Sunday .. 6 = Saturday, matching JS `Date#getDay()`. A weekday
+  -- belongs to at most one day type -- enforced by the wizard UI itself
+  -- (CreateNutritionPlanFlow.jsx disables a weekday's chip in DayForm once
+  -- another drafted day type already claims it), not by a database
+  -- constraint; the check below only bounds each element to a valid
+  -- weekday number.
   weekdays smallint[] not null default '{}',
-  unique (plan_id, position)
+  unique (plan_id, position),
+  constraint nutrition_days_weekdays_valid
+    check (weekdays <@ array[0,1,2,3,4,5,6]::smallint[])
 );
 
 alter table public.nutrition_days enable row level security;
@@ -318,6 +338,11 @@ insert into patch_022_checks (check_name, actual, expected) values
    (select (count(*) = 0)::text from pg_policies
     where schemaname = 'public'
       and policyname in ('nutrition_plans_write_pro', 'meals_write_pro')),
+   'true'),
+  ('nutrition_days weekdays are bounded to 0-6',
+   (select (count(*) = 1)::text from pg_constraint
+    where conrelid = 'public.nutrition_days'::regclass
+      and conname = 'nutrition_days_weekdays_valid'),
    'true');
 
 commit;
