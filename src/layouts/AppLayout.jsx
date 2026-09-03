@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Box, Button, Stack, Typography } from '@mui/material'
 import { Navigate, Outlet, useLocation } from 'react-router'
 import BottomNav from '../components/BottomNav.jsx'
@@ -7,11 +7,12 @@ import LiveSessionBar from '../components/LiveSessionBar.jsx'
 import OfflineBanner from '../components/OfflineBanner.jsx'
 import { LoadingState } from '../components/ScreenState.jsx'
 import TopHeader from '../components/TopHeader.jsx'
+import { supabase } from '../lib/supabase.js'
 import { fetchUnreadNotificationCount } from '../data/notifications.js'
 import { fetchOpenRun } from '../data/runs.js'
 import { elapsedMs } from '../features/workout/timer.js'
 import { useAuth } from '../features/auth/useAuth.js'
-import { queryKeys } from '../lib/queryKeys.js'
+import { queryKeys, queryPrefixes } from '../lib/queryKeys.js'
 
 /**
  * The signed-in shell for both roles.  The only difference between a member's
@@ -38,6 +39,37 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
     // already polls at.
     refetchInterval: 60_000,
   })
+
+  const queryClient = useQueryClient()
+
+  // The poll above is the fallback; this is what makes the badge update
+  // without waiting up to 60s (or a full app reopen). Same pattern as
+  // `useThreadMessages.js`'s chat channel: the query stays the source of
+  // truth, Realtime only triggers a refetch. If the subscription never
+  // fires, the poll still keeps the badge eventually correct.
+  useEffect(() => {
+    if (!user?.id) return
+
+    const channel = supabase
+      .channel(`notifications:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: queryPrefixes.notifications })
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user?.id, queryClient])
 
   // The member's open workout, if any.  Members only: a professional has no
   // workout of their own to be in the middle of.
