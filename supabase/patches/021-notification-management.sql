@@ -14,6 +14,21 @@
 
 begin;
 
+-- Put `notifications` on the Realtime publication, or `AppLayout.jsx`'s
+-- subscription connects, reports SUBSCRIBED, and never fires -- the exact
+-- failure mode `patches/007` already documented for `messages`.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'notifications'
+  ) then
+    alter publication supabase_realtime add table public.notifications;
+  end if;
+end $$;
+
 create or replace function notify_on_appointment_status() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
@@ -79,31 +94,31 @@ revoke execute on function public.delete_notifications_by_ids_secure(uuid[])
 grant execute on function public.delete_notifications_by_ids_secure(uuid[])
   to authenticated;
 
-create or replace function public.mark_all_notifications_read_secure()
+create or replace function public.mark_all_notifications_read_secure(p_before timestamptz)
 returns void
 language plpgsql security definer set search_path = '' as $$
 begin
   update public.notifications
   set read_at = now()
-  where user_id = auth.uid() and read_at is null;
+  where user_id = auth.uid() and read_at is null and created_at <= p_before;
 end $$;
 
-revoke execute on function public.mark_all_notifications_read_secure()
+revoke execute on function public.mark_all_notifications_read_secure(timestamptz)
   from public, anon;
-grant execute on function public.mark_all_notifications_read_secure()
+grant execute on function public.mark_all_notifications_read_secure(timestamptz)
   to authenticated;
 
-create or replace function public.delete_all_notifications_secure()
+create or replace function public.delete_all_notifications_secure(p_before timestamptz)
 returns void
 language plpgsql security definer set search_path = '' as $$
 begin
   delete from public.notifications
-  where user_id = auth.uid();
+  where user_id = auth.uid() and created_at <= p_before;
 end $$;
 
-revoke execute on function public.delete_all_notifications_secure()
+revoke execute on function public.delete_all_notifications_secure(timestamptz)
   from public, anon;
-grant execute on function public.delete_all_notifications_secure()
+grant execute on function public.delete_all_notifications_secure(timestamptz)
   to authenticated;
 
 drop table if exists pg_temp.patch_021_checks;
@@ -112,6 +127,11 @@ create temporary table patch_021_checks (
 ) on commit preserve rows;
 
 insert into patch_021_checks (check_name, actual, expected) values
+  ('notifications are in the Realtime publication',
+   (select (count(*) = 1)::text from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public'
+      and tablename = 'notifications'),
+   'true'),
   ('appointment push formats in Europe/Rome',
    (select coalesce(
       regexp_replace(lower(pg_get_functiondef(p.oid)), '[[:space:]]+', '', 'g')
@@ -134,11 +154,11 @@ insert into patch_021_checks (check_name, actual, expected) values
    'true'),
   ('authenticated caller can mark everything read',
    has_function_privilege('authenticated',
-     'public.mark_all_notifications_read_secure()', 'execute')::text,
+     'public.mark_all_notifications_read_secure(timestamptz)', 'execute')::text,
    'true'),
   ('authenticated caller can delete everything',
    has_function_privilege('authenticated',
-     'public.delete_all_notifications_secure()', 'execute')::text,
+     'public.delete_all_notifications_secure(timestamptz)', 'execute')::text,
    'true'),
   ('anonymous caller cannot manage notifications',
    (not has_function_privilege('anon',
@@ -148,9 +168,9 @@ insert into patch_021_checks (check_name, actual, expected) values
     and not has_function_privilege('anon',
       'public.delete_notifications_by_ids_secure(uuid[])', 'execute')
     and not has_function_privilege('anon',
-      'public.mark_all_notifications_read_secure()', 'execute')
+      'public.mark_all_notifications_read_secure(timestamptz)', 'execute')
     and not has_function_privilege('anon',
-      'public.delete_all_notifications_secure()', 'execute'))::text,
+      'public.delete_all_notifications_secure(timestamptz)', 'execute'))::text,
    'true');
 
 commit;

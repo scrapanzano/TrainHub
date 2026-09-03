@@ -1,11 +1,11 @@
--- TrainHub database checks after patches 001-020.
+-- TrainHub database checks after patches 001-021.
 --
 -- One query on purpose: the Supabase SQL editor only renders the result of the
 -- LAST statement in a script, so a file of separate SELECTs silently shows you
 -- just the final one.
 --
--- Run after schema.sql + policies.sql + seed.sql and every patch through 020.
--- The schema/security checks expect patches through 020. Every row must read PASS.
+-- Run after schema.sql + policies.sql + seed.sql and every patch through 021.
+-- The schema/security checks expect patches through 021. Every row must read PASS.
 --
 -- Caveat: this runs as the dashboard's privileged role, which bypasses RLS.
 -- It proves the rows and policies EXIST; it does not prove the policies are

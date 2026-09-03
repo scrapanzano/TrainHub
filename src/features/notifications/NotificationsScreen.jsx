@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
-  Box, Button, Card, CardActionArea, CardContent, Checkbox, Chip, IconButton, Stack, Typography,
+  Box, Button, Card, CardActionArea, CardContent, Checkbox, Chip, IconButton, ListItemButton,
+  Stack, Typography,
 } from '@mui/material'
 // `DeleteOutline` (the base glyph) is not shipped by @mui/icons-material@9.2.0;
 // only the styled variants exist.
@@ -150,7 +151,10 @@ export default function NotificationsScreen() {
           <Button onClick={() => setSelecting(true)} disabled={all.length === 0}>
             Select
           </Button>
-          <Button onClick={() => markAll.mutate()} disabled={markAll.isPending}>
+          <Button
+            onClick={() => markAll.mutate({ before: new Date().toISOString() })}
+            disabled={all.length === 0 || markAll.isPending}
+          >
             Mark all read
           </Button>
           <Button
@@ -158,7 +162,7 @@ export default function NotificationsScreen() {
             disabled={all.length === 0 || deleteAll.isPending}
             onClick={() => {
               if (window.confirm('Delete every notification? This cannot be undone.')) {
-                deleteAll.mutate()
+                deleteAll.mutate({ before: new Date().toISOString() })
               }
             }}
           >
@@ -182,11 +186,13 @@ export default function NotificationsScreen() {
         {visible.map((item) => (
           <Card key={item.id}>
             {selecting ? (
-              // A plain clickable Box, not `CardActionArea`: the row also
+              // `ListItemButton`, not `CardActionArea`: the row also
               // contains a `Checkbox`, and nesting one interactive control
               // inside another is invalid here for the same reason a
               // `CardActionArea` never wraps the delete `IconButton` below.
-              <Box onClick={() => toggleSelected(item.id)} sx={{ p: 2, cursor: 'pointer' }}>
+              // `ListItemButton` keeps the row keyboard-focusable, unlike a
+              // plain `Box` with an onClick would be.
+              <ListItemButton onClick={() => toggleSelected(item.id)} sx={{ p: 2 }}>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
                   <Checkbox
                     checked={selectedIds.has(item.id)}
@@ -197,7 +203,7 @@ export default function NotificationsScreen() {
                   />
                   <NotificationText item={item} />
                 </Stack>
-              </Box>
+              </ListItemButton>
             ) : (
               <Stack direction="row" sx={{ alignItems: 'stretch' }}>
                 <CardActionArea

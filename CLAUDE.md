@@ -173,7 +173,7 @@ credentials, so any schema work ends in a handoff to Davide.
 
 - `schema.sql`, `policies.sql`, `seed.sql` — a fresh install, in that order,
   after creating the two demo auth users with **Auto Confirm User** ticked.
-- `patches/001`…`020` — applied in order on top. They also carry their own
+- `patches/001`…`021` — applied in order on top. They also carry their own
   PASS/FAIL blocks. `009` (checkin tokens) and `010` (push notifications) are
   what Phase 4B's badge, scanner and push features depend on; `011` hardens the
   three oldest `security definer` functions against pg_temp shadowing.

@@ -68,14 +68,14 @@ export async function deleteNotificationsByIds({ ids }) {
   if (error) throw error
 }
 
-/** Mark every one of this user's notifications read. */
-export async function markAllNotificationsRead() {
-  const { error } = await supabase.rpc('mark_all_notifications_read_secure')
+/** Mark every one of this user's notifications read, as of when this was called. */
+export async function markAllNotificationsRead({ before }) {
+  const { error } = await supabase.rpc('mark_all_notifications_read_secure', { p_before: before })
   if (error) throw error
 }
 
-/** Delete every one of this user's notifications, read or unread. */
-export async function deleteAllNotifications() {
-  const { error } = await supabase.rpc('delete_all_notifications_secure')
+/** Delete every one of this user's notifications as of when this was called, read or unread. */
+export async function deleteAllNotifications({ before }) {
+  const { error } = await supabase.rpc('delete_all_notifications_secure', { p_before: before })
   if (error) throw error
 }
