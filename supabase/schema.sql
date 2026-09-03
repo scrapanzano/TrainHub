@@ -145,21 +145,48 @@ create table nutrition_plans (
   protein_g  int,
   carbs_g    int,
   fat_g      int,
-  created_at timestamptz not null default now()
+  notes      text,
+  replaces_plan_id uuid,
+  created_at timestamptz not null default now(),
+  constraint nutrition_plans_replaces_fk foreign key (replaces_plan_id)
+    references nutrition_plans(id) on delete restrict
 );
 create index on nutrition_plans (member_id);
+create unique index nutrition_plans_replaced_once_idx
+  on nutrition_plans (replaces_plan_id) where replaces_plan_id is not null;
+
+create table nutrition_days (
+  id       uuid primary key default gen_random_uuid(),
+  plan_id  uuid not null references nutrition_plans(id) on delete cascade,
+  name     text not null,
+  position int  not null,
+  -- 0 = Sunday .. 6 = Saturday, matching JS `Date#getDay()`. A weekday
+  -- belongs to at most one day type -- enforced by the wizard UI itself
+  -- (CreateNutritionPlanFlow.jsx disables a weekday's chip in DayForm once
+  -- another drafted day type already claims it), not by a database
+  -- constraint; the check below only bounds each element to a valid
+  -- weekday number.
+  weekdays smallint[] not null default '{}',
+  unique (plan_id, position),
+  constraint nutrition_days_weekdays_valid
+    check (weekdays <@ array[0,1,2,3,4,5,6]::smallint[])
+);
 
 create table meals (
   id          uuid primary key default gen_random_uuid(),
-  plan_id     uuid not null references nutrition_plans(id) on delete cascade,
+  day_id      uuid not null references nutrition_days(id) on delete cascade,
   name        text not null,
   time_of_day text not null,
   position    int  not null,
   items       jsonb not null default '[]'::jsonb,
   kcal        int,
-  unique (plan_id, position)
+  protein_g   int,
+  carbs_g     int,
+  fat_g       int,
+  alternatives text,
+  unique (day_id, position)
 );
-create index on meals (plan_id);
+create index on meals (day_id);
 
 -- Recurring weekly availability, stored as local wall-clock times.
 create table availability (

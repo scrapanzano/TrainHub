@@ -19,6 +19,8 @@ declare
   v_pro_id    uuid;
   v_plan_id   uuid;
   v_nut_id    uuid;
+  v_day_a_id  uuid;
+  v_day_b_id  uuid;
   v_thread_id uuid;
   v_chest_id  uuid;
   v_leg_id    uuid;
@@ -104,20 +106,47 @@ begin
   select v_leg_id, id, row_number() over (order by name), 4, 8, 80
   from exercises where muscle_group = 'Legs';
 
-  -- Nutrition plan --------------------------------------------------------
-  insert into nutrition_plans (member_id, author_id, name, kcal_target, protein_g, carbs_g, fat_g)
-  values (v_member_id, v_pro_id, 'Lean Bulk', 2600, 170, 300, 75)
+  -- Nutrition plan: two day types, matching doc/nutrition_plan.md's
+  -- "Giorni Tipo" example. Day A covers Mon/Wed/Fri, Day B the rest of the
+  -- week -- deliberately not a 5/2 split, to demonstrate that a day type
+  -- can cover a non-contiguous set of weekdays.
+  insert into nutrition_plans (member_id, author_id, name, kcal_target, protein_g, carbs_g, fat_g, notes)
+  values (v_member_id, v_pro_id, 'Lean Bulk', 2600, 170, 300, 75,
+          '2.5L water/day. 1 tbsp olive oil per meal.')
   returning id into v_nut_id;
 
-  insert into meals (plan_id, name, time_of_day, position, kcal, items) values
-    (v_nut_id, 'Breakfast', '07:30', 1, 520,
+  insert into nutrition_days (id, plan_id, name, position, weekdays)
+  values (gen_random_uuid(), v_nut_id, 'Day A', 1, array[1,3,5])
+  returning id into v_day_a_id;
+
+  insert into nutrition_days (id, plan_id, name, position, weekdays)
+  values (gen_random_uuid(), v_nut_id, 'Day B', 2, array[0,2,4,6])
+  returning id into v_day_b_id;
+
+  insert into meals (day_id, name, time_of_day, position, kcal, protein_g, carbs_g, fat_g, alternatives, items) values
+    (v_day_a_id, 'Breakfast', '07:30', 1, 520, 30, 60, 15,
+     '200g egg whites, 4 crispbreads, 15g walnuts',
      '[{"food":"Oats","qty":"80 g"},{"food":"Whey","qty":"30 g"},{"food":"Banana","qty":"1"}]'),
-    (v_nut_id, 'Lunch',     '13:00', 2, 820,
+    (v_day_a_id, 'Lunch', '13:00', 2, 820, 55, 90, 20,
+     '80g farro, 150g turkey breast',
      '[{"food":"Chicken breast","qty":"200 g"},{"food":"Rice","qty":"120 g"},{"food":"Olive oil","qty":"10 g"}]'),
-    (v_nut_id, 'Snack',     '17:00', 3, 380,
+    (v_day_a_id, 'Snack', '17:00', 3, 380, 20, 30, 15,
+     '1 whole egg, 10g almonds',
      '[{"food":"Greek yogurt","qty":"200 g"},{"food":"Almonds","qty":"25 g"}]'),
-    (v_nut_id, 'Dinner',    '20:30', 4, 880,
+    (v_day_a_id, 'Dinner', '20:30', 4, 880, 50, 70, 30,
+     '250g sea bass, 60g wholegrain bread',
      '[{"food":"Salmon","qty":"200 g"},{"food":"Potatoes","qty":"250 g"},{"food":"Salad","qty":"1 bowl"}]');
+
+  insert into meals (day_id, name, time_of_day, position, kcal, protein_g, carbs_g, fat_g, alternatives, items) values
+    (v_day_b_id, 'Breakfast', '07:30', 1, 480, 28, 55, 12,
+     '150g Greek yogurt, 30g oats',
+     '[{"food":"Eggs","qty":"3"},{"food":"Wholegrain bread","qty":"60 g"}]'),
+    (v_day_b_id, 'Lunch', '13:00', 2, 780, 50, 85, 18,
+     '80g quinoa, 150g cod',
+     '[{"food":"Turkey breast","qty":"180 g"},{"food":"Pasta","qty":"100 g"},{"food":"Mixed vegetables","qty":"200 g"}]'),
+    (v_day_b_id, 'Dinner', '20:30', 3, 720, 45, 55, 25,
+     '200g tofu, 200g sweet potato',
+     '[{"food":"Beef","qty":"180 g"},{"food":"Rice","qty":"100 g"},{"food":"Broccoli","qty":"200 g"}]');
 
   -- Availability: weekday mornings and afternoons --------------------------
   insert into availability (pro_id, weekday, starts_at, ends_at)

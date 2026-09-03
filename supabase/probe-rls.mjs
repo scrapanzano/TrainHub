@@ -40,7 +40,8 @@ const supabase = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY)
 // deliberate and load-bearing.
 const TABLES = [
   'profiles', 'exercises', 'workout_plans', 'workout_sessions', 'session_exercises',
-  'set_logs', 'workout_runs', 'nutrition_plans', 'meals', 'availability', 'appointments',
+  'set_logs', 'workout_runs', 'nutrition_plans', 'nutrition_days', 'meals', 'availability',
+  'appointments',
   'threads', 'messages', 'rewards', 'checkins', 'checkin_tokens', 'body_metrics',
   'push_subscriptions', 'app_config', 'notifications',
 ]

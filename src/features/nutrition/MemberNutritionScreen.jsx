@@ -7,6 +7,7 @@ import { fetchNutritionPlan } from '../../data/nutrition.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
 import { todayISO } from '../../lib/format.js'
+import { weekdayOf } from '../../lib/week.js'
 import { weekStrip } from '../calendar/month.js'
 import WeekStrip from '../../components/WeekStrip.jsx'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
@@ -29,9 +30,6 @@ function Macro({ label, grams }) {
 
 export default function MemberNutritionScreen() {
   const { user } = useAuth()
-  // Decorative: `meals` is a daily template with no date column, so every day
-  // shows the same plan. The strip is drawn because the wireframe draws it; the
-  // selection deliberately drives nothing rather than pretending to filter.
   const [selected, setSelected] = useState(todayISO())
 
   const nutrition = useQuery({
@@ -55,8 +53,7 @@ export default function MemberNutritionScreen() {
     return <ErrorState error={nutrition.error} onRetry={nutrition.refetch} />
   }
 
-  // `undefined` means not loaded; `null` means loaded and there is none. This
-  // branch is the wireframe 03B, not a footnote.
+  // `undefined` means not loaded; `null` means loaded and there is none.
   if (nutrition.data === null) {
     return (
       <Stack spacing={3} sx={{ p: 2 }}>
@@ -86,7 +83,9 @@ export default function MemberNutritionScreen() {
     )
   }
 
-  const { plan, meals } = nutrition.data
+  const { plan, days } = nutrition.data
+  const activeDay = days.find((day) => day.weekdays.includes(weekdayOf(selected))) ?? null
+  const meals = activeDay?.meals ?? []
 
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
@@ -107,6 +106,9 @@ export default function MemberNutritionScreen() {
               <Macro label="Carbs" grams={plan.carbs_g} />
               <Macro label="Fats" grams={plan.fat_g} />
             </Stack>
+            {plan.notes ? (
+              <Typography color="text.secondary" sx={{ pt: 1 }}>{plan.notes}</Typography>
+            ) : null}
           </Stack>
         </CardContent>
       </Card>
@@ -120,35 +122,40 @@ export default function MemberNutritionScreen() {
 
       <Box>
         <Typography variant="h2" sx={{ mb: 2 }}>
-          Daily Meals
+          {activeDay ? activeDay.name : 'Daily Meals'}
         </Typography>
 
-        {meals.length === 0 ? (
+        {activeDay === null ? (
+          <EmptyState
+            title="No plan for this day"
+            description="No day type in your plan covers this day of the week."
+          />
+        ) : meals.length === 0 ? (
           <EmptyState
             title="No meals added yet"
-            description="Your professional has created the plan but has not added its meals yet."
+            description="Your professional has created this day but has not added its meals yet."
           />
         ) : (
           <Stack spacing={2}>
             {meals.map((meal) => (
-            <Card key={meal.id}>
-              <CardActionArea component={Link} to={`/m/nutrition/meal/${meal.id}`}>
-                <CardContent>
-                  <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-                    <Stack sx={{ flexGrow: 1, minWidth: 0 }}>
-                      <Typography variant="h3" noWrap>
-                        {meal.name}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {String(meal.time_of_day).slice(0, 5)}
-                        {meal.kcal == null ? '' : ` • ${meal.kcal} kcal`}
-                      </Typography>
+              <Card key={meal.id}>
+                <CardActionArea component={Link} to={`/m/nutrition/meal/${meal.id}`}>
+                  <CardContent>
+                    <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+                      <Stack sx={{ flexGrow: 1, minWidth: 0 }}>
+                        <Typography variant="h3" noWrap>
+                          {meal.name}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {String(meal.time_of_day).slice(0, 5)}
+                          {meal.kcal == null ? '' : ` • ${meal.kcal} kcal`}
+                        </Typography>
+                      </Stack>
+                      <ChevronRightIcon color="primary" />
                     </Stack>
-                    <ChevronRightIcon color="primary" />
-                  </Stack>
-                </CardContent>
-              </CardActionArea>
-            </Card>
+                  </CardContent>
+                </CardActionArea>
+              </Card>
             ))}
           </Stack>
         )}

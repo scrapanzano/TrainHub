@@ -1,6 +1,6 @@
 import { createPlan, logSet } from './workouts.js'
 import { endRun, pauseRun, resumeRun, saveRunNote, startRun } from './runs.js'
-import { deleteMeal, saveMeal, saveNutritionPlan } from './nutrition.js'
+import { createNutritionPlan } from './nutrition.js'
 import { saveBodyMetric } from './progress.js'
 import { createAppointment, setAppointmentStatus } from './appointments.js'
 import { addAvailability, deleteAvailability } from './availability.js'
@@ -194,31 +194,14 @@ export function registerMutationDefaults(queryClient) {
     },
   })
 
-  // Scoped for the same reason as `saveMeal` below: two edits to the same plan
-  // replayed in parallel land in whichever order the network settles them, and
-  // the older can win.
-  queryClient.setMutationDefaults(mutationKeys.saveNutritionPlan, {
-    mutationFn: saveNutritionPlan,
-    scope: { id: 'nutritionPlan' },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryPrefixes.nutritionPlan })
-    },
-  })
-
-  // Meals share a scope so replays run in insertion order.  Without it,
-  // `resumePausedMutations` replays in parallel and two edits to the same meal
-  // land in whichever order the network settles them -- the older one can win.
-  queryClient.setMutationDefaults(mutationKeys.saveMeal, {
-    mutationFn: saveMeal,
-    scope: { id: 'meals' },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryPrefixes.nutritionPlan })
-    },
-  })
-
-  queryClient.setMutationDefaults(mutationKeys.deleteMeal, {
-    mutationFn: deleteMeal,
-    scope: { id: 'meals' },
+  // Scoped for the same reason as `createPlan` above: create_nutrition_plan_
+  // secure carries the same optimistic-concurrency check (`the member plan
+  // changed before this save arrived`) and the same "replaced at most once"
+  // unique index, so two creations replayed in parallel could have the
+  // replacement land before the plan it replaces.
+  queryClient.setMutationDefaults(mutationKeys.createNutritionPlan, {
+    mutationFn: createNutritionPlan,
+    scope: { id: 'nutritionPlanWrite' },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.nutritionPlan })
     },

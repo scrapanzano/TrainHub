@@ -10,6 +10,7 @@ alter table session_exercises  enable row level security;
 alter table set_logs           enable row level security;
 alter table workout_runs       enable row level security;
 alter table nutrition_plans    enable row level security;
+alter table nutrition_days     enable row level security;
 alter table meals              enable row level security;
 alter table availability       enable row level security;
 alter table appointments       enable row level security;
@@ -105,27 +106,22 @@ create policy workout_runs_select on workout_runs
 create policy nutrition_plans_select on nutrition_plans
   for select using (owns_member(member_id));
 
--- Nutrition plans are professional-authored by design (see report ch.1).
-create policy nutrition_plans_write_pro on nutrition_plans
-  for all using (is_professional() and owns_member(member_id))
-  with check (is_professional() and owns_member(member_id));
-
--- meals ---------------------------------------------------------------------
-create policy meals_select on meals
+-- nutrition_days --------------------------------------------------------------
+create policy nutrition_days_select on nutrition_days
   for select using (
-    exists (select 1 from nutrition_plans n
-            where n.id = plan_id and owns_member(n.member_id))
+    exists (select 1 from nutrition_plans plan
+            where plan.id = plan_id and owns_member(plan.member_id))
   );
 
-create policy meals_write_pro on meals
-  for all using (
-    is_professional() and exists (
-      select 1 from nutrition_plans n
-      where n.id = plan_id and owns_member(n.member_id))
-  ) with check (
-    is_professional() and exists (
-      select 1 from nutrition_plans n
-      where n.id = plan_id and owns_member(n.member_id))
+-- meals ---------------------------------------------------------------------
+-- Nutrition plans, their day types and their meals are professional-authored
+-- and written only through create_nutrition_plan_secure (patch 022) -- see
+-- report ch.1 and doc/nutrition_plan.md.
+create policy meals_select on meals
+  for select using (
+    exists (select 1 from nutrition_days d
+            join nutrition_plans plan on plan.id = d.plan_id
+            where d.id = day_id and owns_member(plan.member_id))
   );
 
 -- availability --------------------------------------------------------------

@@ -12,9 +12,6 @@ const NOTICE_KEY = 'trainhub-cache-migration-notice'
 // 015. Everything else is fail-closed: an unknown old key is safer to ask the
 // user to repeat than to send silently through a function it was not made for.
 export const COMPATIBLE_LEGACY_MUTATIONS = new Set([
-  'saveNutritionPlan',
-  'saveMeal',
-  'deleteMeal',
   'addAvailability',
   'deleteAvailability',
   'sendMessage',
