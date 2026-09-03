@@ -2285,13 +2285,84 @@ Closed, not queued.
 
 Queued, in dependency order:
 
-  1. The notification bell: still not clickable, still doesn't refresh within
-     its 60s poll.
-  2. Hardening and the report: re-run Lighthouse, capture screenshots for
+  1. Hardening and the report: re-run Lighthouse, capture screenshots for
      chapter 5, write chapters 4/5/6 and the slides, rewrite section 7 of
      `docs/superpowers/2026-07-30-device-verification.md` against the
      current workout flow -- now including this wizard.
-  3. A DB cleanup pass before submission, Davide's own item: `create_
+  2. A DB cleanup pass before submission, Davide's own item: `create_
      workout_session_secure`/`add_session_exercise_secure` are unreachable
      from the app since this merge but still exist and are still callable
      server-side; decide whether to drop them or leave them.
+
+
+# NOTIFICATION-CENTER MERGED into main via pull request #7
+
+Merge commit 69f2e9f, 2026-09-03. Branch `notification-center`, off
+`8f18025` (right after the workout-wizard merge). 19 commits across two
+sequential plans, each built via `superpowers:subagent-driven-development`
+(fresh Sonnet 5 implementer + Sonnet 5 task reviewer per task, Opus 5
+whole-branch review, fix round, re-review) plus two rounds of fixes from
+Davide's own manual click-through on each plan. Specs/plans:
+`docs/superpowers/specs/2026-09-0{2,3}-notification-center*-design.md`,
+`docs/superpowers/plans/2026-09-0{2,3}-notification-center*.md`.
+
+Closes item 1 of the workout-wizard entry's queue. The bell (`TopHeader.jsx`)
+had never been more than a hardcoded chat-unread shortcut. `notify_user()`
+(`patches/010`) fired an external Web Push and persisted nothing; there was
+no way to list, read, or clear a notification, and no way for a tapped OS
+push to reconcile against anything in-app. Patch `020` added a
+`notifications` table and extended `notify_user()` to insert a row before
+it pushes; `NotificationsScreen.jsx` (shared by both roles, like
+`ProfileScreen.jsx`) lists them, and every destination screen
+(`ThreadScreen.jsx`, `MemberAppointmentsScreen.jsx`, `WorkoutPlanScreen.jsx`,
+`MemberNutritionScreen.jsx`) marks its own type read on mount -- however the
+visit happened, bell or not, matching an OS push tap for free since
+`sw.js`'s `notificationclick` already just navigates.
+
+Davide's first manual pass found three more: the appointment push showed
+the wrong local time (`to_char` on a `timestamptz` formats in the trigger's
+UTC session timezone unless told otherwise -- the exact `at time zone
+'Europe/Rome'` fix already used for `reward_day` in `patches/016`), the
+badge only updated on a 60s poll, and nothing let a user manage a growing
+list. Patch `021` fixed the timezone and added five RPCs
+(delete/bulk-mark-read/bulk-delete/mark-all/delete-all); a Realtime channel
+on `AppLayout.jsx` (same pattern as `useThreadMessages.js`) made the badge
+update in seconds; `NotificationsScreen.jsx` gained an All/Unread filter,
+per-row delete, and a selection mode.
+
+Two whole-branch reviews (Opus 5) each caught something no task-scoped
+review could, by construction:
+
+  - First plan: `verify.sql`'s four table/policy/grant counts, `probe-rls.
+    mjs` never probing the new table (plus an `anon` grant patch 006's
+    default privileges would otherwise have left standing even though RLS
+    already denied it), and two older patches (`010`, `015`) whose own
+    self-checks would hard-error if replayed after `020` dropped `notify_
+    user()`'s old overload.
+  - Second plan: `notifications` was never added to the `supabase_realtime`
+    publication -- the SAME silent-failure mode `patches/007` already
+    documented for `messages` ("connects, reports SUBSCRIBED, and simply
+    never fires"), so the whole real-time-badge feature would have shipped
+    as a no-op. Plus the patch-range docs drifting stale again, an
+    unbounded offline-replayable "delete/mark all" that could silently
+    destroy notifications the user never saw, and a keyboard-inaccessible
+    selection mode.
+
+Davide's second manual pass (after all of the above) found two more, both
+UI-only, no SQL: the per-row delete had no confirmation (every other delete
+action on the screen did), and selection mode had no bulk select-all.
+
+RESUME HERE. The notification center is merged. Nothing is in flight.
+
+Queued, in dependency order:
+
+  1. Hardening and the report: re-run Lighthouse, capture screenshots for
+     chapter 5, write chapters 4/5/6 and the slides, rewrite section 7 of
+     `docs/superpowers/2026-07-30-device-verification.md` against the
+     current workout flow and the notification center.
+  2. A DB cleanup pass before submission, Davide's own item: `create_
+     workout_session_secure`/`add_session_exercise_secure` (unreachable
+     since the workout-wizard merge) are still worth a decision -- drop or
+     leave. The professional side never got an event type in
+     `notify_user()`'s four triggers (all four notify only the member) --
+     out of scope when noted, still true, a separate decision if wanted.
