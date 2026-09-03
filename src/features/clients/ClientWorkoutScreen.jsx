@@ -10,6 +10,8 @@ import { fetchActivePlan } from '../../data/workouts.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import CreatePlanFlow from '../workout/CreatePlanFlow.jsx'
+import { isSubscriptionActive } from './subscription.js'
+import { todayISO } from '../../lib/format.js'
 import { runStatusOf } from '../../lib/week.js'
 import { sessionStatusOf } from '../workout/status.js'
 
@@ -37,6 +39,13 @@ export default function ClientWorkoutScreen() {
   }
 
   const clientName = client.data?.full_name ?? 'this client'
+  const membershipActive = isSubscriptionActive(client.data, todayISO())
+  const inactiveNotice = (
+    <Alert severity="warning">
+      {clientName}&rsquo;s membership is not active. Reactivate it on their
+      profile before building a plan.
+    </Alert>
+  )
 
   // No plan yet. Same wizard the member uses on themselves: everything is
   // drafted locally and written in one atomic call, so abandoning leaves
@@ -48,11 +57,13 @@ export default function ClientWorkoutScreen() {
         <Typography color="text.secondary">
           {clientName} has no workout plan yet.
         </Typography>
-        <CreatePlanFlow
-          memberId={clientId}
-          onDone={() => plan.refetch()}
-          onAbandon={() => navigate(`/p/clients/${clientId}`)}
-        />
+        {membershipActive ? (
+          <CreatePlanFlow
+            memberId={clientId}
+            onDone={() => plan.refetch()}
+            onAbandon={() => navigate(`/p/clients/${clientId}`)}
+          />
+        ) : inactiveNotice}
       </Stack>
     )
   }
@@ -67,15 +78,17 @@ export default function ClientWorkoutScreen() {
           The current plan stays in the client history. The new one becomes active as soon as
           you confirm it below.
         </Alert>
-        <CreatePlanFlow
-          memberId={clientId}
-          replacesPlanId={plan.data.plan.id}
-          onDone={() => {
-            setReplacing(false)
-            plan.refetch()
-          }}
-          onAbandon={() => setReplacing(false)}
-        />
+        {membershipActive ? (
+          <CreatePlanFlow
+            memberId={clientId}
+            replacesPlanId={plan.data.plan.id}
+            onDone={() => {
+              setReplacing(false)
+              plan.refetch()
+            }}
+            onAbandon={() => setReplacing(false)}
+          />
+        ) : inactiveNotice}
       </Stack>
     )
   }
@@ -129,9 +142,16 @@ export default function ClientWorkoutScreen() {
 
       <Divider />
 
-      <Button variant="outlined" size="large" fullWidth onClick={() => setReplacing(true)}>
+      <Button
+        variant="outlined"
+        size="large"
+        fullWidth
+        disabled={!membershipActive}
+        onClick={() => setReplacing(true)}
+      >
         Create replacement plan
       </Button>
+      {membershipActive ? null : inactiveNotice}
     </Stack>
   )
 }

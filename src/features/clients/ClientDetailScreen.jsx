@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import {
-  Avatar, Box, Card, CardActionArea, CardContent, Chip, LinearProgress, Stack, Typography,
+  Alert, Avatar, Box, Button, Card, CardActionArea, CardContent, Chip,
+  LinearProgress, Snackbar, Stack, Typography,
 } from '@mui/material'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 // The bare `ChatBubbleOutline` glyph is not shipped by the installed
@@ -9,17 +11,18 @@ import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutlineOutlined
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter'
 import RestaurantIcon from '@mui/icons-material/Restaurant'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import { fetchClient } from '../../data/clients.js'
 import { fetchActivePlan } from '../../data/workouts.js'
 import { fetchNutritionPlan } from '../../data/nutrition.js'
 import { queryKeys } from '../../lib/queryKeys.js'
+import { mutationKeys } from '../../lib/mutationKeys.js'
 import { localDayISO, todayISO } from '../../lib/format.js'
 import { runStatusOf } from '../../lib/week.js'
 import { planProgress } from '../workout/status.js'
 import { workoutWeekSummary } from '../progress/progress.js'
-import { daysBetween, subscriptionStateOf } from './subscription.js'
+import { daysBetween, membershipAction, subscriptionStateOf } from './subscription.js'
 import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import PageHeader from '../../components/PageHeader.jsx'
 
@@ -61,12 +64,19 @@ export default function ClientDetailScreen() {
     queryFn: () => fetchNutritionPlan(clientId),
   })
 
+  const [feedback, setFeedback] = useState(null)
+  const membership = useMutation({ mutationKey: mutationKeys.setSubscriptionStatus })
+
   if (client.isPending) return <LoadingState />
   if (client.isError && client.data === undefined) {
     return <ErrorState error={client.error} onRetry={client.refetch} />
   }
 
   const state = subscriptionStateOf(client.data, todayISO())
+  const action = membershipAction(state)
+  // The mutation pauses offline, so `isPending` stays true with no `onSuccess`.
+  // Mirror BookingSheet: show it as saved rather than stuck on "Saving…".
+  const savedOffline = membership.isPending && membership.isPaused
   const progress = planProgress(
     (plan.data?.sessions ?? []).map((session) => ({
       status: runStatusOf(session.runs, plan.data.weekStart).status,
@@ -130,6 +140,46 @@ export default function ClientDetailScreen() {
             sx={{ bgcolor: state.color, color: 'common.white' }}
           />
         </Stack>
+
+        {action ? (
+          <Button
+            size="small"
+            variant="outlined"
+            disabled={membership.isPending}
+            onClick={() =>
+              membership.mutate(
+                { memberId: clientId, status: action.nextStatus },
+                {
+                  onSuccess: () =>
+                    setFeedback(
+                      action.nextStatus === 'active'
+                        ? 'Membership reactivated.'
+                        : 'Membership suspended.',
+                    ),
+                },
+              )
+            }
+          >
+            {savedOffline ? 'Saved offline' : membership.isPending ? 'Saving…' : action.label}
+          </Button>
+        ) : null}
+        {savedOffline ? (
+          <Alert severity="info" sx={{ width: '100%' }}>
+            You are offline. This change is saved on your device and will be sent when you reconnect.
+          </Alert>
+        ) : null}
+        {membership.isError ? (
+          <Alert severity="error" sx={{ width: '100%' }}>
+            {membership.error?.message ?? 'The membership could not be updated.'}
+          </Alert>
+        ) : null}
+        <Snackbar
+          open={Boolean(feedback)}
+          autoHideDuration={4000}
+          onClose={() => setFeedback(null)}
+          message={feedback ?? ''}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        />
 
         {/* No "Call": there is no phone number in the schema.  Chat lands on the
             thread list, which Phase 4 fills in. */}

@@ -3,6 +3,7 @@ import { endRun, pauseRun, resumeRun, saveRunNote, startRun } from './runs.js'
 import { createNutritionPlan } from './nutrition.js'
 import { saveBodyMetric } from './progress.js'
 import { createAppointment, setAppointmentStatus } from './appointments.js'
+import { setSubscriptionStatus } from './clients.js'
 import { addAvailability, deleteAvailability } from './availability.js'
 import { ensureThread, markThreadRead, sendMessage } from './chat.js'
 import { chooseProfessional } from './profile.js'
@@ -240,6 +241,19 @@ export function registerMutationDefaults(queryClient) {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.agenda })
       queryClient.invalidateQueries({ queryKey: queryPrefixes.appointment })
+    },
+  })
+
+  // Flip a client's membership status. Scoped so two rapid toggles
+  // (suspend then reactivate) replay in the order they were clicked rather
+  // than racing. No client-generated id: the write is an absolute-value
+  // UPDATE keyed by member_id, a no-op on replay.
+  queryClient.setMutationDefaults(mutationKeys.setSubscriptionStatus, {
+    mutationFn: setSubscriptionStatus,
+    scope: { id: 'subscriptionStatus' },
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryPrefixes.clients })
+      queryClient.invalidateQueries({ queryKey: queryKeys.client(variables.memberId) })
     },
   })
 

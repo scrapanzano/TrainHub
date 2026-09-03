@@ -174,7 +174,7 @@ credentials, so any schema work ends in a handoff to Davide.
 
 - `schema.sql`, `policies.sql`, `seed.sql` — a fresh install, in that order,
   after creating the two demo auth users with **Auto Confirm User** ticked.
-- `patches/001`…`022` — applied in order on top. They also carry their own
+- `patches/001`…`023` — applied in order on top. They also carry their own
   PASS/FAIL blocks. `009` (checkin tokens) and `010` (push notifications) are
   what Phase 4B's badge, scanner and push features depend on; `011` hardens the
   three oldest `security definer` functions against pg_temp shadowing.
@@ -183,7 +183,10 @@ credentials, so any schema work ends in a handoff to Davide.
   their assigned professional; `018` lets one plan-creation call bundle
   any number of sessions; `019` grows the exercise catalogue; `022` moves
   Nutrition Plan to a Day Types structure and its own secure creation RPC,
-  professional-only. All must be applied, in order, before the current
+  professional-only. `023` gives `subscription_status`/`subscription_until`
+  real teeth — a `has_active_subscription()` predicate plus a professional-only
+  `set_subscription_status_secure` RPC, wired into plan creation, booking and
+  reward points. All must be applied, in order, before the current
   branch's code will work against the database.
 - `probe-rls.mjs` — `node supabase/probe-rls.mjs`. Asks every table what it
   returns to a caller holding nothing but the publishable key, which ships in

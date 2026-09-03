@@ -14,7 +14,8 @@ import { Alert, Button, Divider, Drawer, Stack, Typography } from '@mui/material
  * closes the run on its own and raises the congratulations dialog.
  */
 export default function EndRunSheet({
-  open, onClose, pct, points, setCount, alreadyPaid = false, onFinish, onAbandon, pending = false,
+  open, onClose, pct, points, setCount, alreadyPaid = false, membershipInactive = false,
+  onFinish, onAbandon, pending = false,
 }) {
   return (
     <Drawer
@@ -45,11 +46,13 @@ export default function EndRunSheet({
             Finish here
           </Button>
           <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
-            {alreadyPaid
-              ? 'Your sets are kept and go to your coach. No points: this session has already earned today.'
-              : points === 0
-                ? 'Your sets are kept. No points, because nothing was logged.'
-                : `Your sets are kept and you earn ${points} ${points === 1 ? 'point' : 'points'}.`}
+            {membershipInactive
+              ? 'Your sets are kept and go to your coach. No points while your membership is inactive.'
+              : alreadyPaid
+                ? 'Your sets are kept and go to your coach. No points: this session has already earned today.'
+                : points === 0
+                  ? 'Your sets are kept. No points, because nothing was logged.'
+                  : `Your sets are kept and you earn ${points} ${points === 1 ? 'point' : 'points'}.`}
           </Typography>
         </Stack>
 

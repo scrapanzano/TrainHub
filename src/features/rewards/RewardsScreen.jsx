@@ -1,11 +1,13 @@
 import {
-  Box, Card, CardContent, LinearProgress, List, ListItem, ListItemText, Stack, Typography,
+  Alert, Box, Card, CardContent, LinearProgress, List, ListItem, ListItemText, Stack, Typography,
 } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { fetchRewards } from '../../data/rewards.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { POINTS, rewardProgress } from '../workout/summary.js'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
+import { isSubscriptionActive } from '../clients/subscription.js'
+import { todayISO } from '../../lib/format.js'
 import { useAuth } from '../auth/useAuth.js'
 import PageHeader from '../../components/PageHeader.jsx'
 
@@ -18,7 +20,7 @@ const CATALOGUE = [
 ]
 
 export default function RewardsScreen() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
 
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: queryKeys.rewards(user.id),
@@ -34,6 +36,12 @@ export default function RewardsScreen() {
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
       <PageHeader title="Rewards" backTo="/m/profile" backLabel="Back to profile" />
+
+      {!isSubscriptionActive(profile, todayISO()) ? (
+        <Alert severity="info">
+          Your membership is not active — you are not earning points right now.
+        </Alert>
+      ) : null}
 
       <Card>
         <CardContent>

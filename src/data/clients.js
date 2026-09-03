@@ -49,3 +49,24 @@ export async function fetchClient(clientId) {
   if (error) throw error
   return data
 }
+
+/**
+ * Flip a client's membership between 'active' and 'suspended' (patches/023's
+ * `set_subscription_status_secure`). A deliberate simulation of the gym's
+ * billing server -- the RPC checks `is_professional() and owns_member()`.
+ *
+ * Reactivating a lapsed membership grants a fresh 12 months server-side; the
+ * caller does not pass a date.
+ *
+ * A write, so no `.retry()`. Registered in `src/data/mutations.js` -- it may
+ * pause offline and replay, which is safe: the payload is an absolute-value
+ * update keyed by `member_id`, so replaying it is a no-op.
+ */
+export async function setSubscriptionStatus({ memberId, status }) {
+  const { data, error } = await supabase
+    .rpc('set_subscription_status_secure', { p_member_id: memberId, p_status: status })
+    .single()
+
+  if (error) throw error
+  return data
+}

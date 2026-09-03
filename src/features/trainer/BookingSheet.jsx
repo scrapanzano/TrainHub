@@ -6,6 +6,7 @@ import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
 import { slotToISO, todayISO } from '../../lib/format.js'
 import { createUuid } from '../../lib/uuid.js'
+import { isSubscriptionActive } from '../clients/subscription.js'
 import { useAuth } from '../auth/useAuth.js'
 
 const KINDS = [
@@ -57,6 +58,7 @@ export default function BookingSheet({ open, onClose, defaultDayISO }) {
   const selectedStart = slotToISO(day, time, Number(minutes)).startsAt
   const isPast = day < todayISO() || new Date(selectedStart).getTime() <= now
   const unavailable = availability.data !== undefined && !matchingSlot
+  const membershipInactive = !isSubscriptionActive(profile, todayISO())
 
   const onSubmit = (event) => {
     event.preventDefault()
@@ -66,6 +68,7 @@ export default function BookingSheet({ open, onClose, defaultDayISO }) {
     // the real clock at submission instead of relying only on the render-time
     // warning, so an appointment can never be created in the past.
     if (new Date(startsAt).getTime() <= Date.now()) return
+    if (membershipInactive) return
 
     create.mutate(
       {
@@ -170,7 +173,11 @@ export default function BookingSheet({ open, onClose, defaultDayISO }) {
           fullWidth
         />
 
-        {isPast ? (
+        {membershipInactive ? (
+          <Alert severity="warning">
+            Your membership is not active. Ask your trainer to reactivate it before booking.
+          </Alert>
+        ) : isPast ? (
           <Alert severity="warning">Choose a future date and time.</Alert>
         ) : unavailable ? (
           <Alert severity="warning">
@@ -195,7 +202,9 @@ export default function BookingSheet({ open, onClose, defaultDayISO }) {
           variant="contained"
           size="large"
           fullWidth
-          disabled={create.isPending || availability.isPending || isPast || unavailable}
+          disabled={
+            create.isPending || availability.isPending || isPast || unavailable || membershipInactive
+          }
         >
           {savedOffline ? 'Saved offline' : create.isPending ? 'Requesting…' : 'Confirm booking'}
         </Button>
