@@ -194,11 +194,14 @@ export function registerMutationDefaults(queryClient) {
     },
   })
 
-  // No scope needed: the whole plan -- meta, every day, every meal -- is
-  // one atomic write, so there is no multi-step ordering left to protect
-  // (matching how the workout wizard's createPlan needs none either).
+  // Scoped for the same reason as `createPlan` above: create_nutrition_plan_
+  // secure carries the same optimistic-concurrency check (`the member plan
+  // changed before this save arrived`) and the same "replaced at most once"
+  // unique index, so two creations replayed in parallel could have the
+  // replacement land before the plan it replaces.
   queryClient.setMutationDefaults(mutationKeys.createNutritionPlan, {
     mutationFn: createNutritionPlan,
+    scope: { id: 'nutritionPlanWrite' },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.nutritionPlan })
     },
