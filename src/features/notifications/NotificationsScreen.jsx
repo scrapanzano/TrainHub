@@ -97,6 +97,12 @@ export default function NotificationsScreen() {
     })
   }
 
+  const allVisibleSelected =
+    visible.length > 0 && visible.every((item) => selectedIds.has(item.id))
+  const toggleSelectAllVisible = () => {
+    setSelectedIds(allVisibleSelected ? new Set() : new Set(visible.map((item) => item.id)))
+  }
+
   return (
     <Stack spacing={2} sx={{ p: 2 }}>
       <Typography variant="h1">Notifications</Typography>
@@ -119,6 +125,9 @@ export default function NotificationsScreen() {
       {selecting ? (
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
           <Typography sx={{ flexGrow: 1 }}>{selectedIds.size} selected</Typography>
+          <Button onClick={toggleSelectAllVisible} disabled={visible.length === 0}>
+            {allVisibleSelected ? 'Deselect all' : 'Select all'}
+          </Button>
           <Button
             disabled={selectedIds.size === 0 || markSelected.isPending}
             onClick={() => {
@@ -237,7 +246,11 @@ export default function NotificationsScreen() {
                 </CardActionArea>
                 <IconButton
                   aria-label={`Delete: ${item.title}`}
-                  onClick={() => deleteOne.mutate({ id: item.id })}
+                  onClick={() => {
+                    if (window.confirm(`Delete "${item.title}"?`)) {
+                      deleteOne.mutate({ id: item.id })
+                    }
+                  }}
                   sx={{ alignSelf: 'center', mr: 1 }}
                 >
                   <DeleteOutlineIcon />
