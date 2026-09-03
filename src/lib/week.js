@@ -34,6 +34,19 @@ export function mondayOf(dayISO) {
 }
 
 /**
+ * `Date#getDay()` (0 = Sunday .. 6 = Saturday) for `dayISO`, read in the
+ * local calendar -- the frame `nutrition_days.weekdays` is stored in, so
+ * the client needs no day-index translation.
+ *
+ * Built from local date parts, like `mondayOf` above: `new Date('YYYY-MM-DD')`
+ * is UTC midnight and lands on the previous day west of Greenwich.
+ */
+export function weekdayOf(dayISO) {
+  const [year, month, day] = String(dayISO).slice(0, 10).split('-').map(Number)
+  return new Date(year, month - 1, day).getDay()
+}
+
+/**
  * `n` days before `dayISO`, in the local calendar.
  *
  * Exists so callers never reach for `Date.now() - n * 86_400_000`, which is

@@ -1,6 +1,6 @@
 // Run with:  node src/lib/week.selfcheck.js
 import assert from 'node:assert/strict'
-import { daysBefore, earnedOn, mondayOf, runStatusOf } from './week.js'
+import { daysBefore, earnedOn, mondayOf, runStatusOf, weekdayOf } from './week.js'
 
 // --- mondayOf -------------------------------------------------------------
 // 2026-08-05 is a Wednesday; its week starts Monday the 3rd.
@@ -16,6 +16,18 @@ assert.equal(mondayOf('2026-09-01'), '2026-08-31')
 assert.equal(mondayOf('2027-01-01'), '2026-12-28')
 // A full ISO instant is accepted too, so callers need not slice it themselves.
 assert.equal(mondayOf('2026-08-05T22:30:00+02:00'), '2026-08-03')
+
+// --- weekdayOf --------------------------------------------------------------
+// 2026-08-05 is a Wednesday.
+assert.equal(weekdayOf('2026-08-05'), 3)
+// Sunday is 0, not remapped to 7 -- unlike mondayOf's internal remap, this is
+// the raw getDay() value because nutrition_days.weekdays is stored in that
+// frame.
+assert.equal(weekdayOf('2026-08-09'), 0)
+// Monday is 1.
+assert.equal(weekdayOf('2026-08-03'), 1)
+// A full ISO instant is accepted too, so callers need not slice it themselves.
+assert.equal(weekdayOf('2026-08-05T22:30:00+02:00'), 3)
 
 // --- daysBefore -----------------------------------------------------------
 assert.equal(daysBefore('2026-08-10', 7), '2026-08-03')
