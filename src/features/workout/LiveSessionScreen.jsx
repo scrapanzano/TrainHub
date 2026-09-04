@@ -20,6 +20,7 @@ import { formatElapsed } from './timer.js'
 import { setProgress } from './status.js'
 import { completionPct, countsByExercise, pointsForRun, runComplete } from './summary.js'
 import { useLiveSession } from './useLiveSession.js'
+import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import CongratsDialog from './CongratsDialog.jsx'
 import EndRunSheet from './EndRunSheet.jsx'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
@@ -31,6 +32,7 @@ export default function LiveSessionScreen() {
   const { user, profile } = useAuth()
   const navigate = useNavigate()
   const [ending, setEnding] = useState(false)
+  const [abandoning, setAbandoning] = useState(false)
   // Set the moment the member commits to finishing, and never cleared: this
   // screen is on its way out and must stop deciding where to send them.
   const [leaving, setLeaving] = useState(false)
@@ -265,14 +267,25 @@ export default function LiveSessionScreen() {
         setCount={setCount}
         onFinish={() => finish('partial')}
         onAbandon={() => {
-          if (
-            setCount === 0 ||
-            window.confirm('Abandon this workout? Today’s sets will count for nothing.')
-          ) {
-            finish('abandoned')
-          }
+          // Nothing logged means nothing to lose, so the second confirmation
+          // would be asking about a cost that does not exist.
+          if (setCount === 0) finish('abandoned')
+          else setAbandoning(true)
         }}
         pending={end.isPending && !end.isPaused}
+      />
+
+      <ConfirmDialog
+        open={abandoning}
+        title="Abandon this workout?"
+        description={`The ${setCount} ${setCount === 1 ? 'set' : 'sets'} you logged stay in your history but count for nothing, and this session goes back to "not done".`}
+        confirmLabel="Abandon"
+        cancelLabel="Keep training"
+        onCancel={() => setAbandoning(false)}
+        onConfirm={() => {
+          setAbandoning(false)
+          finish('abandoned')
+        }}
       />
 
       <CongratsDialog

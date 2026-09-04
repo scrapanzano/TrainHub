@@ -4,6 +4,8 @@ import {
 // `DeleteOutline` (the base glyph) is not shipped by @mui/icons-material@9.2.0;
 // only the styled variants exist.
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
+import { useState } from 'react'
+import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 
 /**
  * Review the plan drafted so far, before anything is written.
@@ -36,6 +38,8 @@ export default function PlanSummary({
   onDeleteSession,
   onConfirm,
 }) {
+  const [removing, setRemoving] = useState(null)
+
   return (
     <Stack spacing={3}>
       <Typography variant="h2">Review your plan</Typography>
@@ -73,13 +77,7 @@ export default function PlanSummary({
                 <IconButton
                   aria-label={`Remove ${session.name}`}
                   disabled={pending}
-                  onClick={() => {
-                    // `confirm` rather than a dialog component: one destructive
-                    // action on one screen, already accessible and blocking.
-                    if (window.confirm(`Remove "${session.name}" from this plan?`)) {
-                      onDeleteSession(index)
-                    }
-                  }}
+                  onClick={() => setRemoving({ index, name: session.name })}
                 >
                   <DeleteOutlineIcon />
                 </IconButton>
@@ -117,6 +115,20 @@ export default function PlanSummary({
       >
         {paused ? 'Saved offline' : pending ? 'Creating…' : 'Confirm & create plan'}
       </Button>
+
+      {/* Held as an object rather than a bare index: index 0 is falsy, and a
+          `removing !== null` check is easy to lose in a later edit. */}
+      <ConfirmDialog
+        open={removing !== null}
+        title={`Remove ${removing?.name ?? 'this session'}?`}
+        description="It is only removed from this draft. Nothing has been saved yet."
+        confirmLabel="Remove"
+        onCancel={() => setRemoving(null)}
+        onConfirm={() => {
+          onDeleteSession(removing.index)
+          setRemoving(null)
+        }}
+      />
     </Stack>
   )
 }

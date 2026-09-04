@@ -8,6 +8,7 @@ import {
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
+import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import { fetchNotifications } from '../../data/notifications.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
@@ -59,6 +60,8 @@ export default function NotificationsScreen() {
   const [filter, setFilter] = useState('all') // 'all' | 'unread'
   const [selecting, setSelecting] = useState(false)
   const [selectedIds, setSelectedIds] = useState(() => new Set())
+  // `{kind, id?, title?}`: one dialog serves all three deletions.
+  const [confirming, setConfirming] = useState(null)
 
   const notifications = useQuery({
     queryKey: queryKeys.notifications(user.id),
@@ -140,16 +143,7 @@ export default function NotificationsScreen() {
           <Button
             color="error"
             disabled={selectedIds.size === 0 || deleteSelected.isPending}
-            onClick={() => {
-              if (
-                window.confirm(
-                  `Delete ${selectedIds.size} notification${selectedIds.size === 1 ? '' : 's'}?`,
-                )
-              ) {
-                deleteSelected.mutate({ ids: [...selectedIds] })
-                exitSelection()
-              }
-            }}
+            onClick={() => setConfirming({ kind: 'selected' })}
           >
             Delete
           </Button>
@@ -169,11 +163,7 @@ export default function NotificationsScreen() {
           <Button
             color="error"
             disabled={all.length === 0 || deleteAll.isPending}
-            onClick={() => {
-              if (window.confirm('Delete every notification? This cannot be undone.')) {
-                deleteAll.mutate({ before: new Date().toISOString() })
-              }
-            }}
+            onClick={() => setConfirming({ kind: 'all' })}
           >
             Delete all
           </Button>
@@ -246,11 +236,7 @@ export default function NotificationsScreen() {
                 </CardActionArea>
                 <IconButton
                   aria-label={`Delete: ${item.title}`}
-                  onClick={() => {
-                    if (window.confirm(`Delete "${item.title}"?`)) {
-                      deleteOne.mutate({ id: item.id })
-                    }
-                  }}
+                  onClick={() => setConfirming({ kind: 'one', id: item.id, title: item.title })}
                   sx={{ alignSelf: 'center', mr: 1 }}
                 >
                   <DeleteOutlineIcon />
@@ -260,6 +246,32 @@ export default function NotificationsScreen() {
           </Card>
         ))}
       </Stack>
+
+      {/* One dialog for all three deletions; `confirming` carries which. */}
+      <ConfirmDialog
+        open={confirming !== null}
+        title={
+          confirming?.kind === 'one'
+            ? `Delete ${confirming.title}?`
+            : confirming?.kind === 'selected'
+              ? `Delete ${selectedIds.size} notification${selectedIds.size === 1 ? '' : 's'}?`
+              : 'Delete every notification?'
+        }
+        description="This cannot be undone."
+        confirmLabel="Delete"
+        onCancel={() => setConfirming(null)}
+        onConfirm={() => {
+          if (confirming.kind === 'one') {
+            deleteOne.mutate({ id: confirming.id })
+          } else if (confirming.kind === 'selected') {
+            deleteSelected.mutate({ ids: [...selectedIds] })
+            exitSelection()
+          } else {
+            deleteAll.mutate({ before: new Date().toISOString() })
+          }
+          setConfirming(null)
+        }}
+      />
     </Stack>
   )
 }

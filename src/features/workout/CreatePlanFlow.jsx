@@ -6,6 +6,7 @@ import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
 import { createUuid } from '../../lib/uuid.js'
 import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
+import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import PlanForm from './PlanForm.jsx'
 import SessionForm from './SessionForm.jsx'
 import PlanSummary from './PlanSummary.jsx'
@@ -39,14 +40,9 @@ export default function CreatePlanFlow({ memberId, replacesPlanId = null, onDone
 
   const createPlan = useMutation({ mutationKey: mutationKeys.createPlan })
 
-  const confirmAbandon = () => {
-    // `confirm` rather than a dialog component: one destructive action in one
-    // flow, already accessible and blocking. Required by the flow's own rule
-    // that leaving it is always available but always confirmed.
-    if (window.confirm('Discard this plan? Nothing entered so far will be saved.')) {
-      onAbandon()
-    }
-  }
+  // Leaving the flow is always available, and always confirmed: the draft
+  // lives only in this component, so cancelling really does lose everything.
+  const [abandoning, setAbandoning] = useState(false)
 
   let body
 
@@ -150,9 +146,22 @@ export default function CreatePlanFlow({ memberId, replacesPlanId = null, onDone
   return (
     <Stack spacing={2}>
       {body}
-      <Button onClick={confirmAbandon} disabled={createPlan.isPending} fullWidth>
+      <Button onClick={() => setAbandoning(true)} disabled={createPlan.isPending} fullWidth>
         Cancel
       </Button>
+
+      <ConfirmDialog
+        open={abandoning}
+        title="Discard this plan?"
+        description="Nothing entered so far will be saved."
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        onCancel={() => setAbandoning(false)}
+        onConfirm={() => {
+          setAbandoning(false)
+          onAbandon()
+        }}
+      />
     </Stack>
   )
 }

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Box, Button, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Stack, Typography } from '@mui/material'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { supabase } from '../../lib/supabase.js'
+import PasswordField from '../../components/PasswordField.jsx'
 
 export default function ResetPasswordScreen() {
   const [params] = useSearchParams()
@@ -116,18 +117,18 @@ export default function ResetPasswordScreen() {
 
       {error ? <Alert severity="error">{error}</Alert> : null}
 
-      <TextField
+      <PasswordField
         label="New password"
-        type="password"
+        visibilityLabel="the new password"
         value={password}
         onChange={(event) => setPassword(event.target.value)}
         autoComplete="new-password"
         required
         fullWidth
       />
-      <TextField
+      <PasswordField
         label="Confirm password"
-        type="password"
+        visibilityLabel="the confirmed password"
         value={confirmation}
         onChange={(event) => setConfirmation(event.target.value)}
         autoComplete="new-password"

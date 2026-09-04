@@ -3,6 +3,7 @@ import { Alert, Box, Button, Link as MuiLink, Stack, TextField, Typography } fro
 import { Link, Navigate, useLocation } from 'react-router'
 import { supabase } from '../../lib/supabase.js'
 import { useAuth } from './useAuth.js'
+import PasswordField from '../../components/PasswordField.jsx'
 
 const HOME_FOR = { member: '/m', professional: '/p' }
 
@@ -73,9 +74,8 @@ export default function LoginScreen() {
           fullWidth
         />
         <Box>
-          <TextField
+          <PasswordField
             label="Password"
-            type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             autoComplete="current-password"

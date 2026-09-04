@@ -4,6 +4,8 @@ import {
 // `DeleteOutline` (the base glyph) is not shipped by @mui/icons-material@9.2.0;
 // only the styled variants exist.
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
+import { useState } from 'react'
+import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 
 const WEEKDAY_INITIALS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -29,6 +31,8 @@ const WEEKDAY_INITIALS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 export default function NutritionPlanSummary({
   meta, days, pending, paused, error, onEditMeta, onAddDay, onEditDay, onDeleteDay, onConfirm,
 }) {
+  const [removing, setRemoving] = useState(null)
+
   return (
     <Stack spacing={3}>
       <Typography variant="h2">Review your plan</Typography>
@@ -73,14 +77,7 @@ export default function NutritionPlanSummary({
                 <IconButton
                   aria-label={`Remove ${day.name}`}
                   disabled={pending}
-                  onClick={() => {
-                    // `confirm` rather than a dialog component: one
-                    // destructive action on one screen, already accessible
-                    // and blocking.
-                    if (window.confirm(`Remove "${day.name}" from this plan?`)) {
-                      onDeleteDay(index)
-                    }
-                  }}
+                  onClick={() => setRemoving({ index, name: day.name })}
                 >
                   <DeleteOutlineIcon />
                 </IconButton>
@@ -116,6 +113,20 @@ export default function NutritionPlanSummary({
       >
         {paused ? 'Saved offline' : pending ? 'Creating…' : 'Confirm & create plan'}
       </Button>
+
+      {/* Held as an object rather than a bare index: index 0 is falsy, and a
+          `removing !== null` check is easy to lose in a later edit. */}
+      <ConfirmDialog
+        open={removing !== null}
+        title={`Remove ${removing?.name ?? 'this day'}?`}
+        description="It is only removed from this draft. Nothing has been saved yet."
+        confirmLabel="Remove"
+        onCancel={() => setRemoving(null)}
+        onConfirm={() => {
+          onDeleteDay(removing.index)
+          setRemoving(null)
+        }}
+      />
     </Stack>
   )
 }

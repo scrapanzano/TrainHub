@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Alert, Button, Card, CardContent, Divider, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Button, Card, CardContent, Divider, Stack, Typography } from '@mui/material'
 import LogoutIcon from '@mui/icons-material/Logout'
 import { supabase } from '../../lib/supabase.js'
 import { useAuth } from '../auth/useAuth.js'
 import NotificationSwitch from './NotificationSwitch.jsx'
 import PageHeader from '../../components/PageHeader.jsx'
+import PasswordField from '../../components/PasswordField.jsx'
 
 export default function SettingsScreen() {
   const { user, profile, signOut } = useAuth()
@@ -51,9 +52,9 @@ export default function SettingsScreen() {
               Signed in as {user?.email ?? ''}
             </Typography>
 
-            <TextField
+            <PasswordField
               label="New password"
-              type="password"
+              visibilityLabel="the new password"
               value={password}
               onChange={(event) => {
                 setPassword(event.target.value)
@@ -67,9 +68,9 @@ export default function SettingsScreen() {
               fullWidth
               disabled={status.phase === 'saving'}
             />
-            <TextField
+            <PasswordField
               label="Confirm new password"
-              type="password"
+              visibilityLabel="the confirmed password"
               value={confirm}
               onChange={(event) => {
                 setConfirm(event.target.value)
