@@ -1,4 +1,4 @@
-import { IconButton, Stack, Typography } from '@mui/material'
+import { Box, IconButton, Stack, Typography } from '@mui/material'
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew'
 import { Link } from 'react-router'
 
@@ -17,6 +17,10 @@ import { Link } from 'react-router'
  * @param {string}   props.backTo       Where the arrow goes.
  * @param {string}   props.backLabel    What a screen reader announces for it.
  * @param {string}   [props.titleVariant] Typography variant for the title.
+ * @param {React.ReactNode} [props.leading]  Sits between the arrow and the
+ *                                           title, for a screen that is about
+ *                                           a person (an avatar) rather than a
+ *                                           subject.
  * @param {React.ReactNode} [props.action]   Trailing control, right-aligned on
  *                                           the title row (a menu, a toggle).
  * @param {React.ReactNode} [props.children] Extra rows under the title, inside
@@ -28,6 +32,7 @@ export default function PageHeader({
   backTo,
   backLabel,
   titleVariant = 'h1',
+  leading = null,
   action = null,
   children = null,
 }) {
@@ -43,6 +48,8 @@ export default function PageHeader({
         >
           <ArrowBackIosNewIcon fontSize="small" />
         </IconButton>
+
+        {leading ? <Box sx={{ flexShrink: 0, display: 'flex' }}>{leading}</Box> : null}
 
         <Stack spacing={0.25} sx={{ minWidth: 0, pt: 0.25, flexGrow: 1 }}>
           <Typography variant={titleVariant}>{title}</Typography>
