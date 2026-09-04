@@ -49,3 +49,72 @@ export async function chooseProfessional({ memberId, proId }) {
   window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT, { detail: data }))
   return data
 }
+
+/** Where a member's photo lives, one object per user, replaced in place. */
+const AVATAR_BUCKET = 'avatars'
+const avatarPath = (userId) => `${userId}/avatar.jpg`
+
+/**
+ * Replace the signed-in user's profile photo.
+ *
+ * Two writes, in this order on purpose: the object first, the row second. A
+ * failed upload must not leave `avatar_url` pointing at nothing, whereas an
+ * orphaned object costs a few kilobytes and is overwritten by the next upload.
+ *
+ * The stored path never changes, so the URL would be cached by the browser
+ * for the life of the install and a new photo would simply not appear. The
+ * upload's own timestamp rides along as a query string to break that.
+ *
+ * `supabase/patches/025-avatar-storage.sql` creates the bucket and its
+ * policies. Without it this fails with a clear storage error rather than
+ * writing a broken row.
+ */
+export async function uploadAvatar({ userId, blob }) {
+  const { error: uploadError } = await supabase.storage
+    .from(AVATAR_BUCKET)
+    .upload(avatarPath(userId), blob, { upsert: true, contentType: 'image/jpeg' })
+
+  if (uploadError) throw uploadError
+
+  const { data: published } = supabase.storage
+    .from(AVATAR_BUCKET)
+    .getPublicUrl(avatarPath(userId))
+
+  const url = `${published.publicUrl}?v=${Date.now()}`
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ avatar_url: url })
+    .eq('id', userId)
+    .select(PROFILE_COLUMNS)
+    .single()
+
+  if (error) throw error
+
+  window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT, { detail: data }))
+  return data
+}
+
+/**
+ * Drop the photo and fall back to the initial.
+ *
+ * The row is cleared first here, the reverse of `uploadAvatar`: a profile
+ * pointing at a deleted object shows a broken image, so the pointer must go
+ * before the thing it points at. A storage removal that then fails leaves an
+ * unreferenced object, which the next upload overwrites anyway.
+ */
+export async function clearAvatar({ userId }) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ avatar_url: null })
+    .eq('id', userId)
+    .select(PROFILE_COLUMNS)
+    .single()
+
+  if (error) throw error
+
+  await supabase.storage.from(AVATAR_BUCKET).remove([avatarPath(userId)])
+
+  window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT, { detail: data }))
+  return data
+}

@@ -64,7 +64,10 @@ export default function LiveSessionBar({ sessionName, sessionId, elapsed, paused
           sx={{ color: 'inherit', borderColor: 'currentColor' }}
           variant="outlined"
         >
-          Resume
+          {/* Not "Resume": this navigates, it does not restart the clock --
+              and the pause button on the live screen, which does restart it,
+              says the same word. */}
+          Back to workout
         </Button>
       </Stack>
     </Box>

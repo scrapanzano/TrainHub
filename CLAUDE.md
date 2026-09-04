@@ -19,7 +19,7 @@ paths; Vite does, at build time. A MUI icon glyph the installed
 
 No test runner is configured and none is being added. Non-trivial pure logic
 ships an `assert`-based `*.selfcheck.js` beside it, run with plain
-`node <path>`. There are ten; run them all after touching shared code:
+`node <path>`. There are twelve; run them all after touching shared code:
 
 ```bash
 node src/lib/format.selfcheck.js
@@ -33,6 +33,7 @@ node src/features/calendar/month.selfcheck.js
 node src/features/progress/progress.selfcheck.js
 node src/features/profile/pushSubscription.selfcheck.js
 node src/features/nutrition/contracts.selfcheck.js
+node src/features/rewards/grouping.selfcheck.js
 ```
 
 ## What this is

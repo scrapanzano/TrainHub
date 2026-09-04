@@ -88,7 +88,24 @@ const theme = createTheme({
         },
       },
     },
-    MuiChip: { styleOverrides: { label: { fontWeight: 500 } } },
+    MuiChip: {
+      styleOverrides: {
+        // A chip with no `onClick` is a label, and it has to stop behaving like
+        // a control. Without these it still takes the browser's grey tap flash
+        // and selects its own text on a long press -- on a phone, both are
+        // indistinguishable from having pressed something. Scoped to
+        // non-clickable chips, because the notification filters are real
+        // buttons and must keep their feedback.
+        root: {
+          '&:not(.MuiChip-clickable)': {
+            cursor: 'default',
+            userSelect: 'none',
+            WebkitTapHighlightColor: 'transparent',
+          },
+        },
+        label: { fontWeight: 500 },
+      },
+    },
     // Cards are 20; dialogs and bottom sheets inherited `shape.borderRadius`
     // (16) and read as a different family of surface.
     MuiDialog: { styleOverrides: { paper: { borderRadius: 20 } } },

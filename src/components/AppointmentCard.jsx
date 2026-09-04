@@ -1,6 +1,4 @@
 import { Avatar, Box, Card, CardActionArea, CardContent, Chip, Stack, Typography } from '@mui/material'
-import CheckCircleIcon from '@mui/icons-material/CheckCircle'
-import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked'
 import { Link } from 'react-router'
 import { formatTimeRange } from '../lib/format.js'
 
@@ -39,34 +37,23 @@ export default function AppointmentCard({ appointment, person, to }) {
 
   const body = (
     <CardContent>
+      {/* No leading status glyph: the wireframes drew an empty circle here as
+          a quick "mark it done" control, which was never built.  It stayed as
+          decoration that looked like a checkbox, and it said exactly what the
+          status chip two lines below already says. */}
+      {/* Time, kind and person read as one column; the status sits opposite
+          them rather than in the middle of that column, where it split the
+          appointment's name from the person it is with. Centred on the block,
+          so a two-line card and a three-line card both keep it beside the
+          kind. */}
       <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-        <Box sx={{ color: 'text.primary', display: 'flex' }}>
-          {done ? (
-            <CheckCircleIcon titleAccess={statusLabel} />
-          ) : (
-            <RadioButtonUncheckedIcon titleAccess={statusLabel} />
-          )}
-        </Box>
-
-        <Box sx={{ minWidth: 0 }}>
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
           <Typography variant="body2" color="text.secondary">
             {formatTimeRange(startsAt, endsAt)}
           </Typography>
           <Typography variant="h3" noWrap>
             {KIND_LABEL[kind] ?? 'Appointment'}
           </Typography>
-          <Chip
-            size="small"
-            label={statusLabel}
-            color={
-              status === 'cancelled'
-                ? 'error'
-                : status === 'done' || status === 'confirmed'
-                  ? 'success'
-                  : 'warning'
-            }
-            sx={{ mt: 0.75 }}
-          />
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mt: 0.5 }}>
             <Avatar src={person?.avatar_url ?? undefined} sx={{ width: 20, height: 20 }}>
               {person?.full_name?.[0] ?? '?'}
@@ -76,6 +63,19 @@ export default function AppointmentCard({ appointment, person, to }) {
             </Typography>
           </Stack>
         </Box>
+
+        <Chip
+          size="small"
+          label={statusLabel}
+          color={
+            status === 'cancelled'
+              ? 'error'
+              : status === 'done' || status === 'confirmed'
+                ? 'success'
+                : 'warning'
+          }
+          sx={{ flexShrink: 0 }}
+        />
       </Stack>
     </CardContent>
   )

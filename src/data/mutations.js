@@ -6,7 +6,7 @@ import { createAppointment, setAppointmentStatus } from './appointments.js'
 import { setSubscriptionStatus } from './clients.js'
 import { addAvailability, deleteAvailability } from './availability.js'
 import { ensureThread, markThreadRead, sendMessage } from './chat.js'
-import { chooseProfessional } from './profile.js'
+import { chooseProfessional, clearAvatar, uploadAvatar } from './profile.js'
 import {
   deleteAllNotifications, deleteNotification, deleteNotificationsByIds, markAllNotificationsRead,
   markNotificationRead, markNotificationsRead, markNotificationsReadByIds,
@@ -359,6 +359,13 @@ export function registerMutationDefaults(queryClient) {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.chat })
     },
   })
+
+  // Both publish the returned profile to AuthProvider from inside the mutation
+  // function, the way `chooseProfessional` does, so the shell's header avatar
+  // follows without a reload. Nothing to invalidate: the profile is mirrored
+  // outside TanStack Query.
+  queryClient.setMutationDefaults(mutationKeys.uploadAvatar, { mutationFn: uploadAvatar })
+  queryClient.setMutationDefaults(mutationKeys.clearAvatar, { mutationFn: clearAvatar })
 
   queryClient.setMutationDefaults(mutationKeys.markNotificationRead, {
     mutationFn: markNotificationRead,
