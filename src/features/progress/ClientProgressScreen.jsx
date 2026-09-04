@@ -1,12 +1,10 @@
 import { useState } from 'react'
 import {
-  Alert, Box, Button, Card, CardActionArea, CardContent, Chip, IconButton,
+  Alert, Box, Button, Card, CardActionArea, CardContent, Chip,
   LinearProgress, Stack, TextField, Typography,
 } from '@mui/material'
-import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
-import RefreshIcon from '@mui/icons-material/Refresh'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import { fetchClient } from '../../data/clients.js'
@@ -17,6 +15,7 @@ import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
 import { formatDate, localDayISO, todayISO } from '../../lib/format.js'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
+import PageHeader from '../../components/PageHeader.jsx'
 import { formatElapsed } from '../workout/timer.js'
 import { runDurationMs, weightTrend, workoutWeekSummary } from './progress.js'
 
@@ -163,29 +162,16 @@ export default function ClientProgressScreen() {
 
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
-      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-        <IconButton
-          component={Link}
-          to={`/p/clients/${clientId}`}
-          aria-label={`Back to ${client.data.full_name}`}
-          edge="start"
-        >
-          <ArrowBackIcon />
-        </IconButton>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography variant="h1">Progress</Typography>
-          <Typography color="text.secondary" noWrap>{client.data.full_name}</Typography>
-        </Box>
-        <IconButton
-          aria-label="Refresh client progress"
-          onClick={() => Promise.all([
-            plan.refetch(), training.refetch(), openRun.refetch(), metrics.refetch(),
-          ])}
-          sx={{ ml: 'auto' }}
-        >
-          <RefreshIcon />
-        </IconButton>
-      </Stack>
+      {/* No manual refresh control: `plan`, `training` and `openRun` already
+          poll every 60s, so the button asked the user to do what the screen
+          does on its own -- and it had no pending state, so pressing it looked
+          like nothing happened. */}
+      <PageHeader
+        title="Progress"
+        subtitle={client.data.full_name}
+        backTo={`/p/clients/${clientId}`}
+        backLabel={`Back to ${client.data.full_name}`}
+      />
 
       <Box>
         <Typography variant="h2" sx={{ mb: 2 }}>

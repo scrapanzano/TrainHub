@@ -33,13 +33,68 @@ const theme = createTheme({
     body1: { fontSize: '1rem' },
     body2: { fontSize: '0.875rem' },
     button: { fontWeight: 600, textTransform: 'none' },
+    // The label above a grouped list ("Today", "September 2026").  Declared here
+    // rather than restyled per screen, so every grouped list agrees.
+    overline: {
+      fontSize: '0.75rem',
+      fontWeight: 600,
+      letterSpacing: '0.06em',
+      lineHeight: 1.8,
+    },
   },
 
   components: {
     MuiCssBaseline: {
       styleOverrides: {
         html: { scrollbarGutter: 'stable' },
-        body: { overscrollBehaviorY: 'none' },
+        body: {
+          overscrollBehaviorY: 'none',
+          // Kills the double-tap-to-zoom gesture, which on a phone fires by
+          // accident while tapping a button and makes the app feel like a web
+          // page.  Pinch-zoom is deliberately left alone: blocking it would
+          // fail WCAG 1.4.4, and nobody pinches by mistake.
+          touchAction: 'manipulation',
+        },
+        // Focus was invisible everywhere outside MUI's own inputs.  ButtonBase
+        // covers Button, IconButton, ListItemButton, CardActionArea, Chip and
+        // BottomNavigationAction in one rule; links are the only other thing
+        // that takes keyboard focus in this app.
+        'a:focus-visible': {
+          outline: `2px solid ${tokens['Action.Primary']}`,
+          outlineOffset: 2,
+          borderRadius: 4,
+        },
+      },
+    },
+    MuiButtonBase: {
+      styleOverrides: {
+        root: {
+          '&.Mui-focusVisible': {
+            outline: `2px solid ${tokens['Action.Primary']}`,
+            outlineOffset: 2,
+          },
+        },
+      },
+    },
+    // MUI's default asterisk inherits the label's grey, so a required field
+    // looked exactly like an optional one.  It is the only signal these 23
+    // fields have.
+    MuiFormLabel: {
+      styleOverrides: {
+        asterisk: {
+          color: tokens['Theme.Danger'],
+          fontWeight: 700,
+          '&.Mui-error': { color: tokens['Theme.Danger'] },
+        },
+      },
+    },
+    MuiChip: { styleOverrides: { label: { fontWeight: 500 } } },
+    // Cards are 20; dialogs and bottom sheets inherited `shape.borderRadius`
+    // (16) and read as a different family of surface.
+    MuiDialog: { styleOverrides: { paper: { borderRadius: 20 } } },
+    MuiDrawer: {
+      styleOverrides: {
+        paperAnchorBottom: { borderTopLeftRadius: 20, borderTopRightRadius: 20 },
       },
     },
     // The wireframes use soft, borderless, generously rounded cards throughout.

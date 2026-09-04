@@ -86,6 +86,21 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
   const runPaused = Boolean(run?.paused_at)
   const [now, setNow] = useState(() => Date.now())
 
+  // The header block is `fixed`, so `main` has to reserve its height itself --
+  // and that height is not a constant: `OfflineBanner` and `MembershipBanner`
+  // appear and disappear underneath the toolbar.  A callback ref rather than a
+  // `useRef`, because the shell mounts several renders after the first one (the
+  // early returns below) and an effect keyed on `[]` would observe nothing.
+  const [headerEl, setHeaderEl] = useState(null)
+  const [headerHeight, setHeaderHeight] = useState(56)
+
+  useEffect(() => {
+    if (!headerEl) return
+    const observer = new ResizeObserver(() => setHeaderHeight(headerEl.offsetHeight))
+    observer.observe(headerEl)
+    return () => observer.disconnect()
+  }, [headerEl])
+
   useEffect(() => {
     // Only forces a re-render; the elapsed value is arithmetic over timestamps,
     // so a tick the browser skips while throttled costs nothing.  Nothing ticks
@@ -159,13 +174,21 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
         minHeight: '100dvh',
         display: 'flex',
         flexDirection: 'column',
+        // Nominal heights, deliberately excluding the safe-area inset: every
+        // consumer adds `env(safe-area-inset-bottom)` itself (see
+        // `ThreadScreen`), so folding it in here would count it twice.
         '--trainhub-bottom-shell-height': showLiveBar ? '120px' : '56px',
+        '--trainhub-header-height': `${headerHeight}px`,
       }}
     >
       {/* Header and sync status pin as one block.  The banner is meant to be a
           persistent indicator; left in normal flow it scrolls away and is only
-          visible at the top of the page. */}
-      <Box sx={{ position: 'sticky', top: 0, zIndex: 'appBar' }}>
+          visible at the top of the page.
+
+          `fixed`, not `sticky`: a sticky bar still occupies a row in the flex
+          column, so the page can only ever scroll *under* the content below it,
+          never behind the bar itself. */}
+      <Box ref={setHeaderEl} sx={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 'appBar' }}>
         <TopHeader
           profileHref={profileHref}
           notificationCount={unread.data ?? 0}
@@ -175,15 +198,21 @@ export default function AppLayout({ navItems, profileHref, requiredRole }) {
         <OfflineBanner />
         <MembershipBanner />
       </Box>
-      <Box component="main" sx={{ flexGrow: 1, pb: 2 }}>
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          // Both bars are out of flow, so the scrollable content reserves their
+          // room itself.
+          pt: 'var(--trainhub-header-height, 56px)',
+          pb: 'calc(var(--trainhub-bottom-shell-height) + env(safe-area-inset-bottom) + 16px)',
+        }}
+      >
         <Outlet />
       </Box>
-      {/* The mini-player and the nav pin as one block, mirroring the header and
-          the sync banner at the top.  `BottomNav` is sticky on its own, so a
-          bar merely placed before it in the column scrolls out of sight on any
-          screen taller than the viewport -- which is most of them, and exactly
-          when a member has wandered away from their workout. */}
-      <Box sx={{ position: 'sticky', bottom: 0, zIndex: 'appBar' }}>
+      {/* The mini-player and the nav pin as one block, mirroring the header at
+          the top, so the two can never drift apart when a workout is open. */}
+      <Box sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 'appBar' }}>
         {showLiveBar ? (
           <LiveSessionBar
             sessionName={run.session?.name ?? 'Workout'}

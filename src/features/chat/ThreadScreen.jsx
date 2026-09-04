@@ -170,8 +170,10 @@ export default function ThreadScreen() {
 
   const other = isMember ? memberThread.data?.pro : professionalThread.data?.member
 
+  // `pb` clears the fixed composer only: `main` already reserves the bottom
+  // shell below it, so the old `pb: 12` now double-counted that height.
   return (
-    <Stack sx={{ minHeight: '100%', p: 2, pb: 12 }} spacing={2}>
+    <Stack sx={{ minHeight: '100%', p: 2, pb: 9 }} spacing={2}>
       {other ? (
         <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
           <Avatar src={other.avatar_url ?? undefined}>{other.full_name?.[0] ?? '?'}</Avatar>

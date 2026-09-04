@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import {
-  Alert, Box, Button, Card, CardContent, Divider, IconButton, Stack, Typography,
+  Alert, Button, Card, CardContent, Divider, Stack, Typography,
 } from '@mui/material'
-import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import { useQuery } from '@tanstack/react-query'
-import { Link, useNavigate, useParams } from 'react-router'
+import { useNavigate, useParams } from 'react-router'
 import { fetchClient } from '../../data/clients.js'
 import { fetchActivePlan } from '../../data/workouts.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
+import PageHeader from '../../components/PageHeader.jsx'
 import CreatePlanFlow from '../workout/CreatePlanFlow.jsx'
 import { isSubscriptionActive } from './subscription.js'
 import { todayISO } from '../../lib/format.js'
@@ -95,25 +95,18 @@ export default function ClientWorkoutScreen() {
 
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
-      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-        <IconButton
-          component={Link}
-          to={`/p/clients/${clientId}`}
-          aria-label={`Back to ${clientName}`}
-          edge="start"
-        >
-          <ArrowBackIcon />
-        </IconButton>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography variant="h1" noWrap>{plan.data.plan.name}</Typography>
-          <Typography color="text.secondary" noWrap>{clientName}</Typography>
-          <Typography color="text.secondary">
-            {[plan.data.plan.goal, plan.data.plan.level, `${plan.data.plan.weeks} weeks`]
-              .filter(Boolean)
-              .join(' • ')}
-          </Typography>
-        </Box>
-      </Stack>
+      <PageHeader
+        title={plan.data.plan.name}
+        subtitle={clientName}
+        backTo={`/p/clients/${clientId}`}
+        backLabel={`Back to ${clientName}`}
+      >
+        <Typography color="text.secondary">
+          {[plan.data.plan.goal, plan.data.plan.level, `${plan.data.plan.weeks} weeks`]
+            .filter(Boolean)
+            .join(' • ')}
+        </Typography>
+      </PageHeader>
 
       <Stack spacing={2}>
         <Typography variant="h2">Sessions</Typography>

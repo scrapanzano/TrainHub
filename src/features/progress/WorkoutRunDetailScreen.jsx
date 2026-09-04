@@ -1,10 +1,10 @@
 import {
-  Box, Card, CardContent, Chip, Divider, IconButton, Stack, Typography,
+  Box, Card, CardContent, Chip, Divider, Stack, Typography,
 } from '@mui/material'
-import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import { useQuery } from '@tanstack/react-query'
-import { Link, useParams } from 'react-router'
+import { useParams } from 'react-router'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
+import PageHeader from '../../components/PageHeader.jsx'
 import { fetchClient } from '../../data/clients.js'
 import { fetchRun, fetchRunLogs } from '../../data/runs.js'
 import { fetchSession } from '../../data/workouts.js'
@@ -134,20 +134,12 @@ export default function WorkoutRunDetailScreen() {
 
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
-      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-        <IconButton
-          component={Link}
-          to={`/p/clients/${clientId}/progress`}
-          aria-label="Back to progress tracking"
-          edge="start"
-        >
-          <ArrowBackIcon />
-        </IconButton>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography variant="h1" noWrap>{run.data.session?.name ?? 'Workout details'}</Typography>
-          <Typography color="text.secondary" noWrap>{client.data.full_name}</Typography>
-        </Box>
-      </Stack>
+      <PageHeader
+        title={run.data.session?.name ?? 'Workout details'}
+        subtitle={client.data.full_name}
+        backTo={`/p/clients/${clientId}/progress`}
+        backLabel="Back to progress tracking"
+      />
 
       <Card>
         <CardContent>
