@@ -1,1 +1,155 @@
 \section{Implementation and Architecture}\label{sect:ImplementationArchitecture}
+
+The implementation of TrainHub follows the distinction established during the design phase: members and professionals use different interfaces, but both work on the same information. A workout assigned by a trainer, a message sent in chat, or a confirmed appointment must be visible from the other side without creating separate copies of the data. For this reason, the application was developed as a single Progressive Web App connected to a shared backend.
+
+This chapter focuses on the structure that supports the final interface. Rather than describing the screens again, it explains how navigation, local state, persistent data, offline behaviour, and device features cooperate during the main user flows.
+
+\subsection{Technology Stack}\label{subsect:TechnologyStack}
+
+TrainHub is a client-side web application built with React and Vite. React provides the component model used throughout the interface, while Vite manages the development environment and creates the optimized production bundle. Material UI supplies the component foundation and theme system, and React Router maps the two role-specific navigation trees described in Section \ref{subsect:NavigationMap}.
+
+Supabase provides authentication, the PostgreSQL database, Realtime updates, and the server-side function used to deliver push notifications. TanStack Query sits between the interface and the data functions: it manages remote state, keeps query results synchronized, and persists the useful part of the cache in IndexedDB. The main technologies and their role in the project are summarized in Table \ref{tab:technologyStack}.
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabularx}{\textwidth}{@{}p{0.29\textwidth} >{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Technology} & \textbf{Use in TrainHub} \\
+        \midrule
+        React and Vite & Component-based interface, development server, production build, and code splitting \\
+        Material UI & Responsive components, shared visual rules, typography, and theme customization \\
+        React Router & Public routes, protected member and professional areas, and route-level error handling \\
+        TanStack Query & Loading and mutation state, cache invalidation, offline queues, and persisted server data \\
+        Supabase & User sessions, PostgreSQL persistence, row-level authorization, Realtime events, and Edge Functions \\
+        Workbox and Web APIs & Installable PWA shell, offline start-up, Web Push, camera access, and QR processing \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Main technologies used in the final application.}
+    \label{tab:technologyStack}
+\end{table}
+
+The application is written in JavaScript and JSX. Keeping one language across the interface and data-access layer made the project easier to inspect during development, while the database remains responsible for rules that cannot safely depend on the browser.
+
+\subsection{Application Structure}\label{subsect:ApplicationStructure}
+
+The source code is organized by responsibility and by feature. Shared building blocks remain separate from domain-specific screens, while calls to persistent data are collected in plain asynchronous functions. Table \ref{tab:sourceStructure} shows the main directories.
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabularx}{\textwidth}{@{}p{0.28\textwidth} >{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Directory} & \textbf{Responsibility} \\
+        \midrule
+        \path{src/features} & Screens and feature-specific components for workouts, nutrition, chat, appointments, check-in, progress, and profiles \\
+        \path{src/components} & Reusable interface elements such as page headers, navigation controls, status feedback, and shared cards \\
+        \path{src/data} & Database reads and writes, grouped by application domain and independent from React \\
+        \path{src/lib} & Supabase configuration, query keys, cache persistence, date utilities, identifiers, and other shared services \\
+        \path{src/routes} & Public routes and the protected member and professional route trees \\
+        \path{src/theme} & Material UI theme and the visual tokens exported from the Figma design \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Responsibilities of the main source directories.}
+    \label{tab:sourceStructure}
+\end{table}
+
+This organization avoids placing database details directly inside every screen. A page requests the information it needs through a query, and the corresponding function in \path{src/data} translates that request into a Supabase operation. The same functions can therefore be used from different screens without duplicating filters, date conversions, or error handling. Authentication and Realtime subscriptions are the main exceptions: they are tied to the browser session and component life cycle, so they remain close to the providers and hooks that own them.
+
+\subsubsection{Application Shell and Routing}\label{subsubsect:ApplicationShellRouting}
+
+At start-up, the root component installs the Material UI theme, the persisted query client, the authentication provider, and the router. The authentication provider first restores the Supabase session and then loads the associated profile. The profile identifies the user's role and assigned professional, information that is required by most protected flows.
+
+Member routes use the \path{/m} prefix and professional routes use \path{/p}. A role guard prevents a signed-in user from opening the other area and redirects an incorrect URL to the appropriate home page. Both trees are rendered inside the same application shell, which contains the top bar, bottom navigation, offline feedback, notification status, and the mini-player shown during an open workout. Screen modules are loaded only when their route is visited, reducing the amount of JavaScript required for the first view.
+
+Navigation controls are implemented at route level rather than as isolated visual arrows. Detail pages can return to their parent section consistently, while direct links from a notification still lead to a complete screen with a valid way back. Unexpected route errors are handled by a shared error screen instead of leaving the application blank.
+
+\subsubsection{Remote State and Mutations}\label{subsubsect:RemoteStateMutations}
+
+Information read from Supabase is treated as remote state. Every query uses a shared key that identifies both the domain and the relevant user or record. When an operation changes data, related keys are invalidated together so that all affected views are refreshed. For example, completing a workout updates the current run, the weekly workout summary, the rewards area, and the professional's progress view without requiring those screens to know about each other.
+
+Writes follow the same pattern. Their default behaviour is registered in one place before the persisted cache is restored. This is particularly important for an offline mutation: after the application is closed and opened again, the stored operation must still know which function to execute. Operations that depend on order, such as logging consecutive sets in the same workout, share a mutation scope and are replayed sequentially.
+
+Some immediate actions are deliberately excluded from this queue. A QR token that expires after a short time and the redemption of a gym entry cannot represent a real event if they are replayed much later. When the device is offline, these actions fail immediately and the interface explains that a connection is required.
+
+\subsection{Backend and Data Model}\label{subsect:BackendDataModel}
+
+The backend uses a relational PostgreSQL schema because the principal entities are strongly connected. A member belongs to a professional, a plan contains sessions, a session contains exercises, and every completed set belongs to one specific workout run. Preserving these relations in the database makes it possible to enforce ownership and consistency independently of the interface.
+
+The data model can be divided into the areas shown in Table \ref{tab:dataAreas}.
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabularx}{\textwidth}{@{}p{0.24\textwidth} >{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{Area} & \textbf{Stored information} \\
+        \midrule
+        Accounts & Profiles, roles, professional assignment, specialty, and membership status \\
+        Workouts & Versioned plans, sessions, prescribed exercises, workout runs, individual set logs, and rewards \\
+        Nutrition & Versioned plans, reusable day types assigned to weekdays, meals, items, and macronutrients \\
+        Organization & Professional availability, appointment requests, confirmations, and cancellations \\
+        Communication & One member--professional thread, messages, read receipts, and persistent notifications \\
+        Facility and progress & Short-lived access tokens, check-ins, body measurements, and registered push devices \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Main areas of the TrainHub data model.}
+    \label{tab:dataAreas}
+\end{table}
+
+Workout and nutrition plans are not overwritten when they are edited. The replacement records a link to the preceding version, while workout runs continue to reference the plan and session that were actually used. This prevents a later change to the programme from rewriting the meaning of an older result. The current plan is the most recent version for the member.
+
+A similar distinction is used between a workout session and a workout run. The session describes what should be performed; the run records one attempt, including start time, pauses, logged sets, final percentage, outcome, and notes. Weekly progress is derived from these runs rather than stored as a permanent status on the session. The same session can therefore be trained more than once, and a partial attempt remains different from a completed one.
+
+\subsubsection{Authorization and Consistent Writes}\label{subsubsect:AuthorizationConsistentWrites}
+
+The browser connects to Supabase with the public project key. This key identifies the project but does not grant unrestricted database access. Each request carries the authenticated user identity, and PostgreSQL checks table privileges and Row Level Security policies before returning or changing a row. Members can access their own information, while professionals can access only the clients assigned to them. Configuration values used to deliver notifications are not exposed to either application role.
+
+Simple operations can be protected directly by these policies. More complex changes are executed through database functions. Creating a workout plan, for example, inserts the plan, all drafted sessions, and their exercises as one transaction. Closing a workout calculates the result from the sets that were actually logged and creates the reward in the same operation. If any part fails, the database does not keep a half-created plan or an incomplete summary.
+
+Client-generated identifiers make an exact retry safe after a lost connection. At the same time, the database rejects an identifier reused for different content. Plan creation also includes the identifier of the version being replaced: if another update arrives first, the later request is stopped instead of silently overwriting the newer plan.
+
+Membership rules are enforced at this level as well as in the interface. An inactive member cannot create a plan, request an appointment, enter through the QR badge, or earn a workout reward. A professional may update the status only for an assigned client. Keeping these checks in the backend prevents a modified browser request from bypassing the disabled buttons shown on screen.
+
+\subsection{Progressive Web App and Offline Behaviour}\label{subsect:PWAOffline}
+
+TrainHub includes a web app manifest with its name, icons, colours, portrait orientation, and standalone display mode. The production build injects the generated asset list into a custom service worker. HTML, JavaScript, style sheets, icons, and the required font files are precached, while navigation requests fall back to the stored application shell. This allows an installed copy to start even when the network is unavailable.
+
+Application data is handled separately. Supabase responses are not placed in the service worker cache because they may contain personal information and can become stale after a sign-out. Instead, successful query results are persisted in IndexedDB for a limited period. A previously loaded workout plan or appointment list can therefore remain visible offline, while the interface clearly reports that it may not be current. Signing out removes the local query cache and the registered notification subscription for that device.
+
+Mutations that remain meaningful after reconnection are stored alongside the cache. Each queued operation keeps the client-generated identifier and timestamp from the original action, so replay does not turn an old event into a new one. When connectivity returns, pending operations resume and the affected queries refresh. A cache migration filters out operations created by an incompatible older build, preventing obsolete payloads from being sent to a newer database contract.
+
+Offline support is therefore selective. Browsing recently loaded information and recording recoverable changes can continue; actions that require a current server decision, such as authentication, badge validation, or enabling push notifications, require a connection. This boundary keeps the offline experience useful without pretending that every function can work reliably in isolation.
+
+\subsection{A Workout from Start to Finish}\label{subsect:WorkoutEndToEnd}
+
+The workout flow shows how the layers cooperate during an everyday task:
+
+\begin{enumerate}
+    \item The workout page requests the member's current plan and the runs recorded during the current week. TanStack Query first makes any valid persisted result available, then checks Supabase when the network permits it.
+    \item When the member starts a session, the application generates the run identifier and asks a protected database function to open it. The database verifies the member and prevents a second open run from being created accidentally.
+    \item Every completed set is associated with both the run and the prescribed exercise. The interface updates immediately, while ordered mutations preserve the sequence if the connection is interrupted.
+    \item Elapsed time is derived from stored timestamps and accumulated pause time. It does not depend on a counter that would be lost when the screen closes, so the mini-player can follow the run across the member area.
+    \item At the end, the database compares valid logged sets with the prescribed targets. It records a completed, partial, or abandoned outcome, calculates the percentage, and awards points when the membership permits it.
+    \item The returned result invalidates the relevant queries. The member sees the run summary and updated weekly progress, while the professional can open the same run from the client progress area and read its note.
+\end{enumerate}
+
+The visible percentage consequently represents performed work rather than a visit to the session page. If a session contains four exercises and the member records only one, the weekly summary remains partial. This distinction is essential for both the member's feedback and the professional's interpretation of progress.
+
+\subsection{Realtime, Push, and Device Features}\label{subsect:RealtimePushDevice}
+
+Chat uses Supabase Realtime to receive inserted messages and updated read receipts. The query cache remains the source of truth: Realtime events add or replace matching rows, and duplicate identifiers are ignored. A periodic refresh provides a recovery path when a mobile network silently interrupts the socket. This keeps the conversation usable even if the live connection is temporarily unavailable.
+
+Notifications are stored in the database before they are delivered to a device. As a result, the in-app notification centre retains its history even when Web Push is unsupported or permission is denied. Registered browsers receive the same event through an Edge Function using VAPID keys. The service worker displays it outside the application and, when tapped, reuses an open TrainHub window or opens the linked route. Invalid browser endpoints are removed when a push service reports that they no longer exist.
+
+Facility access uses two native browser capabilities. The member page generates a QR code from a short-lived random token, while the professional scanner requests camera access and decodes the image locally. Redemption is performed by the database, which verifies the token, its expiry, its previous use, the professional's assignment, and the member's subscription before recording the check-in. The member token can also be read aloud or entered manually because it avoids visually ambiguous characters.
+
+These functions enhance the application without becoming dependencies for the remaining flows. A user who refuses notification or camera permission can still use workouts, nutrition, appointments, and chat; only the feature that requires that permission is unavailable.
+
+\subsection{Validation and Verification}\label{subsect:ValidationVerification}
+
+Validation takes place in both the interface and the backend. Forms reject incomplete or inconsistent values before submission, while database constraints and protected functions repeat the checks that concern ownership or stored data. Screens distinguish loading, empty, failed, and offline states; a failed background refresh does not discard a valid cached result already shown to the user.
+
+Verification combined linting and a production build with focused self-checks for dates, workout summaries, timers, QR outcomes, nutrition drafts, subscriptions, and cache migration. Database scripts inspect the schema, privileges, policies, and protected operations, while authenticated probes use the same public API as the application.
+
+Manual testing then followed complete scenarios with both roles, from plan creation and workout progress to appointments, chat, notifications, access badges, and membership status. PWA installation, offline start-up, camera access, and push delivery were checked from a production preview on real devices, where these browser capabilities can be tested properly.

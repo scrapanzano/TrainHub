@@ -1,0 +1,96 @@
+\documentclass[tikz,border=10pt]{standalone}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usetikzlibrary{arrows.meta,positioning}
+
+\definecolor{ink}{HTML}{263548}
+\definecolor{line}{HTML}{65758B}
+\definecolor{muted}{HTML}{667085}
+\definecolor{access}{HTML}{FFE0C2}
+\definecolor{main}{HTML}{DDF3E4}
+\definecolor{secondary}{HTML}{FFF1B8}
+\definecolor{utility}{HTML}{D9F1F0}
+
+\begin{document}
+\begin{tikzpicture}[
+  font=\sffamily,
+  screen/.style={draw=ink, line width=.65pt, rounded corners=2.5pt,
+    minimum height=10mm, text width=28mm, align=center, inner sep=3.5pt,
+    text=ink, fill=secondary},
+  access/.style={screen, fill=access},
+  main/.style={screen, fill=main, font=\sffamily\bfseries},
+  utility/.style={screen, fill=utility},
+  compact/.style={screen, text width=21mm},
+  flow/.style={-{Latex[length=2.25mm,width=1.55mm]}, draw=line,
+    line width=.7pt, rounded corners=2pt},
+  both/.style={{Latex[length=2.25mm,width=1.55mm]}-{Latex[length=2.25mm,width=1.55mm]},
+    draw=line, line width=.7pt},
+  branch/.style={draw=line, line width=.7pt, rounded corners=2pt},
+  label/.style={font=\sffamily\scriptsize, text=muted, fill=white,
+    inner sep=1.5pt, align=center},
+  section/.style={font=\sffamily\bfseries\small, text=muted},
+  title/.style={font=\sffamily\bfseries\Large, text=ink}
+]
+
+\node[title] at (0,9.25) {Member navigation map};
+
+\node[section, anchor=west] at (-14.6,8.15) {ACCESS};
+\node[access] (forgot) at (-12.6,7.15) {Forgot password};
+\node[access] (login) at (-8.7,7.15) {Login};
+\node[access] (reset) at (-4.8,7.15) {Reset password};
+\draw[flow] (login.west) -- node[label, above=2pt] {forgot password} (forgot.east);
+\draw[flow] (forgot.north) to[bend left=18] node[label, above] {email link} (reset.north);
+\draw[flow] (reset.west) -- node[label, below=2pt] {password changed} (login.east);
+
+\node[section, anchor=west] at (-14.6,5.95) {PRIMARY PAGES};
+\node[main] (home) at (-8.7,4.85) {Home};
+\node[main] (workout) at (-3.6,4.85) {Workout};
+\node[main] (nutrition) at (1.5,4.85) {Nutrition};
+\node[main] (trainer) at (6.6,4.85) {My Trainer};
+\draw[flow] (login.south) -- node[label, right] {sign in} (home.north);
+\draw[both] (home.east) -- (workout.west);
+\draw[both] (workout.east) -- (nutrition.west);
+\draw[both] (nutrition.east) -- (trainer.west);
+\node[label] at (-1.05,5.42) {persistent bottom navigation};
+
+\node[section, anchor=west] at (8.85,8.15) {TOP BAR};
+\node[utility] (notifications) at (10.6,7.15) {Notifications};
+\node[utility] (profile) at (14.2,7.15) {Profile};
+\coordinate (topbar) at (-8.7,5.75);
+\draw[branch] (home.north) -- (topbar);
+\draw[flow] (topbar) -| (notifications.south);
+\draw[flow] (topbar) -| (profile.south);
+
+\node[screen] (builder) at (-5.55,2.65) {Plan builder};
+\node[screen] (session) at (-1.65,2.65) {Session detail};
+\draw[flow] (workout.south) to[bend right=12] (builder.north);
+\draw[flow] (workout.south) to[bend left=12] (session.north);
+\node[screen] (exercise) at (-5.55,0.55) {Exercise detail};
+\node[screen] (live) at (-1.65,0.55) {Live workout};
+\node[screen] (summary) at (-1.65,-1.55) {Run summary};
+\draw[flow] (session.south west) -- (exercise.north east);
+\draw[flow] (session.south) -- (live.north);
+\draw[both] (exercise.east) -- (live.west);
+\draw[flow] (live.south) -- (summary.north);
+
+\node[screen] (meal) at (1.5,2.65) {Meal detail};
+\draw[flow] (nutrition.south) -- (meal.north);
+
+\node[screen] (browse) at (5.05,2.65) {Browse trainers};
+\node[screen] (appointments) at (8.65,2.65) {Appointments};
+\node[screen] (chat) at (8.65,0.55) {Chat thread};
+\draw[flow] (trainer.south west) -- node[label, left] {if unassigned} (browse.north);
+\draw[flow] (trainer.south) -- (appointments.north west);
+\draw[flow] (trainer.south east) to[bend left=14] (chat.north);
+
+\node[compact] (badge) at (10.65,3.75) {Access badge};
+\node[compact] (subscription) at (13.65,3.75) {Subscription};
+\node[compact] (rewards) at (16.65,3.75) {Rewards};
+\node[compact] (settings) at (19.65,3.75) {Settings};
+\draw[flow] (profile.south west) -- (badge.north);
+\draw[flow] (profile.south) -- (subscription.north);
+\draw[flow] (profile.south east) -- (rewards.north);
+\draw[flow] (profile.east) to[bend left=16] (settings.north);
+
+\end{tikzpicture}
+\end{document}

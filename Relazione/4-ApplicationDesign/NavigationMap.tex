@@ -2,9 +2,83 @@
 % Intro breve: due alberi di navigazione, /m/ (membro) e /p/ (professionista) --
 % vedi sezione 4 di docs/superpowers/specs/2026-07-27-trainhub-design.md.
 
+The navigation map was organized around two role-specific areas. Authentication pages are common, while the application redirects the user to either the member or professional tree after login. Both areas use four primary destinations in the bottom navigation and place profile-related actions behind the avatar in the top bar. A second shared entry in the header opens the notification centre. This keeps the most frequent tasks reachable with one tap without overcrowding the mobile interface.
+
 \subsubsection{Paper Navigation Map}\label{subsubsect:PaperNavigationMap}
 % Foto della mappa a post-it. doc/trainhub.md è la bozza iniziale (ora
 % superseded) -- può valere come sostituto se le foto cartacee non esistono.
 
+The first map was created by grouping screens with sticky notes. Common authentication pages formed the entry point. The member branch was divided into Home, Workout, Nutrition, Personal Trainer, and Profile, while the professional branch contained Home, Clients, Calendar, Chat, and Profile. Secondary notes represented details and actions, such as a workout session, a meal, an appointment, or a client profile. This version was useful for checking that every scenario could be completed without crossing between unrelated sections.
+
+The two original maps are kept together in Figure \ref{fig:paperNavigationMaps}. They document the first organization of the screens before the navigation was revised against the working prototype.
+
+\clearpage
+\begin{landscape}
+\thispagestyle{plain}
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[c]{0.61\linewidth}
+        \centering
+        \includegraphics[angle=90,origin=c,width=\linewidth,height=0.68\textheight,keepaspectratio]{4-ApplicationDesign/img/NavigationMap/paper-member-navigation-map.jpg}
+        \caption{Member area.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[c]{0.35\linewidth}
+        \centering
+        \includegraphics[width=\linewidth,height=0.68\textheight,keepaspectratio]{4-ApplicationDesign/img/NavigationMap/paper-professional-navigation-map.jpg}
+        \caption{Professional area.}
+    \end{subfigure}
+    \caption{The original paper navigation maps.}
+    \label{fig:paperNavigationMaps}
+\end{figure}
+\end{landscape}
+\clearpage
+
 \subsubsection{Digital Navigation Map}\label{subsubsect:DigitalNavigationMap}
 % Export Figma/diagramma della navigation map digitale.
+
+The digital map refined the first structure and made the navigation rules explicit. Profile was moved from the bottom bar to the top-bar avatar for both roles. Booking became a bottom sheet opened from the trainer and appointment context instead of a separate primary page. A professional-only scanner was also added as the counterpart of the member's access badge. In the final maps, bidirectional arrows connect the destinations available through the persistent bottom navigation, while one-way arrows lead to details and task-specific screens.
+
+The final primary destinations are summarized in Table \ref{tab:roleNavigation}.
+
+\begin{table}[H]
+    \centering
+    \begin{tabularx}{\textwidth}{l >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+        \toprule
+        \textbf{Area} & \textbf{Primary destinations} & \textbf{Secondary access} \\
+        \midrule
+        Member & Home, Workout, Nutrition, My Trainer & Notifications, profile, access badge, subscription, rewards, settings \\
+        Professional & Home, Clients, Calendar, Chat & Notifications, profile, settings, badge scanner \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Primary navigation for the two application roles.}
+    \label{tab:roleNavigation}
+\end{table}
+
+The member workout branch contains the plan builder, plan overview, session detail, exercise detail, live training, and run summary. The trainer branch contains professional selection, appointments, and chat; booking is completed within the appointment context rather than through an additional page. On the professional side, the client detail page acts as the hub for workout planning, nutrition management, membership status, progress monitoring, and direct communication. Calendar details and availability remain grouped under the Calendar destination. Notifications are shared by both roles: each row opens its corresponding chat, appointment, workout, or nutrition destination.
+
+\clearpage
+\begin{landscape}
+\thispagestyle{plain}
+\vspace*{\fill}
+\begin{figure}[H]
+    \centering
+    \makebox[\linewidth][c]{\includegraphics[width=0.92\paperheight,height=0.80\paperwidth,keepaspectratio]{4-ApplicationDesign/img/NavigationMap/member-navigation-map.pdf}}
+    \caption{Final navigation map for the member area.}
+    \label{fig:memberNavigationMap}
+\end{figure}
+\vspace*{\fill}
+\end{landscape}
+
+\clearpage
+\begin{landscape}
+\thispagestyle{plain}
+\vspace*{\fill}
+\begin{figure}[H]
+    \centering
+    \makebox[\linewidth][c]{\includegraphics[width=0.92\paperheight,height=0.80\paperwidth,keepaspectratio]{4-ApplicationDesign/img/NavigationMap/professional-navigation-map.pdf}}
+    \caption{Final navigation map for the professional area.}
+    \label{fig:professionalNavigationMap}
+\end{figure}
+\vspace*{\fill}
+\end{landscape}

@@ -12,6 +12,7 @@
 \usepackage[hyperfootnotes=false]{hyperref} % Riferimenti
 \usepackage{setspace} %interlinea
 \usepackage{pdfpages}
+\usepackage{pdflscape}
 \usepackage{verbatim}
 \usepackage{afterpage}
 \usepackage{booktabs}
@@ -27,7 +28,9 @@
 \begin{document}
 
 % FRONTESPIZIO
+\hypersetup{pageanchor=false}
 \includepdf{docs/frontespizioMAD.pdf}
+\hypersetup{pageanchor=true}
 
 \renewcommand{\contentsname}{Summary}
 \pagenumbering{Roman}
