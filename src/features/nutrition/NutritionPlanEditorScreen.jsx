@@ -9,9 +9,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenSta
 import PageHeader from '../../components/PageHeader.jsx'
 import CreateNutritionPlanFlow from './CreateNutritionPlanFlow.jsx'
 import { isSubscriptionActive } from '../clients/subscription.js'
-import { todayISO } from '../../lib/format.js'
-
-const WEEKDAY_INITIALS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+import { formatTimeOfDay, formatWeekdays, todayISO } from '../../lib/format.js'
 
 export default function NutritionPlanEditorScreen() {
   const { clientId } = useParams()
@@ -136,22 +134,40 @@ export default function NutritionPlanEditorScreen() {
             <CardContent>
               <Typography variant="h3" noWrap>{day.name}</Typography>
               <Typography variant="body2" color="text.secondary">
-                {day.weekdays.length === 0
-                  ? 'No days assigned'
-                  : day.weekdays
-                    .slice()
-                    .sort((a, b) => a - b)
-                    .map((d) => WEEKDAY_INITIALS[d])
-                    .join(', ')}
+                {formatWeekdays(day.weekdays)}
                 {' • '}{day.meals.length} meals
               </Typography>
+
+              {/* Meals were a stack of grey `body2` lines reading
+                  "Porridge — 07:30 • 480 kcal", which rendered the plan's
+                  actual content as if it were metadata about the card. They
+                  are the content: a time column, a name, and the figure that
+                  is compared between them. */}
               {day.meals.length > 0 ? (
-                <Stack spacing={0.5} sx={{ mt: 1 }}>
+                <Stack divider={<Divider />} sx={{ mt: 1.5 }}>
                   {day.meals.map((meal) => (
-                    <Typography key={meal.id} variant="body2" color="text.secondary">
-                      {meal.name} — {String(meal.time_of_day).slice(0, 5)}
-                      {meal.kcal == null ? '' : ` • ${meal.kcal} kcal`}
-                    </Typography>
+                    <Stack
+                      key={meal.id}
+                      direction="row"
+                      spacing={2}
+                      sx={{ alignItems: 'baseline', py: 1 }}
+                    >
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ width: 44, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}
+                      >
+                        {formatTimeOfDay(meal.time_of_day)}
+                      </Typography>
+                      <Typography sx={{ flexGrow: 1, minWidth: 0 }} noWrap>
+                        {meal.name}
+                      </Typography>
+                      {meal.kcal == null ? null : (
+                        <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0 }}>
+                          {meal.kcal} kcal
+                        </Typography>
+                      )}
+                    </Stack>
                   ))}
                 </Stack>
               ) : null}

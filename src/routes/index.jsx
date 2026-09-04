@@ -182,6 +182,12 @@ const router = createBrowserRouter([
         }),
       },
       {
+        path: 'clients/:clientId/appointments',
+        lazy: async () => ({
+          Component: (await import('../features/clients/ClientAppointmentsScreen.jsx')).default,
+        }),
+      },
+      {
         path: 'clients/:clientId/chat',
         lazy: async () => ({
           Component: (await import('../features/chat/ClientChatRedirectScreen.jsx')).default,

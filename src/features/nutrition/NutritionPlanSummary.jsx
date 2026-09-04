@@ -6,8 +6,8 @@ import {
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import { useState } from 'react'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
-
-const WEEKDAY_INITIALS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+import { EmptyState } from '../../components/ScreenState.jsx'
+import { formatWeekdays } from '../../lib/format.js'
 
 /**
  * Review the plan drafted so far, before anything is written.
@@ -53,6 +53,18 @@ export default function NutritionPlanSummary({
         </CardContent>
       </Card>
 
+      {/* With no days there was simply a gap here, and the only hint at why
+          the plan could not be confirmed was the disabled button far below
+          it. */}
+      {days.length === 0 ? (
+        <EmptyState
+          title="No day types yet"
+          description="A plan needs at least one day type before it can be created."
+          minHeight={0}
+          padding={2}
+        />
+      ) : null}
+
       <Stack spacing={2}>
         {days.map((day, index) => (
           <Card key={day.id}>
@@ -61,13 +73,7 @@ export default function NutritionPlanSummary({
                 <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                   <Typography variant="h3" noWrap>{day.name}</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {day.weekdays.length === 0
-                      ? 'No days assigned'
-                      : day.weekdays
-                        .slice()
-                        .sort((a, b) => a - b)
-                        .map((d) => WEEKDAY_INITIALS[d])
-                        .join(', ')}
+                    {formatWeekdays(day.weekdays)}
                     {' • '}{day.meals.length} meals
                   </Typography>
                 </Box>

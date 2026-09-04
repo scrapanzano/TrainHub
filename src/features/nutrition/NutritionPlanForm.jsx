@@ -62,11 +62,15 @@ export default function NutritionPlanForm({ onSubmit, initial = null, submitLabe
         required
         fullWidth
       />
+      {/* Fixed widths, as `DayForm` already does for the same four figures.
+          Left to `flexWrap` with no width they broke into a ragged two-one-one
+          on a phone, and the kcal target -- the one that governs the other
+          three -- ended up sharing a row rather than leading them. */}
       <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
-        <NumberField label="kcal target" value={kcal} onChange={setKcal} />
-        <NumberField label="Protein g" value={protein} onChange={setProtein} />
-        <NumberField label="Carbs g" value={carbs} onChange={setCarbs} />
-        <NumberField label="Fat g" value={fat} onChange={setFat} />
+        <NumberField label="kcal target" value={kcal} onChange={setKcal} width={120} />
+        <NumberField label="Protein g" value={protein} onChange={setProtein} width={100} />
+        <NumberField label="Carbs g" value={carbs} onChange={setCarbs} width={100} />
+        <NumberField label="Fat g" value={fat} onChange={setFat} width={100} />
       </Stack>
       <TextField
         label="Additional notes"

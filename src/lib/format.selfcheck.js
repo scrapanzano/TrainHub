@@ -1,6 +1,6 @@
 // Run with:  node src/lib/format.selfcheck.js
 import assert from 'node:assert/strict'
-import { formatDate, formatTimeRange, localDayISO, slotToISO, todayISO } from './format.js'
+import { formatDate, formatTimeOfDay, formatTimeRange, formatWeekdays, localDayISO, slotToISO, todayISO, WEEKDAY_SHORT } from './format.js'
 
 // Times render in the viewer's local zone, so the fixtures carry an explicit
 // offset and the expectations are computed rather than hard-coded -- otherwise
@@ -82,5 +82,27 @@ assert.equal(slotToISO('2026-01-05', '09:00', 30).startsAt, new Date(2026, 0, 5,
 // 30 minutes is exactly 30 minutes, in milliseconds, not 30 of anything else.
 const half = slotToISO('2026-07-29', '10:00', 30)
 assert.equal(new Date(half.endsAt) - new Date(half.startsAt), 30 * 60_000)
+
+// Weekday names are indexed by `Date#getDay()`, so 0 must be Sunday. Getting
+// this backwards would label every nutrition day type one day out.
+assert.equal(WEEKDAY_SHORT[0], 'Sun')
+assert.equal(WEEKDAY_SHORT[6], 'Sat')
+assert.equal(WEEKDAY_SHORT.length, 7)
+
+// Sorted, so the same set always reads the same way regardless of the order
+// the database happened to return it in.
+assert.equal(formatWeekdays([3, 1]), 'Mon, Wed')
+assert.equal(formatWeekdays([1, 3]), 'Mon, Wed')
+// Sunday is 0, and must sort to the front rather than being treated as absent.
+assert.equal(formatWeekdays([0, 6]), 'Sun, Sat')
+assert.equal(formatWeekdays([]), 'No days assigned')
+assert.equal(formatWeekdays(null), 'No days assigned')
+assert.equal(formatWeekdays([], 'Any day'), 'Any day')
+
+// A Postgres `time` loses its seconds and nothing else -- no date, no zone.
+assert.equal(formatTimeOfDay('07:30:00'), '07:30')
+assert.equal(formatTimeOfDay('07:30'), '07:30')
+assert.equal(formatTimeOfDay(null), '')
+assert.equal(formatTimeOfDay(undefined), '')
 
 console.log('format: OK')

@@ -1,7 +1,6 @@
 import { createPlan, logSet } from './workouts.js'
 import { endRun, pauseRun, resumeRun, saveRunNote, startRun } from './runs.js'
 import { createNutritionPlan } from './nutrition.js'
-import { saveBodyMetric } from './progress.js'
 import { createAppointment, setAppointmentStatus } from './appointments.js'
 import { setSubscriptionStatus } from './clients.js'
 import { addAvailability, deleteAvailability } from './availability.js'
@@ -205,17 +204,6 @@ export function registerMutationDefaults(queryClient) {
     scope: { id: 'nutritionPlanWrite' },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryPrefixes.nutritionPlan })
-    },
-  })
-
-  // Scoped because the write upserts on `(member_id, measured_on)`: two saves
-  // for the same client on the same day target the same row, so replays must
-  // run in order rather than racing.
-  queryClient.setMutationDefaults(mutationKeys.saveBodyMetric, {
-    mutationFn: saveBodyMetric,
-    scope: { id: 'bodyMetric' },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryPrefixes.bodyMetrics })
     },
   })
 

@@ -1,7 +1,5 @@
-import { Box, Fab, Stack, Typography } from '@mui/material'
-import AddIcon from '@mui/icons-material/Add'
+import { Box, Stack, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router'
 import { fetchAgendaOnDay } from '../../data/appointments.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { todayISO } from '../../lib/format.js'
@@ -20,27 +18,18 @@ export default function ProfessionalHomeScreen() {
 
   return (
     <Stack spacing={2} sx={{ p: 2 }}>
-      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline', flexGrow: 1, minWidth: 0 }}>
-          <Typography variant="h1">Today</Typography>
-          {/* No count until there is one: "0 activities" above a spinner states
-              something the screen does not know yet. */}
-          {agenda.data ? (
-            <Typography variant="h3" component="span" color="text.secondary" noWrap>
-              • {agenda.data.length} activities
-            </Typography>
-          ) : null}
-        </Stack>
-
-        <Fab
-          component={Link}
-          to="/p/calendar?new=1"
-          color="primary"
-          size="small"
-          aria-label="New appointment"
-        >
-          <AddIcon />
-        </Fab>
+      {/* No booking control here. Booking belongs to the calendar, which is
+          where the day being booked is chosen; from this screen it jumped
+          there anyway, with today already assumed. */}
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline', minWidth: 0 }}>
+        <Typography variant="h1">Today</Typography>
+        {/* No count until there is one: "0 activities" above a spinner states
+            something the screen does not know yet. */}
+        {agenda.data ? (
+          <Typography variant="h3" component="span" color="text.secondary" noWrap>
+            • {agenda.data.length} activities
+          </Typography>
+        ) : null}
       </Stack>
 
       {agenda.isPending ? <LoadingState /> : null}

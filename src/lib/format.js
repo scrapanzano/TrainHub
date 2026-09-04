@@ -63,3 +63,38 @@ export function slotToISO(dayISO, timeHHMM, minutes) {
   const end = new Date(start.getTime() + minutes * 60_000)
   return { startsAt: start.toISOString(), endsAt: end.toISOString() }
 }
+
+/**
+ * Weekday names indexed the way the database and `Date#getDay()` index them:
+ * 0 is Sunday.
+ *
+ * Not the same list as `WEEKDAY_INITIALS` in `src/features/calendar/month.js`,
+ * which holds single letters ordered by grid column and is looked up by
+ * position rather than by weekday number. Two lists that look alike and answer
+ * different questions.
+ */
+export const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+/**
+ * `[3, 1]` → `'Mon, Wed'`.
+ *
+ * Sorted here rather than at the call site: `nutrition_days.weekdays` is a set
+ * with no meaningful order, and two day types listing the same weekdays in a
+ * different order would otherwise read as different.
+ */
+export function formatWeekdays(weekdays, empty = 'No days assigned') {
+  const days = (weekdays ?? []).slice().sort((a, b) => a - b)
+  if (days.length === 0) return empty
+  return days.map((day) => WEEKDAY_SHORT[day] ?? '?').join(', ')
+}
+
+/**
+ * A Postgres `time` (`'07:30:00'`) as `'07:30'`.
+ *
+ * A string slice, not a Date: the column carries no date and no zone, so
+ * parsing it would invent both.
+ */
+export function formatTimeOfDay(time) {
+  if (!time) return ''
+  return String(time).slice(0, 5)
+}

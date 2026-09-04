@@ -12,7 +12,6 @@ export const mutationKeys = {
   saveRunNote: ['saveRunNote'],
   createPlan: ['createPlan'],
   createNutritionPlan: ['createNutritionPlan'],
-  saveBodyMetric: ['saveBodyMetric'],
   createAppointment: ['createAppointment'],
   setAppointmentStatus: ['setAppointmentStatus'],
   setSubscriptionStatus: ['setSubscriptionStatus'],

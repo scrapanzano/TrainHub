@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Box, Fab, IconButton, Stack, Typography } from '@mui/material'
+import {
+  Box, Card, CardActionArea, CardContent, IconButton, Stack, Typography,
+} from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import ExpandLessIcon from '@mui/icons-material/ExpandLess'
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import ScheduleIcon from '@mui/icons-material/Schedule'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router'
@@ -13,18 +13,16 @@ import { queryKeys } from '../../lib/queryKeys.js'
 import { formatDate, localDayISO, todayISO } from '../../lib/format.js'
 import AppointmentCard from '../../components/AppointmentCard.jsx'
 import MonthGrid from '../../components/MonthGrid.jsx'
-import WeekStrip from '../../components/WeekStrip.jsx'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import NewAppointmentSheet from './NewAppointmentSheet.jsx'
-import { monthGrid, monthLabel, shiftMonth, weekStrip } from './month.js'
+import { monthGrid, monthLabel, shiftMonth } from './month.js'
 
 export default function CalendarScreen() {
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [selected, setSelected] = useState(todayISO())
-  const [expanded, setExpanded] = useState(false)
 
   // The visible month follows the selected day, so tapping a padding cell moves
   // the grid to the month that day belongs to without any extra state.
@@ -76,16 +74,8 @@ export default function CalendarScreen() {
             {monthLabel(year, month)}
           </Typography>
 
-          <IconButton
-            onClick={() => setExpanded((current) => !current)}
-            aria-label={expanded ? 'Show the week' : 'Show the whole month'}
-            aria-expanded={expanded}
-          >
-            {expanded ? <ExpandLessIcon color="primary" /> : <ExpandMoreIcon color="primary" />}
-          </IconButton>
-
-          {/* Grouped with the view controls above rather than the `+` Fab: this
-              opens weekly availability settings, it does not book anything. */}
+          {/* Grouped with the month controls: this opens weekly availability
+              settings, it does not book anything. */}
           <IconButton component={Link} to="/p/calendar/availability" aria-label="Weekly availability">
             <ScheduleIcon color="primary" />
           </IconButton>
@@ -100,28 +90,15 @@ export default function CalendarScreen() {
           <IconButton onClick={() => step(1)} aria-label="Next month">
             <ChevronRightIcon color="primary" />
           </IconButton>
-
-          <Fab
-            color="primary"
-            size="small"
-            aria-label="New appointment"
-            onClick={() => setSearchParams({ new: '1' })}
-          >
-            <AddIcon />
-          </Fab>
         </Stack>
       </Stack>
 
-      {expanded ? (
-        <MonthGrid cells={cells} selected={selected} onSelect={setSelected} markers={markers} />
-      ) : (
-        <WeekStrip
-          days={weekStrip(selected)}
-          selected={selected}
-          onSelect={setSelected}
-          markers={markers}
-        />
-      )}
+      {/* Always the whole month. The wireframes gave the calendar a
+          collapsed/expanded pair of states and it opened collapsed, so the
+          screen whose job is showing a month opened showing a week -- and the
+          choice was component-local, so it reset on every navigation back
+          here. */}
+      <MonthGrid cells={cells} selected={selected} onSelect={setSelected} markers={markers} />
 
       <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline' }}>
         <Typography variant="h2">{selected === todayISO() ? 'Today' : formatDate(selected)}</Typography>
@@ -152,6 +129,28 @@ export default function CalendarScreen() {
           />
         ))}
       </Stack>
+
+      {/* The same affordance the member gets, rather than a small `Fab` tucked
+          between the month arrows. Booking is the one thing this screen exists
+          to start, and it was the least visible control on it -- while the
+          member's side offered a full-width card that says what it books. */}
+      {selected >= todayISO() ? (
+        <Card sx={{ borderColor: 'primary.main' }}>
+          <CardActionArea onClick={() => setSearchParams({ new: '1' })}>
+            <CardContent>
+              <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+                <AddIcon color="primary" />
+                <Stack>
+                  <Typography variant="h3">Book for this day</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Training or consultation
+                  </Typography>
+                </Stack>
+              </Stack>
+            </CardContent>
+          </CardActionArea>
+        </Card>
+      ) : null}
 
       {/* A new form instance takes the current selected day as its initial
           value and cannot retain fields from an earlier booking. */}
