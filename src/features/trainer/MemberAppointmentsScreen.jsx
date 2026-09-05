@@ -72,15 +72,10 @@ export default function MemberAppointmentsScreen() {
 
   return (
     <Stack spacing={2} sx={{ p: 2 }}>
-      <PageHeader
-        title="Appointments"
-        backTo="/m/trainer"
-        backLabel="Back to your trainer"
-        titleVariant="h2"
-      />
+      <PageHeader title="Appointments" backTo="/m/trainer" backLabel="Back to your trainer" />
 
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-        <Typography variant="h1" sx={{ minWidth: 0 }} noWrap>
+        <Typography variant="h2" sx={{ minWidth: 0 }} noWrap>
           {monthLabel(year, month)}
         </Typography>
         <Box sx={{ flexGrow: 1 }} />
