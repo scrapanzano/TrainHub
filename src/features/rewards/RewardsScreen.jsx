@@ -4,6 +4,7 @@ import {
   Stack, Typography,
 } from '@mui/material'
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
+import QrCode2Icon from '@mui/icons-material/QrCode2'
 import { useQuery } from '@tanstack/react-query'
 import { fetchRewards } from '../../data/rewards.js'
 import { queryKeys } from '../../lib/queryKeys.js'
@@ -124,12 +125,18 @@ export default function RewardsScreen() {
           <Typography variant="h3" sx={{ mb: 1 }}>
             Points System
           </Typography>
-          <Stack spacing={0.5}>
+          <Stack spacing={1}>
             <Typography>
               <Box component="span" sx={{ color: 'primary.main', fontWeight: 700 }}>
                 +{POINTS.workout} points
               </Box>{' '}
               maximum for one workout, weighted by the prescribed sets completed
+            </Typography>
+            <Typography>
+              <Box component="span" sx={{ color: 'primary.main', fontWeight: 700 }}>
+                +{POINTS.checkin} points
+              </Box>{' '}
+              for checking in at the gym, once a day
             </Typography>
           </Stack>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
@@ -167,7 +174,13 @@ export default function RewardsScreen() {
                     <Card key={reward.id}>
                       <CardContent>
                         <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-                          <EmojiEventsIcon color="primary" />
+                          {/* Two sources now, so the row says which without
+                              having to parse the title. */}
+                          {reward.code?.startsWith('checkin:') ? (
+                            <QrCode2Icon color="primary" />
+                          ) : (
+                            <EmojiEventsIcon color="primary" />
+                          )}
                           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                             <Typography variant="h3" noWrap>{reward.title}</Typography>
                             {/* The date was already fetched and dropped, which

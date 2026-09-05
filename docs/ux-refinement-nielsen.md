@@ -101,6 +101,7 @@ un redesign, e l'identità visiva del prototipo è parte del lavoro consegnato.
 | Il professionista non ha una vista appuntamenti per cliente, e la rotta non esiste | Nuova schermata, divisa fra futuri e passati; nessuna query nuova | `src/features/clients/ClientAppointmentsScreen.jsx` |
 | Il calendario nasce collassato: la schermata che serve a mostrare un mese mostra una settimana, e la scelta si azzera a ogni ritorno | Sempre espanso; stato e toggle rimossi | `src/features/calendar/CalendarScreen.jsx` |
 | Recupero minimo fissato a 15 s | Portato a 10 s | `src/features/workout/RestTimer.jsx` |
+| I punti hanno una sola sorgente, chiudere un allenamento: chi passa in palestra senza allenarsi non guadagna nulla | Il check-in vale 10 punti, una volta al giorno; il badge lo dichiara sotto il QR, dove i punti si guadagnano davvero | `supabase/patches/024-checkin-points.sql`, `src/features/profile/BadgeScreen.jsx` |
 | La lista dei premi non ha limite: un anno di allenamenti sono centinaia di card impilate | Prime dieci, poi "Show all" | `src/features/rewards/RewardsScreen.jsx` |
 | Il doppio tap fa zoomare per sbaglio mentre si preme un bottone | `touch-action: manipulation` | `src/theme/index.js` |
 
@@ -216,16 +217,35 @@ della prototipazione statica:
   fissato di sessioni. Con sei o più, e senza mandare a capo, esce dallo
   schermo.
 
+## Punti per il check-in
+
+`doc/review.md` osservava che i punti avevano una sola sorgente: chiudere un
+allenamento. Chi passa in palestra e non si allena non guadagnava nulla.
+
+Il check-in vale ora **10 punti, una volta al giorno**. Il rapporto con i 30 di
+un allenamento completo è il messaggio: presentarsi conta, allenarsi conta tre
+volte tanto.
+
+Tre cose che la patch `024` deliberatamente **non** aggiunge, e che vale la
+pena citare perché sono decisioni e non omissioni:
+
+- **Nessun indice nuovo.** `rewards` ha già `unique (member_id, code)`, quindi
+  un codice `checkin:<data>` è una riga per membro per giorno per costruzione.
+  Una seconda scansione lo stesso pomeriggio va in conflitto e non fa nulla.
+- **Nessun controllo sull'abbonamento.** `redeem_checkin_token` rifiuta già i
+  membri sospesi o scaduti e si ferma prima di registrare il check-in, quindi
+  ciò che viene dopo quel punto è già protetto. Ripetere il test implicherebbe
+  che i due possano dissentire.
+- **Nessuna modifica a ciò che vede lo scanner.** Il professionista riceve le
+  stesse cinque informazioni di prima: i punti sono affare del cliente.
+
 ## Rimandato
 
-Due voci di `doc/review.md` non sono state completate e vanno dichiarate.
+Una voce resta aperta e va dichiarata.
 
-- **Punti per il check-in in palestra.** Richiede una nuova RPC lato Supabase.
-  L'interfaccia non è stata agganciata: mostrare punti che il server non
-  assegna sarebbe peggio che non mostrarli affatto.
 - **`save_body_metric_secure`** resta nel database senza chiamanti, dopo la
-  rimozione della sezione check-in. Lo schema non è stato toccato: rimuovere
-  una funzione è una migrazione, e non era in scope.
+  rimozione della sezione di check-in corporeo. Lo schema non è stato toccato:
+  rimuovere una funzione è una migrazione, e non era in scope.
 
 ## Handoff applicato
 

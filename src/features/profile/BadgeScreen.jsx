@@ -5,6 +5,7 @@ import { generateBadgeCode, mintCheckinToken } from '../../data/checkin.js'
 import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import PageHeader from '../../components/PageHeader.jsx'
+import { POINTS } from '../workout/summary.js'
 
 /** mm:ss, from a count of seconds. */
 function clock(seconds) {
@@ -138,6 +139,12 @@ export default function BadgeScreen() {
               {secondsLeft > 0
                 ? `Valid for ${clock(secondsLeft)} — it renews on its own`
                 : 'Renewing…'}
+            </Typography>
+            {/* Said here rather than only inside Rewards: a member who does not
+                already know the points exist has no reason to open that screen,
+                and this is the moment the points are actually earned. */}
+            <Typography variant="body2" color="text.secondary">
+              Worth {POINTS.checkin} points, once a day
             </Typography>
           </Stack>
 

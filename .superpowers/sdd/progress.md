@@ -2686,9 +2686,9 @@ exception; the one screen that genuinely had a single parent and no way back to
 it, `/m/trainer/appointments`, got its arrow.
 
 ### Deferred to a human
-- **Patch 024 (check-in points)**: never written, never applied. The UI is
-  deliberately not wired to it — showing points the server does not award is
-  worse than showing none.
+- **Patch 024 (check-in points)**: written after the merge, on branch
+  `checkin-points`. Davide had believed he forgot to apply it; it had never
+  been written. See the entry below.
 - **`save_body_metric_secure`**: left in the database with no callers after
   batch 4. The schema was not touched.
 - **`supabase/patches/025-avatar-storage.sql`**: applied by Davide, all
@@ -2700,3 +2700,44 @@ every batch; each one device-verified by Davide before its commit.
 `docs/ux-refinement-nielsen.md` carries the heuristic → symptom → change → file
 mapping for the report. It is deliberately written in Italian — it is source
 material for the LaTeX report, and the only Italian file in the repository.
+
+
+---
+
+## Check-in points — branch `checkin-points`
+
+Cut from `main` after the refinement pass merged. `doc/review.md` asked for a
+second source of reward points; batch 3 deferred it and the deferral was
+recorded, but the patch itself was never written, which left the ledger saying
+"deferred" where Davide read "forgot to apply".
+
+**patches/024** re-creates `redeem_checkin_token` verbatim from 015 — including
+011's `search_path` pinning — with one insert added after the check-in row: ten
+points, a third of a full workout, so the ratio says which behaviour the app
+actually rewards.
+
+Three deliberate absences, each of which would otherwise look like an omission:
+
+- **No new unique index.** `rewards` already carries `unique (member_id, code)`
+  from `schema.sql`, so `checkin:<date>` is one row per member per day by
+  construction. A second scan the same afternoon conflicts and does nothing.
+- **No subscription check.** `redeem_checkin_token` already returns 'suspended'
+  or 'expired' and stops before recording the check-in, so anything after that
+  point is gated. A second test would imply the two could disagree.
+- **No change to the scanner.** The function's signature and its five answers
+  are untouched; the points are the member's business, not the professional's.
+
+`current_date` inside the function is the database's day, the same clock that
+stamps the check-in a line above — a front desk an hour off must not be able to
+earn two rewards across midnight.
+
+UI: `POINTS` gains `checkin: 10`, the Rewards "Points System" card lists the
+second source, the earned list distinguishes the two by `code` prefix, and the
+badge screen says what a scan is worth directly under the QR — a member who
+does not know the points exist has no reason to open Rewards. The
+`summary.selfcheck` assertion on `POINTS` is updated and carries a note that it
+is pinned against the patches, so a figure cannot drift here without the server
+drifting with it.
+
+**Deferred, still:** `save_body_metric_secure`, without callers since batch 4.
+

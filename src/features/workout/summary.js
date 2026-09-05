@@ -1,8 +1,16 @@
 // Pure arithmetic for the post-session summary and the rewards screen.
 // No imports, so the self-check runs under bare Node.
 
-/** The points table the Rewards screen also prints for the member. */
-export const POINTS = { workout: 30 }
+/**
+ * The points table the Rewards screen also prints for the member.
+ *
+ * Mirrors the database, which is the only thing that actually awards them:
+ * `close_workout_run_secure` (patches/023) for `workout`, scaled by the share
+ * of prescribed sets logged, and `redeem_checkin_token` (patches/024) for
+ * `checkin`, flat and once a day. Changing a figure here changes what the app
+ * *says*; the matching patch is what changes what it pays.
+ */
+export const POINTS = { workout: 30, checkin: 10 }
 
 /** The headline figure the Rewards screen prints as what a workout is worth. */
 export function pointsForWorkout() {
