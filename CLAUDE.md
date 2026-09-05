@@ -174,9 +174,13 @@ Each of these was a real defect found in review. They are not style.
 `supabase/` is applied by hand in the Supabase SQL editor — no agent has
 credentials, so any schema work ends in a handoff to Davide.
 
+- **`INSTALL.md` is the runbook.** Read it before touching the database: the
+  ordered install, the accounts that must be created by hand, the clean-slate
+  procedure, and a table of what every patch does and which earlier version of a
+  function it supersedes.
 - `schema.sql`, `policies.sql`, `seed.sql` — a fresh install, in that order,
-  after creating the two demo auth users with **Auto Confirm User** ticked.
-- `patches/001`…`023` — applied in order on top. They also carry their own
+  after creating the four demo auth users with **Auto Confirm User** ticked.
+- `patches/001`…`025` — applied in order on top. They also carry their own
   PASS/FAIL blocks. `009` (checkin tokens) and `010` (push notifications) are
   what Phase 4B's badge, scanner and push features depend on; `011` hardens the
   three oldest `security definer` functions against pg_temp shadowing.
@@ -188,23 +192,44 @@ credentials, so any schema work ends in a handoff to Davide.
   professional-only. `023` gives `subscription_status`/`subscription_until`
   real teeth — a `has_active_subscription()` predicate plus a professional-only
   `set_subscription_status_secure` RPC, wired into plan creation, booking and
-  reward points. All must be applied, in order, before the current
-  branch's code will work against the database.
+  reward points; `024` pays ten points for a gym check-in; `025` adds the
+  `avatars` storage bucket and its four policies. All must be applied, in
+  order, before the current branch's code will work against the database.
+  **`002` and `005` are superseded by `seed.sql` and must not be re-run** —
+  each says so at the top of the file. `005` in particular writes workout
+  sessions with no exercises, which the app itself rejects.
 - `probe-rls.mjs` — `node supabase/probe-rls.mjs`. Asks every table what it
   returns to a caller holding nothing but the publishable key, which ships in
   the JS bundle. `verify.sql` structurally cannot answer this: it runs as the
   dashboard's privileged role and bypasses RLS. Needs `.env.local`.
-- `verify.sql` — run last, **after the patches**: its five schema and security
-  counts expect `checkin_tokens` (`009`) and `app_config` (`010`) to exist. The
-  three security rows and the two grant rows must read PASS. Three of them read
-  17 against 18 tables on purpose — `app_config` is policy-less and grant-less
-  by design. **Four seed-count rows read FAIL by design** once
-  `patches/005-demo-clients.sql` has run; the comment in the file explains why
-  the expectations are deliberately not bumped.
+- `verify.sql` — run last, **after the patches and the seed**. **Every row must
+  read PASS; there are no expected failures.** Three sections: schema and
+  security (grants, RLS, the hardened `security definer` operations), integrity
+  (every row counts violations and expects zero — a session with no exercises, a
+  run whose `pct` disagrees with its own set logs, a reward worth other than
+  what `close_workout_run_secure` would have paid, a thread whose member is no
+  longer assigned to its professional), and demo readiness. Several counts read
+  one short of the table total on purpose — `app_config` is policy-less and
+  grant-less by design.
+- `seed.sql` — **destructive, re-runnable, and meant to be re-run before every
+  demo.** Session state is derived from the runs in the current ISO week, so a
+  seed left alone ages into an app where every session reads "To Do". It is one
+  enormous `DO` block on purpose: the Supabase SQL editor gives a multi-statement
+  script no stable session, so temporary tables and `pg_temp` helper functions do
+  not survive it. A single statement cannot be split and is atomic. Do not
+  refactor it back into helper functions — the header explains what that cost.
 
-Demo accounts: `daniel@trainhub.dev` (member), `andrea@trainhub.dev`
-(professional). Four extra demo clients exist as `auth.users` rows with no
-identity — they cannot sign in by design.
+Demo accounts, all on `@trainhub.com`. Four sign in and are created by hand:
+`marco@` and `giulia@` (professionals, both `specialty = 'both'`), `daniel@`
+(the main demo member) and `sofia@` (whose workout plan is self-authored, the
+`patches/017` case). Five more members — `elena@`, `lorenzo@`, `alex@`,
+`pierfelice@`, `chiara@` — exist as `auth.users` rows with no identity and
+cannot sign in by design; `seed.sql` creates them. Their memberships cover the
+whole matrix: active, lapsing within a fortnight, suspended and expired.
+
+**Never test the password-reset flow against these addresses.** `trainhub.com`
+is a real domain nobody here controls; Auto Confirm skips the signup email but
+not a reset. This is why they used to be on `.dev`.
 
 ## Working agreement
 

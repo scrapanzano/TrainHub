@@ -1,3 +1,17 @@
+-- SUPERSEDED by supabase/seed.sql. DO NOT RUN.
+--
+-- Kept because it is part of the applied history of the live database: it was
+-- applied in order, and removing it would make `patches/` stop describing how
+-- that database got to where it is. Nothing below is needed any more.
+--
+-- `seed.sql` now rebuilds the whole agenda from `current_date` on every run, so
+-- re-basing an aged agenda is not a thing that can be needed. Running this file
+-- after `seed.sql` would shift a correct agenda by the gap between its earliest
+-- appointment and today -- which is two weeks, because the seed deliberately
+-- places past appointments.
+--
+-- ---------------------------------------------------------------------------
+
 -- Re-base the demo agenda onto today.
 --
 -- seed.sql builds the appointments as `current_date + time '10:00'`, which is

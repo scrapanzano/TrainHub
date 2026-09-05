@@ -35,13 +35,13 @@ const identities = [
   {
     name: 'member',
     role: 'member',
-    email: env.PROBE_MEMBER_EMAIL ?? 'daniel@trainhub.dev',
+    email: env.PROBE_MEMBER_EMAIL ?? 'daniel@trainhub.com',
     password: env.PROBE_MEMBER_PASSWORD ?? DEMO_PASSWORD,
   },
   {
     name: 'professional',
     role: 'professional',
-    email: env.PROBE_PRO_EMAIL ?? 'andrea@trainhub.dev',
+    email: env.PROBE_PRO_EMAIL ?? 'marco@trainhub.com',
     password: env.PROBE_PRO_PASSWORD ?? DEMO_PASSWORD,
   },
 ]

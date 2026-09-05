@@ -1,4 +1,10 @@
 -- TrainHub schema.  Run once in the Supabase SQL editor, before policies.sql.
+--
+-- THIS FILE ALONE IS NOT A COMPLETE DATABASE. It is the starting point of an
+-- ordered sequence: schema.sql, policies.sql, then patches/001 through 025,
+-- then seed.sql. `patches/020` adds a table this file does not declare
+-- (`notifications`), and `patches/015` moves every sensitive write behind a
+-- checked RPC. See INSTALL.md for the full runbook.
 
 create type user_role       as enum ('member', 'professional');
 create type pro_specialty   as enum ('personal_trainer', 'nutritionist', 'both');

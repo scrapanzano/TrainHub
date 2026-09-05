@@ -1,6 +1,11 @@
 -- TrainHub Row Level Security.  Run after schema.sql.
 -- Rule of thumb: a member reaches only their own rows; a professional reaches
 -- rows belonging to members assigned to them.
+--
+-- Several of the write policies below are REVOKED again by patches/015 and
+-- patches/022, which move those writes behind checked `security definer`
+-- operations. This file is the first step of an ordered sequence, not the final
+-- state -- see INSTALL.md.
 
 alter table profiles           enable row level security;
 alter table exercises          enable row level security;

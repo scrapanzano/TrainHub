@@ -1,3 +1,22 @@
+-- PARTLY SUPERSEDED by supabase/seed.sql. DO NOT RUN after seed.sql.
+--
+-- Kept because it is part of the applied history of the live database, and
+-- because the FIRST half of this file -- the four `auth.users` rows for clients
+-- who never sign in -- is the technique `seed.sql` still uses. It is reproduced
+-- there, on the `@trainhub.com` domain and with a fifth client.
+--
+-- The SECOND half is not merely redundant, it is wrong by today's rules: the
+-- three `workout_sessions` it writes per client carry NO `session_exercises`,
+-- which `_insert_session_bundle` (patches/015) rejects with 22023 and which
+-- makes every run on those sessions score 0% and pay nothing. That defect is
+-- the reason `seed.sql` was rewritten.
+--
+-- Its PASS/FAIL block at the bottom expects five clients and seven appointments
+-- today, which described the database in Phase 3 and does not now. Use
+-- `verify.sql`.
+--
+-- ---------------------------------------------------------------------------
+
 -- Four extra demo clients for Coach Andrea, named after the people the
 -- wireframes draw (pt/04 and pt/05).
 --
