@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
-  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Chip, Divider,
-  Stack, Typography,
+  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Card, CardContent,
+  Chip, Divider, Stack, Typography,
 } from '@mui/material'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import { useQuery } from '@tanstack/react-query'
@@ -13,7 +13,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenSta
 import PageHeader from '../../components/PageHeader.jsx'
 import CreatePlanFlow from '../workout/CreatePlanFlow.jsx'
 import { isSubscriptionActive } from './subscription.js'
-import { todayISO } from '../../lib/format.js'
+import { formatDate, todayISO } from '../../lib/format.js'
 import { runStatusOf } from '../../lib/week.js'
 import { sessionStatusOf } from '../workout/status.js'
 
@@ -169,6 +169,9 @@ export default function ClientWorkoutScreen() {
   }
 
   const sessions = plan.data.sessions
+  // Same line the member's own plan card carries, so one plan reads the same
+  // way to the person following it and the person who wrote it.
+  const focus = [plan.data.plan.goal, plan.data.plan.level].filter(Boolean).join(' - ')
 
   if (replacing) {
     return (
@@ -200,13 +203,47 @@ export default function ClientWorkoutScreen() {
         subtitle={clientName}
         backTo={`/p/clients/${clientId}`}
         backLabel={`Back to ${clientName}`}
-      >
-        <Typography color="text.secondary">
-          {[plan.data.plan.goal, plan.data.plan.level, `${plan.data.plan.weeks} weeks`]
-            .filter(Boolean)
-            .join(' • ')}
-        </Typography>
-      </PageHeader>
+      />
+
+      {/* The plan's own facts, in the card the member's WorkoutPlanScreen
+          already uses for the same information. They were loose text under the
+          title before, which read as part of the header rather than as the
+          subject of the screen -- and made the coach's view of a plan look
+          unlike the member's view of the same plan. */}
+      <Card>
+        <CardContent>
+          {focus ? <Typography color="primary">{focus}</Typography> : null}
+
+          {/* Two columns on any phone wide enough, stacked below that -- the
+              labels are short but "Duration: 6 weeks" still wraps badly at
+              320px. */}
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+              rowGap: 0.5,
+              columnGap: 2,
+              mt: focus ? 2 : 0,
+            }}
+          >
+            <Typography variant="body2">Sessions: {sessions.length}</Typography>
+            <Typography variant="body2">Duration: {plan.data.plan.weeks} weeks</Typography>
+            {/* Worth a line on the coach's side specifically: since
+                patches/017 a member may write their own plan, and this is
+                where that shows. */}
+            {plan.data.plan.author ? (
+              <Typography variant="body2">
+                Created by: {plan.data.plan.author.full_name}
+              </Typography>
+            ) : null}
+            {plan.data.plan.expires_on ? (
+              <Typography variant="body2">
+                Expires: {formatDate(plan.data.plan.expires_on)}
+              </Typography>
+            ) : null}
+          </Box>
+        </CardContent>
+      </Card>
 
       <Stack spacing={2}>
         <Typography variant="h2">Sessions</Typography>
