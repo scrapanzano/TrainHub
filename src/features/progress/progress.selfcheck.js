@@ -1,6 +1,6 @@
 // Run with:  node src/features/progress/progress.selfcheck.js
 import assert from 'node:assert/strict'
-import { runDurationMs, weeklyTraining, weightTrend, workoutWeekSummary } from './progress.js'
+import { runDurationMs, weeklyTraining, workoutWeekSummary } from './progress.js'
 
 // Noon local on purpose: a timestamp near midnight lands on a different
 // calendar day depending on the machine's zone, and these assertions must hold
@@ -77,73 +77,5 @@ assert.equal(runDurationMs({
   paused_total_ms: 600_000,
 }), 3_000_000)
 assert.equal(runDurationMs({ started_at: at(2026, 7, 29), ended_at: null }), null)
-
-// Weight: newest first, as the query returns it.  Losing weight is 'down'.
-const metrics = [
-  { measured_on: '2026-07-29', weight_kg: 78.5 },
-  { measured_on: '2026-07-22', weight_kg: 79 },
-  { measured_on: '2026-07-15', weight_kg: 79.5 },
-]
-assert.deepEqual(weightTrend(metrics), {
-  current: 78.5,
-  deltaKg: -0.5,
-  direction: 'down',
-  measuredOn: '2026-07-29',
-})
-
-// Gaining reads 'up'; the delta keeps its sign either way.
-assert.deepEqual(
-  weightTrend([
-    { measured_on: '2026-07-29', weight_kg: 80 },
-    { measured_on: '2026-07-22', weight_kg: 79 },
-  ]),
-  { current: 80, deltaKg: 1, direction: 'up', measuredOn: '2026-07-29' },
-)
-
-// Float subtraction: 78.5 - 78.4 is 0.09999999999999432 in binary floating
-// point, and a screen must not print that.
-assert.equal(
-  weightTrend([
-    { measured_on: '2026-07-29', weight_kg: 78.5 },
-    { measured_on: '2026-07-22', weight_kg: 78.4 },
-  ]).deltaKg,
-  0.1,
-)
-
-// Identical readings are flat, not a rounding artefact in either direction.
-assert.equal(
-  weightTrend([
-    { measured_on: '2026-07-29', weight_kg: 78.5 },
-    { measured_on: '2026-07-22', weight_kg: 78.5 },
-  ]).direction,
-  'flat',
-)
-
-// A single reading has a current weight but no trend, and must not report 0 --
-// "no change" and "nothing to compare" are different answers.
-assert.deepEqual(weightTrend([{ measured_on: '2026-07-29', weight_kg: 78.5 }]), {
-  current: 78.5,
-  deltaKg: null,
-  direction: null,
-  measuredOn: '2026-07-29',
-})
-
-// A note-only check-in leaves weight_kg null; it must be skipped when looking
-// for something to compare, not treated as zero kilos.
-assert.deepEqual(
-  weightTrend([
-    { measured_on: '2026-07-29', weight_kg: null },
-    { measured_on: '2026-07-22', weight_kg: 79 },
-    { measured_on: '2026-07-15', weight_kg: 79.5 },
-  ]),
-  { current: 79, deltaKg: -0.5, direction: 'down', measuredOn: '2026-07-22' },
-)
-
-assert.deepEqual(weightTrend([]), {
-  current: null,
-  deltaKg: null,
-  direction: null,
-  measuredOn: null,
-})
 
 console.log('progress.selfcheck OK')

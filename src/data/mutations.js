@@ -1,12 +1,11 @@
 import { createPlan, logSet } from './workouts.js'
 import { endRun, pauseRun, resumeRun, saveRunNote, startRun } from './runs.js'
 import { createNutritionPlan } from './nutrition.js'
-import { saveBodyMetric } from './progress.js'
 import { createAppointment, setAppointmentStatus } from './appointments.js'
 import { setSubscriptionStatus } from './clients.js'
 import { addAvailability, deleteAvailability } from './availability.js'
 import { ensureThread, markThreadRead, sendMessage } from './chat.js'
-import { chooseProfessional } from './profile.js'
+import { chooseProfessional, clearAvatar, uploadAvatar } from './profile.js'
 import {
   deleteAllNotifications, deleteNotification, deleteNotificationsByIds, markAllNotificationsRead,
   markNotificationRead, markNotificationsRead, markNotificationsReadByIds,
@@ -208,17 +207,6 @@ export function registerMutationDefaults(queryClient) {
     },
   })
 
-  // Scoped because the write upserts on `(member_id, measured_on)`: two saves
-  // for the same client on the same day target the same row, so replays must
-  // run in order rather than racing.
-  queryClient.setMutationDefaults(mutationKeys.saveBodyMetric, {
-    mutationFn: saveBodyMetric,
-    scope: { id: 'bodyMetric' },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryPrefixes.bodyMetrics })
-    },
-  })
-
   queryClient.setMutationDefaults(mutationKeys.createAppointment, {
     mutationFn: createAppointment,
     onSettled: () => {
@@ -358,6 +346,35 @@ export function registerMutationDefaults(queryClient) {
       // restored offline choice refreshes the shell too.
       queryClient.invalidateQueries({ queryKey: queryPrefixes.chat })
     },
+  })
+
+  // Both publish the returned profile to AuthProvider from inside the mutation
+  // function, the way `chooseProfessional` does, so the shell's header avatar
+  // follows without a reload. Nothing to invalidate: the profile is mirrored
+  // outside TanStack Query.
+  //
+  // `networkMode: 'always'` is what makes these the app's one pair of writes
+  // that do NOT queue offline, and it is load-bearing rather than a preference.
+  // `uploadAvatar` carries a `Blob`, `App.jsx` dehydrates every pending
+  // mutation, and the persister serializes with `JSON.stringify` -- a Blob
+  // survives that as `{}`. A connection dropping mid-upload would park the
+  // write, and the next reload would replay it with an empty body, overwriting
+  // the stored object with nothing and then pointing `avatar_url` at it.
+  // 'always' makes them fail outright instead, which the picker reports.
+  //
+  // Scoped together because they write the same row and the same storage
+  // object: replayed in parallel, a remove could land after an upload and
+  // leave `avatar_url` aimed at a deleted file.
+  const avatarScope = { id: 'avatar' }
+  queryClient.setMutationDefaults(mutationKeys.uploadAvatar, {
+    mutationFn: uploadAvatar,
+    networkMode: 'always',
+    scope: avatarScope,
+  })
+  queryClient.setMutationDefaults(mutationKeys.clearAvatar, {
+    mutationFn: clearAvatar,
+    networkMode: 'always',
+    scope: avatarScope,
   })
 
   queryClient.setMutationDefaults(mutationKeys.markNotificationRead, {

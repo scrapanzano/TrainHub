@@ -7,15 +7,17 @@ import AddIcon from '@mui/icons-material/Add'
 // only the styled variants exist.
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import { EmptyState } from '../../components/ScreenState.jsx'
+import { WEEKDAY_SHORT } from '../../lib/format.js'
 
 // 0 = Sunday .. 6 = Saturday, matching `nutrition_days.weekdays` and
-// `Date#getDay()`. Displayed Monday-first for readability; the stored value
-// is unaffected by display order.
-const WEEKDAYS = [
-  { value: 1, label: 'Mon' }, { value: 2, label: 'Tue' }, { value: 3, label: 'Wed' },
-  { value: 4, label: 'Thu' }, { value: 5, label: 'Fri' }, { value: 6, label: 'Sat' },
-  { value: 0, label: 'Sun' },
-]
+// `Date#getDay()`. Displayed Monday-first for readability; the stored value is
+// unaffected by display order. Derived from the shared table rather than
+// spelled out again, so the picker and everything that reads a saved day back
+// can never disagree about which number is which day.
+const WEEKDAYS = [1, 2, 3, 4, 5, 6, 0].map((value) => ({
+  value,
+  label: WEEKDAY_SHORT[value],
+}))
 
 /** A number field that keeps '' distinct from 0 while editing. */
 function NumberField({ label, value, onChange, width }) {

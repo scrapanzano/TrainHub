@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import {
-  Alert, Avatar, Box, Button, Card, CardActionArea, CardContent, Chip,
-  LinearProgress, Snackbar, Stack, Typography,
+  Alert, Avatar, Box, Button, Card, CardActionArea, CardContent, Chip, Divider,
+  LinearProgress, Skeleton, Snackbar, Stack, Typography,
 } from '@mui/material'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
+import EventNoteIcon from '@mui/icons-material/EventNote'
 // The bare `ChatBubbleOutline` glyph is not shipped by the installed
 // @mui/icons-material@9.2.0 -- only the styled variants are, the same trap
 // `DeleteOutline` set in Phase 2. Vite resolves it at build time, not lint time.
@@ -26,23 +27,47 @@ import { daysBetween, membershipAction, subscriptionStateOf } from './subscripti
 import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import PageHeader from '../../components/PageHeader.jsx'
 
-/** One overview card: an icon, a title, a chevron, and whatever the caller shows. */
-function OverviewCard({ icon, title, to, children }) {
+/**
+ * One overview card: an icon, a title, a chevron, and whatever the caller shows.
+ *
+ * `to` is optional. Without it the card is inert -- which is what the empty
+ * states need, because they carry a real `Button` and a button nested inside a
+ * `CardActionArea` is a button inside a button.
+ */
+function OverviewCard({ icon, title, to = null, children }) {
+  const inner = (
+    <CardContent>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+        <Box sx={{ color: 'primary.main', display: 'flex' }}>{icon}</Box>
+        <Typography variant="h3" sx={{ flexGrow: 1, minWidth: 0 }} noWrap>
+          {title}
+        </Typography>
+        {to ? <ChevronRightIcon color="primary" /> : null}
+      </Stack>
+      {children ? <Box sx={{ mt: 1.5 }}>{children}</Box> : null}
+    </CardContent>
+  )
+
   return (
     <Card>
-      <CardActionArea component={Link} to={to}>
-        <CardContent>
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-            <Box sx={{ color: 'primary.main', display: 'flex' }}>{icon}</Box>
-            <Typography variant="h3" sx={{ flexGrow: 1, minWidth: 0 }} noWrap>
-              {title}
-            </Typography>
-            <ChevronRightIcon color="primary" />
-          </Stack>
-          {children ? <Box sx={{ mt: 1.5 }}>{children}</Box> : null}
-        </CardContent>
-      </CardActionArea>
+      {to ? <CardActionArea component={Link} to={to}>{inner}</CardActionArea> : inner}
     </Card>
+  )
+}
+
+/**
+ * What a card shows while its query is in flight.
+ *
+ * Three cards used to render the literal string "Loading…" in the same grey
+ * `body2` as "No plan assigned yet", so for the length of the first fetch the
+ * coach read an answer that was not an answer.
+ */
+function CardLoading() {
+  return (
+    <>
+      <Skeleton variant="text" width="60%" />
+      <Skeleton variant="text" width="35%" />
+    </>
   )
 }
 
@@ -141,60 +166,28 @@ export default function ClientDetailScreen() {
           />
         </Stack>
 
-        {action ? (
-          <Button
-            size="small"
-            variant="outlined"
-            disabled={membership.isPending}
-            onClick={() =>
-              membership.mutate(
-                { memberId: clientId, status: action.nextStatus },
-                {
-                  onSuccess: () =>
-                    setFeedback(
-                      action.nextStatus === 'active'
-                        ? 'Membership reactivated.'
-                        : 'Membership suspended.',
-                    ),
-                },
-              )
-            }
-          >
-            {savedOffline ? 'Saved offline' : membership.isPending ? 'Saving…' : action.label}
-          </Button>
-        ) : null}
-        {savedOffline ? (
-          <Alert severity="info" sx={{ width: '100%' }}>
-            You are offline. This change is saved on your device and will be sent when you reconnect.
-          </Alert>
-        ) : null}
-        {membership.isError ? (
-          <Alert severity="error" sx={{ width: '100%' }}>
-            {membership.error?.message ?? 'The membership could not be updated.'}
-          </Alert>
-        ) : null}
-        <Snackbar
-          open={Boolean(feedback)}
-          autoHideDuration={4000}
-          onClose={() => setFeedback(null)}
-          message={feedback ?? ''}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        />
+      </Stack>
 
-        {/* No "Call": there is no phone number in the schema.  Chat lands on the
-            thread list, which Phase 4 fills in. */}
-        <Card sx={{ border: 'none', bgcolor: 'transparent' }}>
-          <CardActionArea
-            component={Link}
-            to={`/p/clients/${clientId}/chat`}
-            sx={{ borderRadius: 999, px: 3, py: 1 }}
-          >
-            <Stack spacing={0.5} sx={{ alignItems: 'center' }}>
-              <ChatBubbleOutlineIcon color="primary" />
-              <Typography variant="body2">Chat</Typography>
-            </Stack>
-          </CardActionArea>
-        </Card>
+      {/* Chat and appointments were the two ways to reach this client that the
+          screen did not offer as cards. Chat was a transparent, borderless
+          `Card` floating between the membership button and the "Overview"
+          heading -- an icon with a word under it, reading as a stray glyph
+          rather than the only door to a whole feature. Appointments had no
+          screen at all on this side, while the member has had the mirror of it
+          since Phase 4A.
+
+          No "Call": there is no phone number in the schema. */}
+      <Stack spacing={2}>
+        <OverviewCard
+          icon={<ChatBubbleOutlineIcon />}
+          title="Chat"
+          to={`/p/clients/${clientId}/chat`}
+        />
+        <OverviewCard
+          icon={<EventNoteIcon />}
+          title="Appointments"
+          to={`/p/clients/${clientId}/appointments`}
+        />
       </Stack>
 
       <Box>
@@ -222,9 +215,7 @@ export default function ClientDetailScreen() {
                   : 'You are offline. This will load once you reconnect.'}
               </Typography>
             ) : plan.data === undefined ? (
-              <Typography variant="body2" color="text.secondary">
-                Loading…
-              </Typography>
+              <CardLoading />
             ) : plan.data === null ? (
               <Typography variant="body2" color="text.secondary">
                 No plan assigned yet. Tap to build one.
@@ -258,9 +249,7 @@ export default function ClientDetailScreen() {
                   : 'You are offline. This will load once you reconnect.'}
               </Typography>
             ) : nutrition.data === undefined ? (
-              <Typography variant="body2" color="text.secondary">
-                Loading…
-              </Typography>
+              <CardLoading />
             ) : nutrition.data === null ? (
               <Typography variant="body2" color="text.secondary">
                 No nutrition plan yet. Tap to write one.
@@ -289,7 +278,7 @@ export default function ClientDetailScreen() {
                 Progress is temporarily unavailable.
               </Typography>
             ) : plan.data === undefined ? (
-              <Typography variant="body2" color="text.secondary">Loading…</Typography>
+              <CardLoading />
             ) : plan.data === null ? (
               <Typography variant="body2" color="text.secondary">
                 Assign a workout plan to start tracking progress.
@@ -315,6 +304,64 @@ export default function ClientDetailScreen() {
           </OverviewCard>
         </Stack>
       </Box>
+
+      {/* Last on the screen, not third. Suspending a membership is rare and
+          heavy, and it used to sit above everything the coach actually came
+          here to read, right where a thumb lands while scrolling.
+
+          The colour follows the operation rather than the app's accent:
+          suspending is destructive, reactivating is its opposite, and between
+          them the state is legible before the chip at the top is reached. */}
+      {action ? (
+        <Stack spacing={1.5}>
+          <Divider />
+          <Button
+            variant={action.nextStatus === 'active' ? 'contained' : 'outlined'}
+            color={action.nextStatus === 'active' ? 'success' : 'error'}
+            size="large"
+            fullWidth
+            disabled={membership.isPending}
+            onClick={() =>
+              membership.mutate(
+                { memberId: clientId, status: action.nextStatus },
+                {
+                  onSuccess: () =>
+                    setFeedback(
+                      action.nextStatus === 'active'
+                        ? 'Membership reactivated.'
+                        : 'Membership suspended.',
+                    ),
+                },
+              )
+            }
+          >
+            {savedOffline ? 'Saved offline' : membership.isPending ? 'Saving…' : action.label}
+          </Button>
+          <Typography variant="body2" color="text.secondary" align="center">
+            {action.nextStatus === 'active'
+              ? 'Booking, plan changes and points start again straight away.'
+              : `${client.data.full_name} keeps their plans but stops booking and earning points.`}
+          </Typography>
+        </Stack>
+      ) : null}
+
+      {savedOffline ? (
+        <Alert severity="info">
+          You are offline. This change is saved on your device and will be sent when you reconnect.
+        </Alert>
+      ) : null}
+      {membership.isError ? (
+        <Alert severity="error">
+          {membership.error?.message ?? 'The membership could not be updated.'}
+        </Alert>
+      ) : null}
+      <Snackbar
+        open={Boolean(feedback)}
+        autoHideDuration={4000}
+        onClose={() => setFeedback(null)}
+        message={feedback ?? ''}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
     </Stack>
   )
 }

@@ -22,12 +22,39 @@ const minutesOf = (hhmm) => {
   return hours * 60 + minutes
 }
 
+/**
+ * A first offer the member does not have to correct.
+ *
+ * The sheet used to open on a hard-coded 09:00, so booking anything later the
+ * same day showed "choose a future time" before the member had touched
+ * anything -- the form accused them of a mistake they had not made yet.  On
+ * today, start from the next half hour with a few minutes of slack for filling
+ * the form in; on any other day 09:00 is as good a guess as exists before the
+ * professional's availability has loaded.
+ */
+function defaultTimeFor(dayISO) {
+  if (dayISO !== todayISO()) return '09:00'
+
+  const soon = new Date(Date.now() + 10 * 60 * 1000)
+  const half = soon.getMinutes() <= 30 ? 30 : 60
+  soon.setMinutes(half, 0, 0)
+  // Rolled past midnight. There is genuinely no bookable slot left today, so
+  // offer the last one and let the sheet's own "choose a future time" warning
+  // say so -- '09:00' would be a time fifteen hours gone, which is the very
+  // thing this function exists to stop showing.
+  if (soon.getDate() !== new Date().getDate()) return '23:30'
+  return `${String(soon.getHours()).padStart(2, '0')}:${String(soon.getMinutes()).padStart(2, '0')}`
+}
+
 export default function BookingSheet({ open, onClose, defaultDayISO }) {
   const { user, profile } = useAuth()
 
   const [kind, setKind] = useState('training')
   const [day, setDay] = useState(defaultDayISO)
-  const [time, setTime] = useState('09:00')
+  // A lazy initialiser, because `react-hooks/purity` forbids reading the clock
+  // in a render body.  The sheet is remounted on every opening, so this runs
+  // afresh each time rather than going stale.
+  const [time, setTime] = useState(() => defaultTimeFor(defaultDayISO))
   const [minutes, setMinutes] = useState(60)
   const [notes, setNotes] = useState('')
   const [now, setNow] = useState(() => Date.now())

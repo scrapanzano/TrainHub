@@ -11,6 +11,7 @@ import { mutationKeys } from '../../lib/mutationKeys.js'
 import { createUuid } from '../../lib/uuid.js'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import { useAuth } from '../auth/useAuth.js'
+import PageHeader from '../../components/PageHeader.jsx'
 
 // Index is the stored `weekday`; Postgres puts Sunday at 0, and the column's
 // own `between 0 and 6` check follows that.  Displayed Monday-first below, so
@@ -58,7 +59,7 @@ export default function AvailabilityScreen() {
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
       <Stack spacing={0.5}>
-        <Typography variant="h1">Availability</Typography>
+        <PageHeader title="Availability" backTo="/p/calendar" backLabel="Back to the calendar" />
         <Typography color="text.secondary">
           The hours you are bookable each week. Members see these when they request a session.
         </Typography>

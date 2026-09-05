@@ -7,7 +7,7 @@ import VolumeOffIcon from '@mui/icons-material/VolumeOff'
 import { BEEP_DATA_URI } from './beep.js'
 
 const MUTE_KEY = 'trainhub-rest-muted'
-const MIN_SECONDS = 15
+const MIN_SECONDS = 10
 const MAX_SECONDS = 600
 
 function readMuted() {

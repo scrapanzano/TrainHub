@@ -93,39 +93,3 @@ export function weeklyTraining(runs, totalSessions, todayISO) {
     days: summary.completedSessionIds.slice(0, summary.total),
   }
 }
-
-/**
- * The client's latest weight and how it moved since the reading before it.
- *
- * @param {Array<{measured_on: string, weight_kg: ?number}>} metrics Newest first.
- */
-export function weightTrend(metrics) {
-  // A check-in can be a note with no measurement, so skip the rows that carry
-  // no weight rather than reading a null as zero kilos.
-  const weighed = (metrics ?? []).filter((metric) => metric.weight_kg !== null && metric.weight_kg !== undefined)
-
-  if (weighed.length === 0) {
-    return { current: null, deltaKg: null, direction: null, measuredOn: null }
-  }
-
-  const current = Number(weighed[0].weight_kg)
-  const measuredOn = weighed[0].measured_on
-
-  // One reading is a weight, not a trend.  Reporting 0 would claim the client
-  // held steady when nobody has measured them twice.
-  if (weighed.length === 1) {
-    return { current, deltaKg: null, direction: null, measuredOn }
-  }
-
-  const previous = Number(weighed[1].weight_kg)
-  // One decimal: scales read to 100 g, and binary floating point otherwise
-  // turns 78.5 - 78.4 into 0.09999999999999432 on the screen.
-  const deltaKg = Math.round((current - previous) * 10) / 10
-
-  return {
-    current,
-    deltaKg,
-    direction: deltaKg === 0 ? 'flat' : deltaKg < 0 ? 'down' : 'up',
-    measuredOn,
-  }
-}

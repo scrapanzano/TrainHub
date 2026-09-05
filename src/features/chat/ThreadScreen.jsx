@@ -1,12 +1,15 @@
 import { useEffect, useRef } from 'react'
-import { Avatar, Box, Stack, Typography } from '@mui/material'
+import { Avatar, Box, Chip, Divider, Stack } from '@mui/material'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router'
 import { fetchMemberThread, fetchThread } from '../../data/chat.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
 import { createUuid } from '../../lib/uuid.js'
+import { groupByDay } from '../../lib/dayGroups.js'
+import { todayISO } from '../../lib/format.js'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
+import PageHeader from '../../components/PageHeader.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import MessageBubble from './MessageBubble.jsx'
 import MessageComposer from './MessageComposer.jsx'
@@ -170,18 +173,59 @@ export default function ThreadScreen() {
 
   const other = isMember ? memberThread.data?.pro : professionalThread.data?.member
 
+  // Ordered oldest first by the query; `groupByDay` keeps that order.
+  const days = groupByDay(messages.data ?? [], (message) => message.created_at, todayISO())
+
+  // `pb` clears the fixed composer only: `main` already reserves the bottom
+  // shell below it, so the old `pb: 12` now double-counted that height.
   return (
-    <Stack sx={{ minHeight: '100%', p: 2, pb: 12 }} spacing={2}>
-      {other ? (
-        <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-          <Avatar src={other.avatar_url ?? undefined}>{other.full_name?.[0] ?? '?'}</Avatar>
-          <Typography variant="h1" sx={{ fontSize: '1.5rem' }}>
-            {other.full_name}
-          </Typography>
-        </Stack>
-      ) : (
-        <Typography variant="h1">Chat</Typography>
-      )}
+    <>
+      {/* An avatar and a name in the body of the page, with no way back: the
+          only exit was the system gesture. `PageHeader` is the app's rule for
+          any screen that is not a bottom-nav root, and the professional's
+          inbox is a real parent to return to.
+
+          Outside the padded stack below rather than bled out of it with
+          negative margins, so it is the width of the frame by construction --
+          the same width as the app bar it pins under. That bar is `fixed` and
+          publishes its own height, which is what `top` reads, so this stays
+          put while a long conversation scrolls past and follows the bar down
+          when the offline or membership banner appears underneath it. */}
+      <Box
+        sx={{
+          position: 'sticky',
+          top: 'var(--trainhub-header-height, 56px)',
+          zIndex: 2,
+          // Less on the left than the message column's own inset: the back
+          // button carries `edge="start"`, so this lands the arrow on the same
+          // rail a bubble starts on instead of a step inside it. Nothing on the
+          // right needs the same compensation.
+          pl: 1,
+          pr: 2,
+          py: 1.25,
+          // Paper, not the page ground: the app bar directly above is also on
+          // the ground colour, so a matching band read as one tall header of
+          // indeterminate height rather than two.
+          bgcolor: 'background.paper',
+          borderBottom: 1,
+          borderColor: 'divider',
+        }}
+      >
+        <PageHeader
+          title={other?.full_name ?? 'Chat'}
+          subtitle={isMember ? 'Your personal trainer' : 'Client'}
+          backTo={isMember ? '/m/trainer' : '/p/chat'}
+          backLabel={isMember ? 'Back to your trainer' : 'Back to conversations'}
+          titleVariant="h2"
+          leading={
+            <Avatar src={other?.avatar_url ?? undefined} sx={{ width: 40, height: 40 }}>
+              {other?.full_name?.[0] ?? '?'}
+            </Avatar>
+          }
+        />
+      </Box>
+
+    <Stack sx={{ minHeight: '100%', p: 2, pb: 9 }} spacing={2}>
 
       {/* The thread row does not exist yet and `ensureThread` is creating it.
           Offline that write pauses indefinitely, so this is a lasting state and
@@ -200,13 +244,37 @@ export default function ThreadScreen() {
         <EmptyState title="No messages yet" description="Say hello." />
       ) : null}
 
-      <Stack spacing={1.5} sx={{ flexGrow: 1 }}>
-        {(messages.data ?? []).map((message) => (
-          <MessageBubble
-            key={message.id}
-            message={message}
-            mine={message.sender_id === user.id}
-          />
+      {/* A long conversation used to be one unbroken column: nothing said
+          where yesterday ended, and every bubble repeated its own clock. Days
+          are separated, and a run of messages from one sender is drawn as a
+          run -- tight spacing, one timestamp, one tail. */}
+      <Stack spacing={4} sx={{ flexGrow: 1, pt: 1 }}>
+        {days.map((day) => (
+          <Stack key={day.key}>
+            <Divider sx={{ mb: 2.5 }}>
+              <Chip label={day.label} size="small" />
+            </Divider>
+
+            {day.items.map((message, index) => {
+              const next = day.items[index + 1]
+              const previous = day.items[index - 1]
+              // The tail closes a run: the last message of the day, or the one
+              // before the other party speaks.
+              const tail = !next || next.sender_id !== message.sender_id
+              // Tight inside a run, open between them. One spacing for both
+              // made a rapid exchange look like one long monologue.
+              const opensRun = !previous || previous.sender_id !== message.sender_id
+              return (
+                <Box key={message.id} sx={{ mt: index === 0 ? 0 : opensRun ? 2 : 0.5 }}>
+                  <MessageBubble
+                    message={message}
+                    mine={message.sender_id === user.id}
+                    tail={tail}
+                  />
+                </Box>
+              )
+            })}
+          </Stack>
         ))}
         <Box ref={messagesEnd} aria-hidden />
       </Stack>
@@ -250,5 +318,6 @@ export default function ThreadScreen() {
         </Box>
       ) : null}
     </Stack>
+    </>
   )
 }

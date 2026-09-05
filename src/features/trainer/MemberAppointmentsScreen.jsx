@@ -11,6 +11,7 @@ import { formatDate, localDayISO, todayISO } from '../../lib/format.js'
 import AppointmentCard from '../../components/AppointmentCard.jsx'
 import MonthGrid from '../../components/MonthGrid.jsx'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
+import PageHeader from '../../components/PageHeader.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { monthGrid, monthLabel, shiftMonth } from '../calendar/month.js'
 import { isSubscriptionActive } from '../clients/subscription.js'
@@ -71,8 +72,10 @@ export default function MemberAppointmentsScreen() {
 
   return (
     <Stack spacing={2} sx={{ p: 2 }}>
+      <PageHeader title="Appointments" backTo="/m/trainer" backLabel="Back to your trainer" />
+
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-        <Typography variant="h1" sx={{ minWidth: 0 }} noWrap>
+        <Typography variant="h2" sx={{ minWidth: 0 }} noWrap>
           {monthLabel(year, month)}
         </Typography>
         <Box sx={{ flexGrow: 1 }} />
@@ -119,7 +122,11 @@ export default function MemberAppointmentsScreen() {
       {/* Booking is only offered when it could actually succeed: an inactive
           membership or no assigned professional each get an explanation instead
           of a form whose write the database would reject. Otherwise, the card. */}
-      {!isSubscriptionActive(profile, todayISO()) ? (
+      {/* Nothing at all on a past day. The card used to be offered and then
+          refused inside the sheet, which made the member fill in a form to be
+          told no; an explanation in its place would only be telling them
+          something the calendar above already makes obvious. */}
+      {selected < todayISO() ? null : !isSubscriptionActive(profile, todayISO()) ? (
         <EmptyState
           title="Membership not active"
           description="Ask your trainer to reactivate it before booking."

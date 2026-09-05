@@ -1,4 +1,4 @@
-import { Avatar, Card, CardActionArea, CardContent, Stack, Typography } from '@mui/material'
+import { Card, CardActionArea, CardContent, Stack, Typography } from '@mui/material'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import QrCode2Icon from '@mui/icons-material/QrCode2'
 import InfoOutlineIcon from '@mui/icons-material/InfoOutlined'
@@ -6,6 +6,7 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import SettingsIcon from '@mui/icons-material/Settings'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.js'
+import AvatarPicker from './AvatarPicker.jsx'
 
 function Row({ icon, label, to }) {
   return (
@@ -34,9 +35,11 @@ export default function ProfileScreen() {
       <Typography variant="h1">Profile</Typography>
 
       <Stack spacing={1} sx={{ alignItems: 'center', textAlign: 'center' }}>
-        <Avatar src={profile?.avatar_url ?? undefined} sx={{ width: 112, height: 112 }}>
-          {profile?.full_name?.[0] ?? '?'}
-        </Avatar>
+        <AvatarPicker
+          userId={user.id}
+          avatarUrl={profile?.avatar_url ?? null}
+          fullName={profile?.full_name}
+        />
         <Typography variant="h2" component="p">
           {profile?.full_name ?? ''}
         </Typography>

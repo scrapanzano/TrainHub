@@ -2561,3 +2561,142 @@ no audit/history table for suspend/reactivate events.
 
 ### Device-verified 2026-09-03
 Davide applied patch 023 (PASS/FAIL all PASS) and ran the full manual pass on both demo accounts + the I1 regression check. All flows pass. Branch subscription-enforcement (HEAD ff5cfef) ready to integrate.
+
+---
+
+## UX/UI refinement pass — branch `ux-refinement`
+
+No spec. The branch starts from `doc/review.md` (Davide's manual inspection on
+both demo accounts) crossed with a systematic read of the source. Five batches,
+ordered by decreasing leverage, each device-verified by Davide before its
+commit.
+
+Constraints fixed up front: brand colour, top bar and bottom nav structure
+unchanged; every user-visible string stays in English; commits are Davide's,
+one per batch.
+
+### bb7368e — Batch 1: theme + shell
+Required-field asterisk turned red from the theme (23 fields across 12 files,
+none of them touched). `touch-action: manipulation`. Focus ring on
+`MuiButtonBase`. Dialog/Drawer aligned to the cards' radius. An `overline`
+variant.
+
+Both bars moved from `sticky` to `fixed`, with `--trainhub-header-height`
+measured by a `ResizeObserver` because the two banners change the header's
+height. **Verified before touching anything that no ancestor was breaking
+sticky**: the change is justified by the requirement (content scrolling
+*behind* the bars, which sticky cannot do), not by a positioning bug.
+
+One rule for the back arrow. Three hand-rolled headers converted; added to
+`AvailabilityScreen` and `ScannerScreen`, which had no way out at all.
+`ForgotPasswordScreen` left alone: it already uses the same glyph, and
+`PageHeader` would break the centred auth layout.
+
+### 0bdfbbe — Batch 2: forms and dialogs
+`PasswordField` (5 call sites) and `ConfirmDialog` (8). No `window.confirm`
+left anywhere.
+
+Two details: the draft summaries hold the pending removal as an object rather
+than a bare index — index 0 is falsy, so a bare index would never have opened
+the dialog for the first item in the list. The live session's abandon
+confirmation stays conditional: with nothing logged there is nothing to lose.
+
+### 69d8022 — Batch 3: member side
+Exercise detail (matching chips, an info button for the instructions, required
+weight, logging blocked while paused), rest timer floor to 10s, the empty
+circle off the appointment cards, "Resume" split in two, booking gated on past
+days with a sensible default time, rewards grouped and dated, avatar upload.
+
+**Departure from the plan:** the completion dialog was not duplicated onto the
+exercise screen. It lives on the live screen because that screen knows about
+points, membership and how to close the run; reproducing it would have meant a
+second copy of the prior-runs query, the `alreadyPaid` check and the `endRun`
+mutation. The screen navigates there instead, and the dialog is raised on
+arrival.
+
+**`image_url` deliberately left unrendered**, against what the plan said:
+`ExerciseDetailScreen.jsx:44-52` records the placeholder as a decision
+(licensing, hosting, an offline precache) and the Figma brief repeats it.
+
+Self-check 12 (`rewards/grouping`). It earned its place while being written:
+`new Date(null)` is the epoch rather than an invalid date, so an undated reward
+would have been filed under January 1970.
+
+### 3073caa — Batch 4: professional side
+The first batch to remove more than it adds (−592/+622 across 19 files).
+
+Client profile: chat as a card, a new Appointments card and screen (no new
+query — `fetchMemberAppointmentsInRange` already existed), `Skeleton` in place
+of the literal `"Loading…"`, membership control moved to the foot of the screen
+with the colour of the operation. The client's plan in accordions with lazy
+loading. Calendar always expanded. Nutrition editor with meals as structured
+rows.
+
+**Progress from 431 lines to 253.** The check-in sections are gone, and with
+them the code that only served them: `src/data/progress.js` deleted outright,
+along with `weightTrend`, `queryKeys.bodyMetrics`, `mutationKeys.saveBodyMetric`
+and its registration, plus 70 lines of self-check. Verified first that nothing
+else consumed them.
+
+**Correction to the plan:** `WEEKDAY_INITIALS` had two genuine duplicates, not
+four. The copy in `features/calendar/month.js` is single letters indexed by
+grid column — a different table answering a different question — and stayed
+where it was.
+
+### 2657238 — Batch 5: chat and notifications
+`src/lib/dayGroups.js` shared between them (self-check 13), grouping into
+contiguous runs so it never reorders what the query already ordered. `dayLabel`
+builds its comparison dates from local parts: `new Date('2026-03-01')` is UTC
+midnight, and stepping back a day by subtracting 24 hours lands at 23:00 of the
+same day across a DST boundary.
+
+Chat: date separators, runs drawn as runs with the tail and timestamp only on
+the last message, spacing tight within a run and open between them, a
+`PageHeader` pinned under the app bar. `PageHeader` grows a `leading` slot for
+the avatar.
+
+Notifications: a glyph and tint per kind, grouping by day, unread as a 7% brand
+tint (not a `task.*` token — those are the saturated appointment-kind fills),
+"Delete all" moved into an overflow menu.
+
+### 966dbf2, 5503f02, 0719c36 — whole-branch review and its follow-up
+The review returned **seven findings, all seven confirmed** against the code;
+no false positives. Two were serious, and both were invisible to the manual
+device pass that had signed off every batch:
+
+- **A required weight field locked out four exercises.** `seed.sql` and patch
+  019 seed Pull-up, Plank, Hanging Leg Raise and Russian Twist as
+  `equipment = 'Bodyweight'`, and the logging panel is a real `<form>`, so
+  native validation refused the submit: those exercises could not be logged at
+  all, and the run could never complete. The justifying comment asserted the
+  catalogue had no bodyweight exercises — an assumption written down as a fact
+  and never checked against `seed.sql`.
+- **The avatar upload could overwrite the photo with an empty object.**
+  Registering a durable default makes a mutation replayable; `App.jsx`
+  dehydrates every pending mutation and the persister serializes with
+  `JSON.stringify`, under which a `Blob` becomes `{}`. Both avatar writes are
+  now `networkMode: 'always'`, the app's only writes that refuse to queue, and
+  share a `scope`.
+
+A follow-up sweep for unverified assertions in the branch's own comments found
+one more: `PageHeader`'s docstring declared an invariant — every non-root
+screen carries a back arrow — that the app does not hold. Four categories are
+legitimately exempt. The docstring now describes the real rule and names each
+exception; the one screen that genuinely had a single parent and no way back to
+it, `/m/trainer/appointments`, got its arrow.
+
+### Deferred to a human
+- **Patch 024 (check-in points)**: never written, never applied. The UI is
+  deliberately not wired to it — showing points the server does not award is
+  worse than showing none.
+- **`save_body_metric_secure`**: left in the database with no callers after
+  batch 4. The schema was not touched.
+- **`supabase/patches/025-avatar-storage.sql`**: applied by Davide, all
+  PASS/FAIL checks PASS, avatar upload and removal device-verified.
+
+### State
+Ten commits, 56 files, +2763/−973. Lint, build and 13/13 self-checks green at
+every batch; each one device-verified by Davide before its commit.
+`docs/ux-refinement-nielsen.md` carries the heuristic → symptom → change → file
+mapping for the report. It is deliberately written in Italian — it is source
+material for the LaTeX report, and the only Italian file in the repository.

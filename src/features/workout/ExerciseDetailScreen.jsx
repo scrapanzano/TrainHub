@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  Alert, Box, Button, Card, CardContent, Chip, Stack, TextField, Typography,
+  Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogContent, DialogTitle,
+  IconButton, Stack, TextField, Typography,
 } from '@mui/material'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useParams } from 'react-router'
-import { fetchSessionExercise } from '../../data/workouts.js'
+import { Link, useNavigate, useParams } from 'react-router'
+import { fetchSession, fetchSessionExercise } from '../../data/workouts.js'
 import { fetchOpenRun, fetchRunLogs } from '../../data/runs.js'
 import { queryKeys } from '../../lib/queryKeys.js'
 import { mutationKeys } from '../../lib/mutationKeys.js'
 import { createUuid } from '../../lib/uuid.js'
 import { setProgress } from './status.js'
+import { countsByExercise, runComplete } from './summary.js'
 import RestTimer from './RestTimer.jsx'
 import { ErrorState, LoadingState } from '../../components/ScreenState.jsx'
 import PageHeader from '../../components/PageHeader.jsx'
@@ -66,7 +69,12 @@ function ExerciseArt({ muscleGroup }) {
 }
 
 /** The form for the next set, and the sets already behind it. */
-function LogPanel({ item, runId, sessionId, logs, memberId }) {
+function LogPanel({ item, runId, sessionId, logs, memberId, paused }) {
+  // Four exercises in the catalogue are prescribed without a load -- Pull-up,
+  // Plank, Hanging Leg Raise, Russian Twist -- and `null` is how the database
+  // has always recorded that. Asking for a weight anyway would make them
+  // impossible to log, which would also mean the run could never complete.
+  const bodyweight = item.exercise?.equipment === 'Bodyweight'
   const queryClient = useQueryClient()
   const [reps, setReps] = useState('')
   const [weight, setWeight] = useState('')
@@ -140,7 +148,7 @@ function LogPanel({ item, runId, sessionId, logs, memberId }) {
 
   const onSubmit = (event) => {
     event.preventDefault()
-    if (submitted.current) return
+    if (paused || submitted.current) return
     submitted.current = true
 
     // Both generated in the handler: `react-hooks/purity` forbids
@@ -150,7 +158,7 @@ function LogPanel({ item, runId, sessionId, logs, memberId }) {
     // `now()` would record an 18:00 set as happening at 23:00.
     const id = createUuid()
     const performedAt = new Date().toISOString()
-    const parsedWeight = weight === '' ? null : Number(weight)
+    const parsedWeight = bodyweight ? null : Number(weight)
 
     logSet.mutate({
       id,
@@ -184,6 +192,14 @@ function LogPanel({ item, runId, sessionId, logs, memberId }) {
         Set {mine.length + 1} of {item.target_sets}
       </Typography>
 
+      {/* A disabled form with no reason given is worse than the bug it fixes:
+          say why, and say what to do about it. */}
+      {paused ? (
+        <Alert severity="warning">
+          The workout is paused. Resume it to log this set.
+        </Alert>
+      ) : null}
+
       <Stack direction="row" spacing={2}>
         <TextField
           label="Reps"
@@ -194,21 +210,30 @@ function LogPanel({ item, runId, sessionId, logs, memberId }) {
           // type="number" alone gives a full keyboard on some Androids.
           slotProps={{ htmlInput: { inputMode: 'numeric', min: 1, max: 999 } }}
           placeholder={String(item.target_reps)}
+          disabled={paused}
           required
           fullWidth
         />
-        <TextField
-          label="Weight (kg)"
-          type="number"
-          value={weight}
-          onChange={(event) => setWeight(event.target.value)}
-          slotProps={{ htmlInput: { inputMode: 'decimal', step: 0.5, min: 0, max: 999 } }}
-          placeholder={item.target_weight ? String(item.target_weight) : 'Bodyweight'}
-          fullWidth
-        />
+        {/* Required, and above zero, wherever a weight is a real quantity: a
+            set logged without its load is half a record, and the coach cannot
+            tell a forgotten field from a deliberate omission. On a bodyweight
+            exercise there is no field to forget. */}
+        {bodyweight ? null : (
+          <TextField
+            label="Weight (kg)"
+            type="number"
+            value={weight}
+            onChange={(event) => setWeight(event.target.value)}
+            slotProps={{ htmlInput: { inputMode: 'decimal', step: 0.5, min: 0.5, max: 999 } }}
+            placeholder={item.target_weight ? String(item.target_weight) : undefined}
+            disabled={paused}
+            required
+            fullWidth
+          />
+        )}
       </Stack>
 
-      <Button type="submit" variant="contained" size="large" fullWidth>
+      <Button type="submit" variant="contained" size="large" fullWidth disabled={paused}>
         Log set
       </Button>
     </Stack>
@@ -218,6 +243,8 @@ function LogPanel({ item, runId, sessionId, logs, memberId }) {
 export default function ExerciseDetailScreen() {
   const { sessionExerciseId } = useParams()
   const { user } = useAuth()
+  const navigate = useNavigate()
+  const [howToOpen, setHowToOpen] = useState(false)
 
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: queryKeys.sessionExercise(sessionExerciseId),
@@ -241,6 +268,30 @@ export default function ExerciseDetailScreen() {
     queryFn: () => fetchRunLogs(run.id),
     enabled: Boolean(run?.id),
   })
+
+  // Only to answer "is the WHOLE workout finished" -- this screen knows about
+  // one exercise.  Normally already in cache, because the member reached here
+  // from the live list.
+  const sessionExercises = useQuery({
+    queryKey: queryKeys.session(sessionId),
+    queryFn: () => fetchSession(sessionId),
+    enabled: Boolean(run && sessionId),
+  })
+
+  const wholeRunDone = Boolean(run) && sessionExercises.data
+    ? runComplete(sessionExercises.data.exercises, countsByExercise(logs.data))
+    : false
+
+  // Logging the last set of the last exercise used to leave the member here,
+  // reading a success alert, with no sign the workout was over -- the
+  // congratulations dialog lives on the live screen, which knows about points
+  // and can close the run.  Go there instead of rebuilding that here.
+  // `replace`, so Back does not land on a finished exercise.
+  useEffect(() => {
+    if (wholeRunDone) {
+      navigate(`/m/workout/session/${sessionId}/live`, { replace: true })
+    }
+  }, [wholeRunDone, navigate, sessionId])
 
   if (isPending || openRun.isPending || (run && logs.isPending)) return <LoadingState />
   // `data === undefined` means it never loaded.  With `offlineFirst` a refetch
@@ -272,19 +323,34 @@ export default function ExerciseDetailScreen() {
         subtitle={session.name}
         backTo={run ? `/m/workout/session/${session.id}/live` : `/m/workout/session/${session.id}`}
         backLabel={run ? 'Back to live session' : `Back to ${session.name}`}
+        action={
+          // Was a section at the bottom of the screen that vanished entirely
+          // when `instructions` was null, so the member could not tell an
+          // exercise with no guidance from one whose guidance they had scrolled
+          // past.  Always offered, and it answers either way.
+          <IconButton onClick={() => setHowToOpen(true)} aria-label="How to perform this exercise">
+            <InfoOutlinedIcon />
+          </IconButton>
+        }
       />
 
       <Box>
         <ExerciseArt muscleGroup={exercise.muscle_group} />
       </Box>
 
-      <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
-        <Chip label={exercise.muscle_group} />
+      {/* Muscle group and equipment are both categories, so they get the same
+          treatment; the filled-vs-outlined pair read as if one were selected.
+          The progress chip stays coloured and sits apart, because it is the one
+          thing here that is a state rather than a label. */}
+      <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
+        <Chip label={exercise.muscle_group} variant="outlined" />
         {exercise.equipment ? <Chip label={exercise.equipment} variant="outlined" /> : null}
         {run ? (
           <Chip
-            label={`${progress.label} sets logged`}
-            color={progress.complete ? 'success' : 'primary'}
+            label={`${progress.label} sets`}
+            color={progress.complete ? 'success' : 'warning'}
+            variant="outlined"
+            sx={{ ml: 'auto' }}
           />
         ) : null}
       </Stack>
@@ -311,6 +377,7 @@ export default function ExerciseDetailScreen() {
                 sessionId={session.id}
                 logs={logs.data ?? []}
                 memberId={user.id}
+                paused={Boolean(run.paused_at)}
               />
             </CardContent>
           </Card>
@@ -345,12 +412,15 @@ export default function ExerciseDetailScreen() {
         </>
       ) : null}
 
-      {exercise.instructions ? (
-        <Box>
-          <Typography variant="h2" sx={{ mb: 1 }}>How to perform</Typography>
-          <Typography color="text.secondary">{exercise.instructions}</Typography>
-        </Box>
-      ) : null}
+      <Dialog open={howToOpen} onClose={() => setHowToOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>How to perform</DialogTitle>
+        <DialogContent>
+          <Typography color={exercise.instructions ? 'text.primary' : 'text.secondary'}>
+            {exercise.instructions
+              ?? 'No guidance has been written for this exercise yet. Ask your trainer if you are unsure.'}
+          </Typography>
+        </DialogContent>
+      </Dialog>
 
       {data.notes ? (
         <Box>

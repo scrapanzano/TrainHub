@@ -1,24 +1,18 @@
 import { useState } from 'react'
 import {
-  Alert, Box, Button, Card, CardActionArea, CardContent, Chip, IconButton,
-  LinearProgress, Stack, TextField, Typography,
+  Box, Card, CardActionArea, CardContent, Chip, LinearProgress, Stack, Typography,
 } from '@mui/material'
-import ArrowBackIcon from '@mui/icons-material/ArrowBack'
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
-import RefreshIcon from '@mui/icons-material/Refresh'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import { fetchClient } from '../../data/clients.js'
 import { fetchActivePlan } from '../../data/workouts.js'
-import { fetchBodyMetrics } from '../../data/progress.js'
 import { fetchOpenRun, fetchRunsSince } from '../../data/runs.js'
 import { queryKeys } from '../../lib/queryKeys.js'
-import { mutationKeys } from '../../lib/mutationKeys.js'
 import { formatDate, localDayISO, todayISO } from '../../lib/format.js'
 import { EmptyState, ErrorState, LoadingState } from '../../components/ScreenState.jsx'
+import PageHeader from '../../components/PageHeader.jsx'
 import { formatElapsed } from '../workout/timer.js'
-import { runDurationMs, weightTrend, workoutWeekSummary } from './progress.js'
+import { runDurationMs, workoutWeekSummary } from './progress.js'
 
 /** Thirty days back, as `'YYYY-MM-DD'`. Wide enough for the week plus context. */
 function thirtyDaysAgoISO() {
@@ -27,24 +21,22 @@ function thirtyDaysAgoISO() {
   return then.toISOString()
 }
 
-/** One small labelled figure, as the Stats Row wireframe draws it. */
-function Stat({ label, children }) {
-  return (
-    <Card sx={{ flexGrow: 1, minWidth: 0 }}>
-      <CardContent>
-        <Typography variant="body2" color="text.secondary">
-          {label}
-        </Typography>
-        {children}
-      </CardContent>
-    </Card>
-  )
-}
-
 const outcomeLabels = {
   completed: 'Completed',
   partial: 'Partial',
   abandoned: 'Abandoned',
+}
+
+/** One dot and its count, so the bar above can be read without a legend key. */
+function WeekTally({ colour, count, label }) {
+  return (
+    <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: colour, flexShrink: 0 }} />
+      <Typography variant="body2" color="text.secondary">
+        {count} {label}
+      </Typography>
+    </Stack>
+  )
 }
 
 function WorkoutRunCard({ clientId, run }) {
@@ -91,13 +83,20 @@ function WorkoutRunCard({ clientId, run }) {
   )
 }
 
+/**
+ * What the coach needs to know about one client's training.
+ *
+ * Body and nutrition check-in used to live here too: two stat tiles, a note
+ * card, and a form for the coach to type in the client's weight. All of it is
+ * gone. It asked the professional to record a measurement the app has no other
+ * use for, on the screen meant for reading what the client has been doing, and
+ * it was the longest thing here. `save_body_metric_secure` stays in the
+ * database, now with nothing calling it.
+ */
 export default function ClientProgressScreen() {
   const { clientId } = useParams()
   const today = todayISO()
   const [sinceISO] = useState(thirtyDaysAgoISO)
-
-  const [weight, setWeight] = useState('')
-  const [note, setNote] = useState('')
 
   const client = useQuery({
     queryKey: queryKeys.client(clientId),
@@ -122,17 +121,10 @@ export default function ClientProgressScreen() {
     refetchInterval: 60_000,
   })
 
-  const metrics = useQuery({
-    queryKey: queryKeys.bodyMetrics(clientId),
-    queryFn: () => fetchBodyMetrics(clientId),
-  })
-
-  const saveMetric = useMutation({ mutationKey: mutationKeys.saveBodyMetric })
-
   // `plan` must gate the loading state too: while it is still in flight,
-  // `weeklyTraining` gets `0` for the target, which prints "No plan assigned"
-  // -- indistinguishable from a client who genuinely has none.
-  if (client.isPending || training.isPending || openRun.isPending || metrics.isPending || plan.isPending) {
+  // `workoutWeekSummary` gets `0` for the target, which prints "No plan
+  // assigned" -- indistinguishable from a client who genuinely has none.
+  if (client.isPending || training.isPending || openRun.isPending || plan.isPending) {
     return <LoadingState />
   }
   if (client.isError && client.data === undefined) {
@@ -140,9 +132,6 @@ export default function ClientProgressScreen() {
   }
   if (training.isError && training.data === undefined) {
     return <ErrorState error={training.error} onRetry={training.refetch} />
-  }
-  if (metrics.isError && metrics.data === undefined) {
-    return <ErrorState error={metrics.error} onRetry={metrics.refetch} />
   }
   if (openRun.isError && openRun.data === undefined) {
     return <ErrorState error={openRun.error} onRetry={openRun.refetch} />
@@ -155,120 +144,80 @@ export default function ClientProgressScreen() {
     ? [openRun.data, ...training.data]
     : training.data
   const week = workoutWeekSummary(allRuns, plan.data?.sessions.length ?? 0, today)
-  const trend = weightTrend(metrics.data)
-  const latestNote = metrics.data.find((metric) => metric.note)
   const recentRuns = allRuns.slice(0, 5)
-
-  const savedOffline = saveMetric.isPending && saveMetric.isPaused
 
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
-      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-        <IconButton
-          component={Link}
-          to={`/p/clients/${clientId}`}
-          aria-label={`Back to ${client.data.full_name}`}
-          edge="start"
-        >
-          <ArrowBackIcon />
-        </IconButton>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography variant="h1">Progress</Typography>
-          <Typography color="text.secondary" noWrap>{client.data.full_name}</Typography>
-        </Box>
-        <IconButton
-          aria-label="Refresh client progress"
-          onClick={() => Promise.all([
-            plan.refetch(), training.refetch(), openRun.refetch(), metrics.refetch(),
-          ])}
-          sx={{ ml: 'auto' }}
-        >
-          <RefreshIcon />
-        </IconButton>
-      </Stack>
+      {/* No manual refresh control: `plan`, `training` and `openRun` already
+          poll every 60s, so the button asked the user to do what the screen
+          does on its own -- and it had no pending state, so pressing it looked
+          like nothing happened. */}
+      <PageHeader
+        title="Progress"
+        subtitle={client.data.full_name}
+        backTo={`/p/clients/${clientId}`}
+        backLabel={`Back to ${client.data.full_name}`}
+      />
 
-      <Box>
-        <Typography variant="h2" sx={{ mb: 2 }}>
-          Workout Tracking
-        </Typography>
+      {/* One number, said once. This card used to state the same count three
+          ways -- a counter, a row of dots and a bar -- and the dots were fixed
+          at 28px inside a Stack that does not wrap, so a plan of six or more
+          sessions pushed them off a narrow screen. The tally under the bar is
+          the only part saying something the bar cannot: how the remainder
+          splits between started and untouched.
 
-        <Card>
-          <CardContent>
-            <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-              <Typography variant="h3" sx={{ flexGrow: 1 }}>
-                This Week&rsquo;s Goal
-              </Typography>
-              <Typography variant="body2" color="primary">
-                {week.done}/{week.total} completed
-              </Typography>
-            </Stack>
-
-            {week.total === 0 ? (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                No plan assigned, so there is no weekly target yet.
-              </Typography>
-            ) : (
-              // The dots repeat what the count above already says, so they are
-              // decoration: hidden from readers rather than announced as a row
-              // of unlabelled shapes.
-              <Stack direction="row" spacing={1.5} sx={{ mt: 2 }} aria-hidden>
-                {Array.from({ length: week.total }, (_unused, index) => (
-                  <Box
-                    key={index}
-                    sx={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: '50%',
-                      bgcolor: index < week.done ? 'primary.main' : 'action.disabledBackground',
-                    }}
-                  />
-                ))}
-              </Stack>
-            )}
+          "This week", not "This Week's Goal": it is the plan's own session
+          count, not a target the coach set here. */}
+      <Card>
+        <CardContent>
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'baseline' }}>
+            <Typography variant="h3" sx={{ flexGrow: 1 }}>
+              This week
+            </Typography>
             {week.total > 0 ? (
-              <Stack spacing={1} sx={{ mt: 2 }}>
-                <LinearProgress
-                  variant="determinate"
-                  value={week.percent}
-                  aria-label={`${week.done} of ${week.total} weekly sessions completed`}
-                />
-                <Typography variant="body2" color="text.secondary">
-                  {week.completed} completed · {week.partial} partial · {week.todo} to do
+              <Typography sx={{ fontWeight: 700 }}>
+                {week.done}
+                <Typography component="span" color="text.secondary" sx={{ fontWeight: 400 }}>
+                  {' / '}
+                  {week.total}
                 </Typography>
-              </Stack>
+              </Typography>
             ) : null}
-          </CardContent>
-        </Card>
+          </Stack>
 
-        {week.lastRun?.note ? (
-          <Card sx={{ mt: 2, borderColor: 'primary.main' }}>
-            <CardContent>
+          {week.total === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+              No plan assigned, so there is no weekly target yet.
+            </Typography>
+          ) : (
+            <>
+              <LinearProgress
+                variant="determinate"
+                value={week.percent}
+                aria-label={`${week.done} of ${week.total} weekly sessions completed`}
+                sx={{ height: 9, borderRadius: 999, mt: 2 }}
+              />
+              {/* aria-hidden: the bar above announces the same split, and a
+                  reader would otherwise hear it twice. */}
               <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                spacing={1}
-                sx={{ alignItems: { xs: 'flex-start', sm: 'baseline' } }}
+                direction="row"
+                spacing={2}
+                useFlexGap
+                sx={{ flexWrap: 'wrap', mt: 1.5 }}
+                aria-hidden
               >
-                <Typography variant="h3" sx={{ flexGrow: 1 }}>
-                  Latest Session Note
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {formatDate(localDayISO(week.lastRun.started_at))}
-                </Typography>
+                <WeekTally colour="primary.main" count={week.completed} label="done" />
+                <WeekTally colour="warning.main" count={week.partial} label="partial" />
+                <WeekTally colour="action.disabledBackground" count={week.todo} label="to do" />
               </Stack>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                {week.lastRun.session?.name ?? 'Workout session'}
-              </Typography>
-              <Typography sx={{ mt: 1, fontStyle: 'italic' }}>
-                &ldquo;{week.lastRun.note}&rdquo;
-              </Typography>
-            </CardContent>
-          </Card>
-        ) : null}
-      </Box>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <Box>
         <Typography variant="h2" sx={{ mb: 2 }}>
-          Recent Workouts
+          Recent workouts
         </Typography>
         {recentRuns.length === 0 ? (
           <EmptyState
@@ -284,148 +233,33 @@ export default function ClientProgressScreen() {
         )}
       </Box>
 
-      <Box>
-        <Typography variant="h2" sx={{ mb: 2 }}>
-          Body &amp; Nutrition Check-in
-        </Typography>
-
-        <Stack spacing={2}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: 'stretch' }}>
-            <Stat label="Current Weight">
-              <Typography variant="h2" component="p">
-                {trend.current === null ? '—' : `${trend.current} kg`}
-              </Typography>
-            </Stat>
-
-            <Stat label="Weekly Trend">
-              {trend.deltaKg === null ? (
-                <Typography variant="h2" component="p" color="text.secondary">
-                  —
-                </Typography>
-              ) : (
-                <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
-                  {trend.direction === 'down' ? (
-                    <ArrowDownwardIcon color="primary" titleAccess="Down" />
-                  ) : trend.direction === 'up' ? (
-                    <ArrowUpwardIcon color="primary" titleAccess="Up" />
-                  ) : null}
-                  <Typography
-                    variant="h2"
-                    component="p"
-                    color="text.primary"
-                  >
-                    {trend.deltaKg > 0 ? '+' : ''}
-                    {trend.deltaKg} kg
-                  </Typography>
-                </Stack>
-              )}
-            </Stat>
-          </Stack>
-
-          {latestNote ? (
-            <Card sx={{ borderColor: 'success.main' }}>
-              <CardContent>
-                <Stack
-                  direction={{ xs: 'column', sm: 'row' }}
-                  spacing={1}
-                  sx={{ alignItems: { xs: 'flex-start', sm: 'baseline' } }}
-                >
-                  <Typography variant="h3" sx={{ flexGrow: 1 }}>
-                    Weekly Check-In Note
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {formatDate(latestNote.measured_on)}
-                  </Typography>
-                </Stack>
-                <Typography sx={{ mt: 1, fontStyle: 'italic' }}>
-                  &ldquo;{latestNote.note}&rdquo;
-                </Typography>
-              </CardContent>
-            </Card>
-          ) : (
-            <EmptyState
-              title="No check-in notes yet"
-              description="Record a measurement below to start the history."
-            />
-          )}
-        </Stack>
-      </Box>
-
-      <Box>
-        <Typography variant="h2" sx={{ mb: 2 }}>
-          Record today&rsquo;s check-in
-        </Typography>
-
-        <Card>
+      {/* Last, because it is the one thing on this screen the coach cannot work
+          out from the numbers above -- and the only thing the client wrote
+          themselves. */}
+      {week.lastRun?.note ? (
+        <Card sx={{ borderColor: 'primary.main' }}>
           <CardContent>
             <Stack
-              component="form"
-              spacing={2}
-              onSubmit={(event) => {
-                event.preventDefault()
-                saveMetric.mutate(
-                  {
-                    memberId: clientId,
-                    measuredOn: today,
-                    weightKg: weight === '' ? null : Number(weight),
-                    note,
-                  },
-                  {
-                    onSuccess: () => {
-                      setWeight('')
-                      setNote('')
-                    },
-                  },
-                )
-              }}
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={1}
+              sx={{ alignItems: { xs: 'flex-start', sm: 'baseline' } }}
             >
-              <TextField
-                label="Weight (kg)"
-                type="number"
-                value={weight}
-                onChange={(event) => setWeight(event.target.value)}
-                slotProps={{ htmlInput: { inputMode: 'decimal', step: 0.1, min: 20, max: 400 } }}
-                fullWidth
-              />
-              <TextField
-                label="Note"
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-                placeholder="Diet adherence, energy, sleep…"
-                multiline
-                minRows={2}
-                fullWidth
-              />
-
-              {savedOffline ? (
-                <Alert severity="info">
-                  You are offline. This check-in is saved on your device and will sync when you
-                  reconnect.
-                </Alert>
-              ) : null}
-              {saveMetric.isError ? (
-                <Alert severity="error">
-                  {saveMetric.error?.message ?? 'The check-in could not be saved.'}
-                </Alert>
-              ) : null}
-              {saveMetric.isSuccess ? (
-                <Alert severity="success">
-                  Today&rsquo;s check-in is saved. Empty fields kept their existing values.
-                </Alert>
-              ) : null}
-
-              <Button
-                type="submit"
-                variant="contained"
-                fullWidth
-                disabled={saveMetric.isPending || (weight === '' && note.trim() === '')}
-              >
-                {savedOffline ? 'Saved offline' : saveMetric.isPending ? 'Saving…' : 'Save check-in'}
-              </Button>
+              <Typography variant="h3" sx={{ flexGrow: 1 }}>
+                Client&rsquo;s note
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {formatDate(localDayISO(week.lastRun.started_at))}
+              </Typography>
             </Stack>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              {week.lastRun.session?.name ?? 'Workout session'}
+            </Typography>
+            <Typography sx={{ mt: 1, fontStyle: 'italic' }}>
+              &ldquo;{week.lastRun.note}&rdquo;
+            </Typography>
           </CardContent>
         </Card>
-      </Box>
+      ) : null}
     </Stack>
   )
 }

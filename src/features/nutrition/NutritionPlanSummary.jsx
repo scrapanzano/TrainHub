@@ -4,8 +4,10 @@ import {
 // `DeleteOutline` (the base glyph) is not shipped by @mui/icons-material@9.2.0;
 // only the styled variants exist.
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
-
-const WEEKDAY_INITIALS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+import { useState } from 'react'
+import ConfirmDialog from '../../components/ConfirmDialog.jsx'
+import { EmptyState } from '../../components/ScreenState.jsx'
+import { formatWeekdays } from '../../lib/format.js'
 
 /**
  * Review the plan drafted so far, before anything is written.
@@ -29,6 +31,8 @@ const WEEKDAY_INITIALS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 export default function NutritionPlanSummary({
   meta, days, pending, paused, error, onEditMeta, onAddDay, onEditDay, onDeleteDay, onConfirm,
 }) {
+  const [removing, setRemoving] = useState(null)
+
   return (
     <Stack spacing={3}>
       <Typography variant="h2">Review your plan</Typography>
@@ -49,6 +53,18 @@ export default function NutritionPlanSummary({
         </CardContent>
       </Card>
 
+      {/* With no days there was simply a gap here, and the only hint at why
+          the plan could not be confirmed was the disabled button far below
+          it. */}
+      {days.length === 0 ? (
+        <EmptyState
+          title="No day types yet"
+          description="A plan needs at least one day type before it can be created."
+          minHeight={0}
+          padding={2}
+        />
+      ) : null}
+
       <Stack spacing={2}>
         {days.map((day, index) => (
           <Card key={day.id}>
@@ -57,13 +73,7 @@ export default function NutritionPlanSummary({
                 <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                   <Typography variant="h3" noWrap>{day.name}</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {day.weekdays.length === 0
-                      ? 'No days assigned'
-                      : day.weekdays
-                        .slice()
-                        .sort((a, b) => a - b)
-                        .map((d) => WEEKDAY_INITIALS[d])
-                        .join(', ')}
+                    {formatWeekdays(day.weekdays)}
                     {' • '}{day.meals.length} meals
                   </Typography>
                 </Box>
@@ -73,14 +83,7 @@ export default function NutritionPlanSummary({
                 <IconButton
                   aria-label={`Remove ${day.name}`}
                   disabled={pending}
-                  onClick={() => {
-                    // `confirm` rather than a dialog component: one
-                    // destructive action on one screen, already accessible
-                    // and blocking.
-                    if (window.confirm(`Remove "${day.name}" from this plan?`)) {
-                      onDeleteDay(index)
-                    }
-                  }}
+                  onClick={() => setRemoving({ index, name: day.name })}
                 >
                   <DeleteOutlineIcon />
                 </IconButton>
@@ -116,6 +119,20 @@ export default function NutritionPlanSummary({
       >
         {paused ? 'Saved offline' : pending ? 'Creating…' : 'Confirm & create plan'}
       </Button>
+
+      {/* Held as an object rather than a bare index: index 0 is falsy, and a
+          `removing !== null` check is easy to lose in a later edit. */}
+      <ConfirmDialog
+        open={removing !== null}
+        title={`Remove ${removing?.name ?? 'this day'}?`}
+        description="It is only removed from this draft. Nothing has been saved yet."
+        confirmLabel="Remove"
+        onCancel={() => setRemoving(null)}
+        onConfirm={() => {
+          onDeleteDay(removing.index)
+          setRemoving(null)
+        }}
+      />
     </Stack>
   )
 }

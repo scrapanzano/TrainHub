@@ -30,7 +30,6 @@ export const queryKeys = {
   // key's length), so invalidation is unaffected.
   nutritionPlan: (memberId) => ['nutritionPlan', 'v2', memberId],
   availability: (proId) => ['availability', proId],
-  bodyMetrics: (memberId) => ['bodyMetrics', memberId],
   // Keyed on the pair: `threads` is unique per (member, pro), so a member who
   // switches professional has one thread per professional, not one thread.
   memberThread: (memberId, proId) => ['chat', 'memberThread', memberId, proId],
@@ -65,7 +64,6 @@ export const queryPrefixes = {
   appointment: ['appointment'],
   nutritionPlan: ['nutritionPlan'],
   availability: ['availability'],
-  bodyMetrics: ['bodyMetrics'],
   // Every chat key starts with 'chat', so one prefix invalidates the thread
   // list, the open conversation and the unread badge together.
   chat: ['chat'],

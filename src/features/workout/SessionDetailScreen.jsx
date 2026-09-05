@@ -185,7 +185,7 @@ export default function SessionDetailScreen() {
 
             {openHere ? (
               <Button onClick={goLive} variant="contained">
-                Resume
+                Back to workout
               </Button>
             ) : null}
           </Stack>

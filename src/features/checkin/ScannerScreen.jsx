@@ -3,6 +3,7 @@ import { Alert, Box, Button, Card, CardContent, Stack, TextField, Typography } f
 import jsQR from 'jsqr'
 import { redeemCheckinToken } from '../../data/checkin.js'
 import { scanResultView } from './scanResult.js'
+import PageHeader from '../../components/PageHeader.jsx'
 
 export default function ScannerScreen() {
   const videoRef = useRef(null)
@@ -103,7 +104,7 @@ export default function ScannerScreen() {
 
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
-      <Typography variant="h1">Scan Access Badge</Typography>
+      <PageHeader title="Scan Access Badge" backTo="/p" backLabel="Back to today" />
 
       {cameraError ? (
         <Alert severity="warning">

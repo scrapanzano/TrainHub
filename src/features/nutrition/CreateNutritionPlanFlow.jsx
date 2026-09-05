@@ -3,6 +3,7 @@ import { Button, Stack } from '@mui/material'
 import { useMutation } from '@tanstack/react-query'
 import { mutationKeys } from '../../lib/mutationKeys.js'
 import { createUuid } from '../../lib/uuid.js'
+import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import NutritionPlanForm from './NutritionPlanForm.jsx'
 import DayForm from './DayForm.jsx'
 import NutritionPlanSummary from './NutritionPlanSummary.jsx'
@@ -31,11 +32,7 @@ export default function CreateNutritionPlanFlow({ memberId, replacesPlanId = nul
 
   const createPlan = useMutation({ mutationKey: mutationKeys.createNutritionPlan })
 
-  const confirmAbandon = () => {
-    if (window.confirm('Discard this plan? Nothing entered so far will be saved.')) {
-      onAbandon()
-    }
-  }
+  const [abandoning, setAbandoning] = useState(false)
 
   let body
 
@@ -142,9 +139,22 @@ export default function CreateNutritionPlanFlow({ memberId, replacesPlanId = nul
   return (
     <Stack spacing={2}>
       {body}
-      <Button onClick={confirmAbandon} disabled={createPlan.isPending} fullWidth>
+      <Button onClick={() => setAbandoning(true)} disabled={createPlan.isPending} fullWidth>
         Cancel
       </Button>
+
+      <ConfirmDialog
+        open={abandoning}
+        title="Discard this plan?"
+        description="Nothing entered so far will be saved."
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        onCancel={() => setAbandoning(false)}
+        onConfirm={() => {
+          setAbandoning(false)
+          onAbandon()
+        }}
+      />
     </Stack>
   )
 }
