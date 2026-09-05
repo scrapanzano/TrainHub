@@ -49,7 +49,7 @@ export default function AppointmentDetailScreen() {
       <Stack spacing={1}>
         <PageHeader
           title={KIND_LABEL[row.kind] ?? 'Appointment'}
-          subtitle={`${new Date(row.starts_at).toLocaleDateString(undefined, {
+          subtitle={`${new Date(row.starts_at).toLocaleDateString('en-GB', {
             weekday: 'long',
             day: 'numeric',
             month: 'long',
