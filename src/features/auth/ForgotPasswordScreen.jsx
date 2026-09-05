@@ -34,51 +34,66 @@ export default function ForgotPasswordScreen() {
   }
 
   return (
-    <Stack component="form" onSubmit={onSubmit} spacing={3} sx={{ width: '100%' }}>
-      <Box>
-        <IconButton component={Link} to="/login" aria-label="Back to login" edge="start">
-          <ArrowBackIosNewIcon fontSize="small" />
-        </IconButton>
-      </Box>
-
-      <Box sx={{ textAlign: 'center' }}>
-        <Typography variant="h1">Forgot Password?</Typography>
-        <Typography color="text.secondary" sx={{ mt: 1 }}>
-          Don&apos;t worry! Enter the email address associated with your account and we&apos;ll send
-          you a link to reset your password.
-        </Typography>
-      </Box>
-
-      {error ? <Alert severity="error">{error}</Alert> : null}
-      {/* Confirmed without saying whether the address exists -- the same wording
-          appears either way, so this screen cannot be used to enumerate users. */}
-      {sent ? (
-        <Alert severity="success">
-          If an account exists for {email}, a reset link is on its way. Check your inbox.
-        </Alert>
-      ) : null}
-
-      <TextField
-        label="Email"
-        type="email"
-        value={email}
-        onChange={(event) => {
-          setEmail(event.target.value)
-          // Editing the address re-arms the button.  Without this, a user who
-          // mistyped and submitted is stuck: the confirmation disables the
-          // button permanently and the only escape is remounting the screen.
-          setSent(false)
-          setError(null)
+    <Box sx={{ width: '100%' }}>
+      {/* Every other screen's back arrow sits at the top left of the page, and
+          here that is above the layout's centred logo rather than anywhere in
+          this form's flow -- hence absolute, against the layout's Container so
+          it tracks the column instead of drifting to the corner of a wide
+          window, and hence a plain Box wrapper so the weightless arrow does not
+          take a slot in the layout's spaced Stack. */}
+      <IconButton
+        component={Link}
+        to="/login"
+        aria-label="Back to login"
+        sx={{
+          position: 'absolute',
+          top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+          left: 4,
         }}
-        placeholder="name@email.com"
-        autoComplete="email"
-        required
-        fullWidth
-      />
+      >
+        <ArrowBackIosNewIcon fontSize="small" />
+      </IconButton>
 
-      <Button type="submit" variant="contained" size="large" fullWidth disabled={submitting || sent}>
-        {submitting ? 'Sending…' : 'Send Link'}
-      </Button>
-    </Stack>
+      <Stack component="form" onSubmit={onSubmit} spacing={3} sx={{ width: '100%' }}>
+        <Box sx={{ textAlign: 'center' }}>
+          <Typography variant="h1">Forgot Password?</Typography>
+          <Typography color="text.secondary" sx={{ mt: 1 }}>
+            Don&apos;t worry! Enter the email address associated with your account and we&apos;ll send
+            you a link to reset your password.
+          </Typography>
+        </Box>
+
+        {error ? <Alert severity="error">{error}</Alert> : null}
+        {/* Confirmed without saying whether the address exists -- the same wording
+            appears either way, so this screen cannot be used to enumerate users. */}
+        {sent ? (
+          <Alert severity="success">
+            If an account exists for {email}, a reset link is on its way. Check your inbox.
+          </Alert>
+        ) : null}
+
+        <TextField
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(event) => {
+            setEmail(event.target.value)
+            // Editing the address re-arms the button.  Without this, a user who
+            // mistyped and submitted is stuck: the confirmation disables the
+            // button permanently and the only escape is remounting the screen.
+            setSent(false)
+            setError(null)
+          }}
+          placeholder="name@email.com"
+          autoComplete="email"
+          required
+          fullWidth
+        />
+
+        <Button type="submit" variant="contained" size="large" fullWidth disabled={submitting || sent}>
+          {submitting ? 'Sending…' : 'Send Link'}
+        </Button>
+      </Stack>
+    </Box>
   )
 }

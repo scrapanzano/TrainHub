@@ -1,12 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="76 108 360 296" width="32" height="32">
-  <!-- Tab-sized variant of public/logo.svg: cropped tight to the mark and
-       stripped of the dumbbell, which turns to mush at 16px.  The background
-       plate stays so the dark T survives a dark browser theme. -->
-  <rect x="76" y="108" width="360" height="296" fill="#F9FAFB"/>
-  <path d="M96 128h176v44h-66v212h-44V172h-66z" fill="#111827"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 269 192" width="32" height="32">
+  <!-- Tab-sized variant of public/logo.svg: the same mark, cropped tight and
+       stripped of the dumbbell, which turns to mush at 16px. The white plate
+       stays so the dark T survives a dark browser theme, and matches the plate
+       the generated icons use. -->
+  <rect width="269" height="192" fill="#FFFFFF"/>
   <g fill="#FE6363">
-    <rect x="296" y="128" width="44" height="256"/>
-    <rect x="372" y="128" width="44" height="256"/>
-    <rect x="296" y="234" width="120" height="44"/>
+    <rect x="128" y="0" width="32" height="192"/>
+    <path d="M224 0h32v160a32 32 0 0 1-32 32z"/>
+    <rect x="128" y="80" width="128" height="32"/>
   </g>
+  <path d="M26 0h133v6a26 26 0 0 1-26 26H96v160H64V32H0v-6A26 26 0 0 1 26 0z"
+        fill="#111827" stroke="#FFFFFF" stroke-width="7" stroke-linejoin="round"
+        paint-order="stroke"/>
 </svg>

@@ -1,20 +1,40 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <rect width="512" height="512" fill="#F9FAFB"/>
-  <g>
-    <!-- T -->
-    <path d="M96 128h176v44h-66v212h-44V172h-66z" fill="#111827"/>
-    <!-- H -->
-    <rect x="296" y="128" width="44" height="256" fill="#FE6363"/>
-    <rect x="372" y="128" width="44" height="256" fill="#FE6363"/>
-    <rect x="296" y="228" width="120" height="56" fill="#FE6363"/>
-    <!-- Dumbbell knocked out of the H crossbar.  The crossbar has to stay
-         taller than the dumbbell on both sides, otherwise the white swallows
-         the whole band and the H reads as two disconnected uprights at
-         launcher sizes. -->
-    <g fill="#FFFFFF">
-      <rect x="316" y="248" width="80" height="16" rx="8"/>
-      <rect x="300" y="238" width="16" height="36" rx="8"/>
-      <rect x="396" y="238" width="16" height="36" rx="8"/>
+  <!-- Source of every generated PWA icon; see pwa-assets.config.js. The mark is
+       traced from doc/assets/components/Logo.png, the brand asset: an
+       interlocked TH whose T sits in front of the H behind a knocked-out gap,
+       and whose dumbbell overhangs the H on both sides.
+
+       The plate is pure white, not the app's #F9FAFB background, so it matches
+       the white the dumbbell is knocked out to. A near-white plate reads as a
+       grey square inside the OS's white icon container.
+
+       The mark is drawn in its own 269x192 space and placed here at 1.6x, so it
+       spans 430x307, or 84% of the canvas. The maskable and Apple variants are
+       shrunk from this by the generator's per-asset padding, so this file is
+       sized for the unmasked icon and nothing else. -->
+  <rect width="512" height="512" fill="#FFFFFF"/>
+  <g transform="translate(40.8 102.4) scale(1.6)">
+    <g fill="#FE6363">
+      <rect x="128" y="0" width="32" height="192"/>
+      <path d="M224 0h32v160a32 32 0 0 1-32 32z"/>
+      <rect x="128" y="80" width="128" height="32"/>
+      <rect x="115" y="84" width="10" height="24" rx="5"/>
+      <rect x="259" y="84" width="10" height="24" rx="5"/>
     </g>
+    <!-- The dumbbell, knocked out of the H. -->
+    <g fill="#FFFFFF">
+      <rect x="125" y="79" width="12" height="34" rx="6"/>
+      <rect x="247" y="79" width="12" height="34" rx="6"/>
+      <rect x="139" y="74" width="10" height="44" rx="5"/>
+      <rect x="235" y="74" width="10" height="44" rx="5"/>
+      <rect x="139" y="91" width="106" height="10" rx="5"/>
+    </g>
+    <!-- The T, painted twice: once as a fat plate-coloured stroke that cuts the
+         gap out of the H behind it, then as the fill on top, so the dark edge
+         lands where the brand asset puts it rather than 3.5 units inside it. -->
+    <path d="M26 0h133v6a26 26 0 0 1-26 26H96v160H64V32H0v-6A26 26 0 0 1 26 0z"
+          fill="#FFFFFF" stroke="#FFFFFF" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M26 0h133v6a26 26 0 0 1-26 26H96v160H64V32H0v-6A26 26 0 0 1 26 0z"
+          fill="#111827"/>
   </g>
 </svg>
