@@ -2564,110 +2564,139 @@ Davide applied patch 023 (PASS/FAIL all PASS) and ran the full manual pass on bo
 
 ---
 
-## Passata di rifinitura UX/UI — branch `ux-refinement`
+## UX/UI refinement pass — branch `ux-refinement`
 
-Spec: nessuna. Il branch nasce da `doc/review.md` (ispezione manuale di Davide
-sui due account demo) incrociata con una lettura sistematica del sorgente. Il
-piano di lavoro è cinque lotti ordinati per leva decrescente, ognuno
-device-verified da Davide prima del commit.
+No spec. The branch starts from `doc/review.md` (Davide's manual inspection on
+both demo accounts) crossed with a systematic read of the source. Five batches,
+ordered by decreasing leverage, each device-verified by Davide before its
+commit.
 
-Vincoli fissati in partenza: colore brand, struttura top bar e bottom nav
-invariati; ogni stringa visibile resta in inglese; commit a nome di Davide,
-uno per lotto.
+Constraints fixed up front: brand colour, top bar and bottom nav structure
+unchanged; every user-visible string stays in English; commits are Davide's,
+one per batch.
 
-### bb7368e — Lotto 1: tema + shell
-Asterisco dei campi obbligatori in rosso dal tema (23 campi su 12 file, zero
-toccati). `touch-action: manipulation`. Anello di focus su `MuiButtonBase`.
-Dialog/Drawer allineati al raggio delle card. Variante `overline`.
+### bb7368e — Batch 1: theme + shell
+Required-field asterisk turned red from the theme (23 fields across 12 files,
+none of them touched). `touch-action: manipulation`. Focus ring on
+`MuiButtonBase`. Dialog/Drawer aligned to the cards' radius. An `overline`
+variant.
 
-Barre da `sticky` a `fixed` con `--trainhub-header-height` misurata via
-`ResizeObserver` (i due banner cambiano l'altezza dell'header). **Verificato
-prima di intervenire che nessun antenato rompesse lo sticky**: il cambio si
-giustifica dal requisito ("il contenuto scorre dietro le barre", che sticky non
-fa), non da un bug del posizionamento.
+Both bars moved from `sticky` to `fixed`, with `--trainhub-header-height`
+measured by a `ResizeObserver` because the two banners change the header's
+height. **Verified before touching anything that no ancestor was breaking
+sticky**: the change is justified by the requirement (content scrolling
+*behind* the bars, which sticky cannot do), not by a positioning bug.
 
-Regola unica per la freccia indietro: chi non è radice della bottom nav ha
-`PageHeader`, chi lo è non ce l'ha. Convertite 3 intestazioni fatte a mano,
-aggiunte a `AvailabilityScreen` e `ScannerScreen` che non avevano via d'uscita.
-`ForgotPasswordScreen` lasciata: usa già lo stesso glifo e `PageHeader`
-romperebbe il layout centrato dell'auth.
+One rule for the back arrow. Three hand-rolled headers converted; added to
+`AvailabilityScreen` and `ScannerScreen`, which had no way out at all.
+`ForgotPasswordScreen` left alone: it already uses the same glyph, and
+`PageHeader` would break the centred auth layout.
 
-### 0bdfbbe — Lotto 2: form e dialoghi
-`PasswordField` (5 call site) e `ConfirmDialog` (8 call site). Zero
-`window.confirm` residui.
+### 0bdfbbe — Batch 2: forms and dialogs
+`PasswordField` (5 call sites) and `ConfirmDialog` (8). No `window.confirm`
+left anywhere.
 
-Due dettagli: i riepiloghi in bozza tengono la rimozione pendente come oggetto
-e non come indice nudo — indice 0 è falsy, quindi con un indice la rimozione
-del primo elemento non avrebbe mai aperto il dialogo. La conferma di abbandono
-della sessione live resta condizionale: senza serie registrate non c'è nulla da
-perdere.
+Two details: the draft summaries hold the pending removal as an object rather
+than a bare index — index 0 is falsy, so a bare index would never have opened
+the dialog for the first item in the list. The live session's abandon
+confirmation stays conditional: with nothing logged there is nothing to lose.
 
-### 69d8022 — Lotto 3: lato member
-Exercise detail (chip uniformi, ⓘ per le istruzioni, peso obbligatorio, log
-bloccato in pausa), rest timer a 10 s, cerchio via dalle card appuntamento,
-"Resume" sdoppiato, prenotazione gated sui giorni passati con orario di default
-sensato, rewards raggruppati e datati, upload avatar.
+### 69d8022 — Batch 3: member side
+Exercise detail (matching chips, an info button for the instructions, required
+weight, logging blocked while paused), rest timer floor to 10s, the empty
+circle off the appointment cards, "Resume" split in two, booking gated on past
+days with a sensible default time, rewards grouped and dated, avatar upload.
 
-**Deviazione dal piano:** il dialogo di completamento non è stato duplicato sul
-dettaglio esercizio. Vive sulla schermata live perché quella conosce punti,
-abbonamento e sa chiudere la run; riprodurlo avrebbe significato una seconda
-copia della query dei run precedenti, del calcolo `alreadyPaid` e della
-mutation `endRun`. Si naviga invece alla live, che alza il dialogo all'arrivo.
+**Departure from the plan:** the completion dialog was not duplicated onto the
+exercise screen. It lives on the live screen because that screen knows about
+points, membership and how to close the run; reproducing it would have meant a
+second copy of the prior-runs query, the `alreadyPaid` check and the `endRun`
+mutation. The screen navigates there instead, and the dialog is raised on
+arrival.
 
-**`image_url` non renderizzato**, contro quanto scritto nel piano:
-`ExerciseDetailScreen.jsx:44-52` documenta il placeholder come scelta
-deliberata (licenze, hosting, precache offline) e il brief Figma la ripete.
+**`image_url` deliberately left unrendered**, against what the plan said:
+`ExerciseDetailScreen.jsx:44-52` records the placeholder as a decision
+(licensing, hosting, an offline precache) and the Figma brief repeats it.
 
-Selfcheck 12 (`rewards/grouping`). Ha trovato subito un difetto reale:
-`new Date(null)` è l'epoch, non `Invalid Date`, quindi un reward senza data
-sarebbe finito sotto "January 1970".
+Self-check 12 (`rewards/grouping`). It earned its place while being written:
+`new Date(null)` is the epoch rather than an invalid date, so an undated reward
+would have been filed under January 1970.
 
-### 3073caa — Lotto 4: lato professional
-Primo lotto che toglie più di quanto aggiunge (−592/+622 su 19 file).
+### 3073caa — Batch 4: professional side
+The first batch to remove more than it adds (−592/+622 across 19 files).
 
-Scheda cliente: chat come card, nuova card+schermata Appointments (nessuna
-query nuova, `fetchMemberAppointmentsInRange` esisteva già), `Skeleton` al
-posto della stringa `"Loading…"`, abbonamento a fondo pagina col colore
-dell'operazione. Piano del cliente in accordion con caricamento pigro.
-Calendario sempre espanso. Editor nutrition con pasti in righe strutturate.
+Client profile: chat as a card, a new Appointments card and screen (no new
+query — `fetchMemberAppointmentsInRange` already existed), `Skeleton` in place
+of the literal `"Loading…"`, membership control moved to the foot of the screen
+with the colour of the operation. The client's plan in accordions with lazy
+loading. Calendar always expanded. Nutrition editor with meals as structured
+rows.
 
-**Progress da 431 a 253 righe.** Rimosse le sezioni check-in, e con esse il
-codice diventato orfano: `src/data/progress.js` eliminato per intero,
-`weightTrend`, `queryKeys.bodyMetrics`, `mutationKeys.saveBodyMetric` e la sua
-registrazione, più 70 righe di selfcheck. Verificato prima che non avessero
-altri consumatori.
+**Progress from 431 lines to 253.** The check-in sections are gone, and with
+them the code that only served them: `src/data/progress.js` deleted outright,
+along with `weightTrend`, `queryKeys.bodyMetrics`, `mutationKeys.saveBodyMetric`
+and its registration, plus 70 lines of self-check. Verified first that nothing
+else consumed them.
 
-**Correzione al piano:** le copie di `WEEKDAY_INITIALS` da unificare erano due,
-non quattro. Quella in `features/calendar/month.js` sono iniziali singole
-indicizzate per colonna della griglia — dato diverso per un lavoro diverso — ed
-è rimasta dov'era.
+**Correction to the plan:** `WEEKDAY_INITIALS` had two genuine duplicates, not
+four. The copy in `features/calendar/month.js` is single letters indexed by
+grid column — a different table answering a different question — and stayed
+where it was.
 
-### 2657238 — Lotto 5: chat e notifiche
-`src/lib/dayGroups.js` condiviso (selfcheck 13), a run contigue per non
-riordinare ciò che la query ha già ordinato. `dayLabel` costruisce le date da
-parti locali: `new Date('2026-03-01')` è mezzanotte UTC e togliere 24 ore
-attraverso il cambio d'ora atterra alle 23:00 dello stesso giorno.
+### 2657238 — Batch 5: chat and notifications
+`src/lib/dayGroups.js` shared between them (self-check 13), grouping into
+contiguous runs so it never reorders what the query already ordered. `dayLabel`
+builds its comparison dates from local parts: `new Date('2026-03-01')` is UTC
+midnight, and stepping back a day by subtracting 24 hours lands at 23:00 of the
+same day across a DST boundary.
 
-Chat: separatori di data, sequenze raggruppate con coda e orario solo
-sull'ultimo messaggio, spaziatura stretta dentro una sequenza e aperta fra
-sequenze, header `PageHeader` ancorato sotto la top bar. `PageHeader` guadagna
-uno slot `leading` per l'avatar.
+Chat: date separators, runs drawn as runs with the tail and timestamp only on
+the last message, spacing tight within a run and open between them, a
+`PageHeader` pinned under the app bar. `PageHeader` grows a `leading` slot for
+the avatar.
 
-Notifiche: icona e tinta per tipo, raggruppamento per giorno, non letto come
-tinta brand al 7 % (non un token `task.*`, che sono i riempimenti saturi delle
-card appuntamento), "Delete all" nel menu overflow.
+Notifications: a glyph and tint per kind, grouping by day, unread as a 7% brand
+tint (not a `task.*` token — those are the saturated appointment-kind fills),
+"Delete all" moved into an overflow menu.
 
-### Rimandato a un intervento umano
-- **Patch 024 (punti per il check-in)**: mai scritta né applicata. La UI non è
-  agganciata di proposito — mostrare punti che il server non assegna è peggio
-  che non mostrarli.
-- **`save_body_metric_secure`**: resta nel database senza chiamanti dopo il
-  Lotto 4. Lo schema non è stato toccato.
-- **`supabase/patches/025-avatar-storage.sql`**: applicata da Davide,
-  PASS/FAIL tutti PASS, upload e rimozione avatar verificati sul dispositivo.
+### 966dbf2, 5503f02, 0719c36 — whole-branch review and its follow-up
+The review returned **seven findings, all seven confirmed** against the code;
+no false positives. Two were serious, and both were invisible to the manual
+device pass that had signed off every batch:
 
-### Stato
-Cinque lotti, 54 file, +2344/−964. Lint, build e 13/13 selfcheck verdi a ogni
-lotto; ognuno verificato sul dispositivo da Davide prima del commit.
-`docs/ux-refinement-nielsen.md` raccoglie la mappatura euristica → sintomo →
-intervento → file per la relazione.
+- **A required weight field locked out four exercises.** `seed.sql` and patch
+  019 seed Pull-up, Plank, Hanging Leg Raise and Russian Twist as
+  `equipment = 'Bodyweight'`, and the logging panel is a real `<form>`, so
+  native validation refused the submit: those exercises could not be logged at
+  all, and the run could never complete. The justifying comment asserted the
+  catalogue had no bodyweight exercises — an assumption written down as a fact
+  and never checked against `seed.sql`.
+- **The avatar upload could overwrite the photo with an empty object.**
+  Registering a durable default makes a mutation replayable; `App.jsx`
+  dehydrates every pending mutation and the persister serializes with
+  `JSON.stringify`, under which a `Blob` becomes `{}`. Both avatar writes are
+  now `networkMode: 'always'`, the app's only writes that refuse to queue, and
+  share a `scope`.
+
+A follow-up sweep for unverified assertions in the branch's own comments found
+one more: `PageHeader`'s docstring declared an invariant — every non-root
+screen carries a back arrow — that the app does not hold. Four categories are
+legitimately exempt. The docstring now describes the real rule and names each
+exception; the one screen that genuinely had a single parent and no way back to
+it, `/m/trainer/appointments`, got its arrow.
+
+### Deferred to a human
+- **Patch 024 (check-in points)**: never written, never applied. The UI is
+  deliberately not wired to it — showing points the server does not award is
+  worse than showing none.
+- **`save_body_metric_secure`**: left in the database with no callers after
+  batch 4. The schema was not touched.
+- **`supabase/patches/025-avatar-storage.sql`**: applied by Davide, all
+  PASS/FAIL checks PASS, avatar upload and removal device-verified.
+
+### State
+Ten commits, 56 files, +2763/−973. Lint, build and 13/13 self-checks green at
+every batch; each one device-verified by Davide before its commit.
+`docs/ux-refinement-nielsen.md` carries the heuristic → symptom → change → file
+mapping for the report. It is deliberately written in Italian — it is source
+material for the LaTeX report, and the only Italian file in the repository.
