@@ -34,9 +34,9 @@ un redesign, e l'identità visiva del prototipo è parte del lavoro consegnato.
 
 | | |
 |---|---|
-| File modificati | 54 |
-| Righe aggiunte / rimosse | 2 344 / 964 |
-| Commit | 5, uno per lotto tematico |
+| File modificati | 56 |
+| Righe aggiunte / rimosse | 2 726 / 972 |
+| Commit | 5 lotti tematici, più documentazione e correzioni di review |
 | Self-check `assert` | da 11 a 13 |
 | `window.confirm` residui | 0 (erano 8) |
 
@@ -77,7 +77,7 @@ un redesign, e l'identità visiva del prototipo è parte del lavoro consegnato.
 | Sintomo osservato | Intervento | File |
 |---|---|---|
 | **Tre paradigmi per la stessa conferma distruttiva**: 8 `window.confirm` nativi, 3 `Dialog` MUI, 4 bottom sheet | Un solo `ConfirmDialog` per tutte e otto | `src/components/ConfirmDialog.jsx` + 6 chiamanti |
-| **Cinque intestazioni fatte a mano**, con due glifi di freccia a due dimensioni diverse | Regola unica: chi non è radice della bottom nav ha `PageHeader`, chi lo è non ce l'ha | `src/components/PageHeader.jsx` + 5 schermate |
+| **Cinque intestazioni fatte a mano**, con due glifi di freccia a due dimensioni diverse | Regola unica: una schermata raggiunta da un solo genitore porta la freccia verso quello, e nient'altro disegna quella riga a mano. Tre convertite; due lasciate di proposito, con il motivo scritto nel componente | `src/components/PageHeader.jsx` + 3 schermate |
 | La stessa azione "aggiungi appuntamento" è un mini-`Fab` da un lato e una card full-width dall'altro | Vince la card, su entrambi i lati | `src/features/calendar/CalendarScreen.jsx` |
 | Nel dettaglio esercizio le due categorie hanno pesi visivi diversi (piena vs contornata), come se una fosse selezionata | Stessa variante per entrambe | `src/features/workout/ExerciseDetailScreen.jsx` |
 | Dialoghi e bottom sheet ereditano raggio 16, le card ne hanno 20: superfici della stessa famiglia con angoli diversi | Allineati a 20 | `src/theme/index.js` |
@@ -141,6 +141,47 @@ un redesign, e l'identità visiva del prototipo è parte del lavoro consegnato.
 | **"How to perform" è una sezione in fondo che sparisce del tutto quando `instructions` è nullo**: un esercizio senza indicazioni è indistinguibile da uno le cui indicazioni sono state superate scorrendo | Icona ⓘ accanto al titolo, che risponde in entrambi i casi | `src/features/workout/ExerciseDetailScreen.jsx` |
 
 ---
+
+## Verifica finale: revisione dell'intero branch
+
+Alla passata è seguita una revisione automatica dell'intero branch, indipendente
+da chi lo aveva scritto. Ha prodotto **sette rilievi, tutti confermati**
+rileggendo il codice: nessun falso positivo. Due meritano di essere citati
+nella relazione, perché mostrano difetti che una verifica manuale sul
+dispositivo non avrebbe fatto emergere.
+
+**Il campo peso obbligatorio bloccava quattro esercizi.** Il catalogo contiene
+`Pull-up`, `Plank`, `Hanging Leg Raise` e `Russian Twist`, prescritti senza
+carico. Rendendo il peso obbligatorio, la validazione nativa del form impediva
+di registrare anche una sola serie per quegli esercizi: la sessione non poteva
+mai arrivare a completa. Il difetto nasce da un'assunzione — "il dataset non ha
+esercizi a corpo libero" — creduta senza verificarla contro `seed.sql`. Il
+campo ora non compare quando l'attrezzatura è `Bodyweight`, e la serie si
+registra con `NULL`, che è come il database ha sempre codificato il corpo
+libero.
+
+**L'upload dell'avatar poteva sovrascrivere la foto con un oggetto vuoto.** La
+scrittura era registrata come rigiocabile dopo un riavvio, ma trasporta un
+`Blob`, e il persister serializza in JSON: un `Blob` sopravvive come `{}`. Se
+la connessione cadeva a upload iniziato, il riavvio successivo avrebbe caricato
+un file vuoto e vi avrebbe puntato `avatar_url`. Le due scritture dell'avatar
+sono ora le uniche dell'applicazione dichiarate `networkMode: 'always'`:
+falliscono invece di accodarsi.
+
+Gli altri cinque: il nome del professionista mostrato al posto di quello del
+cliente su una schermata dedicata al cliente; due scritture sullo stesso record
+senza `scope`, che replicate in parallelo potevano invertirsi; un foglio modale
+che poteva restare bloccato su "Uploading…"; l'intestazione della sessione live
+rimasta ancorata a `top: 0` dopo che la barra superiore era diventata `fixed`;
+e un orario di default che dopo le 23:50 tornava a proporre le 09:00 del
+mattino già passato.
+
+Una successiva ricerca di asserzioni non verificate nei commenti ha trovato un
+invariante dichiarato ma non vero — la regola sulla freccia indietro, scritta
+come se valesse per ogni schermata non radice, mentre quattro categorie di
+schermata ne sono legittimamente escluse. Il commento è stato riscritto per
+descrivere la regola reale, e la sola schermata che aveva davvero un genitore
+unico senza via di ritorno ha ricevuto la freccia.
 
 ## Compromesso dichiarato: lo zoom
 
