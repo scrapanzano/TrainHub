@@ -51,10 +51,16 @@ async function shrink(file) {
  * be anything else -- while `profiles.avatar_url` had been in the schema, read
  * on six screens and writable since patch 015, all along.
  *
- * Deliberately not offline-capable. Everything else in this app queues and
- * replays, but a queued photo would sit in IndexedDB with no way for the member
- * to see whether it had been sent, and the fallback -- an initial in a circle --
- * costs them nothing in the meantime.
+ * Deliberately not offline-capable, and enforced as such: both writes are
+ * registered `networkMode: 'always'` in `src/data/mutations.js`, so they fail
+ * rather than queue. The `navigator.onLine` guards below only catch being
+ * offline at the moment of the tap; without that registration a connection
+ * dropping mid-upload would park the write, and the persister would replay it
+ * later with a `Blob` that `JSON.stringify` had flattened to `{}`.
+ *
+ * Everything else in this app queues and replays. A queued photo would sit in
+ * IndexedDB with no way for the member to see whether it had been sent, and the
+ * fallback -- an initial in a circle -- costs them nothing in the meantime.
  *
  * @param {object}  props
  * @param {string}  props.userId
@@ -159,7 +165,11 @@ export default function AvatarPicker({ userId, avatarUrl, fullName }) {
         hidden
       />
 
-      <Drawer anchor="bottom" open={open} onClose={busy ? undefined : () => setOpen(false)}>
+      {/* Dismissable even mid-upload. The write is registered `networkMode:
+          'always'`, so it always settles -- but a sheet that cannot be closed
+          while something is in flight is a trap the moment anything is slow,
+          and closing it does not cancel the upload. */}
+      <Drawer anchor="bottom" open={open} onClose={() => setOpen(false)}>
         <Stack spacing={2} sx={{ p: 3 }}>
           <Typography variant="h2">Profile photo</Typography>
 
@@ -188,7 +198,7 @@ export default function AvatarPicker({ userId, avatarUrl, fullName }) {
             </Button>
           ) : null}
 
-          <Button fullWidth disabled={busy} onClick={() => setOpen(false)}>
+          <Button fullWidth onClick={() => setOpen(false)}>
             Cancel
           </Button>
         </Stack>

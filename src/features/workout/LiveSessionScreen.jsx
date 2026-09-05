@@ -151,7 +151,10 @@ export default function LiveSessionScreen() {
 
   return (
     <Stack spacing={3} sx={{ p: 2 }}>
-      <Card sx={{ position: 'sticky', top: 0, zIndex: 1 }}>
+      {/* Pinned below the app bar, not at the viewport top: that bar is
+          `fixed` and publishes its own height, so `top: 0` slid the clock and
+          the stop button underneath it as soon as the exercise list scrolled. */}
+      <Card sx={{ position: 'sticky', top: 'var(--trainhub-header-height, 56px)', zIndex: 1 }}>
         <CardContent>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             <IconButton

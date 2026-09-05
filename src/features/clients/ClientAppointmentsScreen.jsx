@@ -70,9 +70,13 @@ export default function ClientAppointmentsScreen() {
               <Typography variant="overline" color="text.secondary" component="p">
                 {formatDate(dayOf(appointment))}
               </Typography>
+              {/* The client, not `appointment.pro`. This query embeds the
+                  professional, because it was written for the member's own
+                  screen -- passing it here showed the coach their own name and
+                  face on every card of a screen about someone else. */}
               <AppointmentCard
                 appointment={appointment}
-                person={appointment.pro}
+                person={client.data}
                 to={`/p/calendar/${appointment.id}`}
               />
             </Box>

@@ -70,6 +70,11 @@ function ExerciseArt({ muscleGroup }) {
 
 /** The form for the next set, and the sets already behind it. */
 function LogPanel({ item, runId, sessionId, logs, memberId, paused }) {
+  // Four exercises in the catalogue are prescribed without a load -- Pull-up,
+  // Plank, Hanging Leg Raise, Russian Twist -- and `null` is how the database
+  // has always recorded that. Asking for a weight anyway would make them
+  // impossible to log, which would also mean the run could never complete.
+  const bodyweight = item.exercise?.equipment === 'Bodyweight'
   const queryClient = useQueryClient()
   const [reps, setReps] = useState('')
   const [weight, setWeight] = useState('')
@@ -153,7 +158,7 @@ function LogPanel({ item, runId, sessionId, logs, memberId, paused }) {
     // `now()` would record an 18:00 set as happening at 23:00.
     const id = createUuid()
     const performedAt = new Date().toISOString()
-    const parsedWeight = Number(weight)
+    const parsedWeight = bodyweight ? null : Number(weight)
 
     logSet.mutate({
       id,
@@ -209,20 +214,23 @@ function LogPanel({ item, runId, sessionId, logs, memberId, paused }) {
           required
           fullWidth
         />
-        {/* Required, and above zero: a set logged without its load is half a
-            record, and the catalogue has no bodyweight exercises for zero to
-            mean anything for. */}
-        <TextField
-          label="Weight (kg)"
-          type="number"
-          value={weight}
-          onChange={(event) => setWeight(event.target.value)}
-          slotProps={{ htmlInput: { inputMode: 'decimal', step: 0.5, min: 0.5, max: 999 } }}
-          placeholder={item.target_weight ? String(item.target_weight) : undefined}
-          disabled={paused}
-          required
-          fullWidth
-        />
+        {/* Required, and above zero, wherever a weight is a real quantity: a
+            set logged without its load is half a record, and the coach cannot
+            tell a forgotten field from a deliberate omission. On a bodyweight
+            exercise there is no field to forget. */}
+        {bodyweight ? null : (
+          <TextField
+            label="Weight (kg)"
+            type="number"
+            value={weight}
+            onChange={(event) => setWeight(event.target.value)}
+            slotProps={{ htmlInput: { inputMode: 'decimal', step: 0.5, min: 0.5, max: 999 } }}
+            placeholder={item.target_weight ? String(item.target_weight) : undefined}
+            disabled={paused}
+            required
+            fullWidth
+          />
+        )}
       </Stack>
 
       <Button type="submit" variant="contained" size="large" fullWidth disabled={paused}>

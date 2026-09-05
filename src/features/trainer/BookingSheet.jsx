@@ -38,8 +38,11 @@ function defaultTimeFor(dayISO) {
   const soon = new Date(Date.now() + 10 * 60 * 1000)
   const half = soon.getMinutes() <= 30 ? 30 : 60
   soon.setMinutes(half, 0, 0)
-  // Rolled past midnight: there is no later slot on this day to offer.
-  if (soon.getDate() !== new Date().getDate()) return '09:00'
+  // Rolled past midnight. There is genuinely no bookable slot left today, so
+  // offer the last one and let the sheet's own "choose a future time" warning
+  // say so -- '09:00' would be a time fifteen hours gone, which is the very
+  // thing this function exists to stop showing.
+  if (soon.getDate() !== new Date().getDate()) return '23:30'
   return `${String(soon.getHours()).padStart(2, '0')}:${String(soon.getMinutes()).padStart(2, '0')}`
 }
 

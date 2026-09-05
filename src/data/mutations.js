@@ -352,8 +352,30 @@ export function registerMutationDefaults(queryClient) {
   // function, the way `chooseProfessional` does, so the shell's header avatar
   // follows without a reload. Nothing to invalidate: the profile is mirrored
   // outside TanStack Query.
-  queryClient.setMutationDefaults(mutationKeys.uploadAvatar, { mutationFn: uploadAvatar })
-  queryClient.setMutationDefaults(mutationKeys.clearAvatar, { mutationFn: clearAvatar })
+  //
+  // `networkMode: 'always'` is what makes these the app's one pair of writes
+  // that do NOT queue offline, and it is load-bearing rather than a preference.
+  // `uploadAvatar` carries a `Blob`, `App.jsx` dehydrates every pending
+  // mutation, and the persister serializes with `JSON.stringify` -- a Blob
+  // survives that as `{}`. A connection dropping mid-upload would park the
+  // write, and the next reload would replay it with an empty body, overwriting
+  // the stored object with nothing and then pointing `avatar_url` at it.
+  // 'always' makes them fail outright instead, which the picker reports.
+  //
+  // Scoped together because they write the same row and the same storage
+  // object: replayed in parallel, a remove could land after an upload and
+  // leave `avatar_url` aimed at a deleted file.
+  const avatarScope = { id: 'avatar' }
+  queryClient.setMutationDefaults(mutationKeys.uploadAvatar, {
+    mutationFn: uploadAvatar,
+    networkMode: 'always',
+    scope: avatarScope,
+  })
+  queryClient.setMutationDefaults(mutationKeys.clearAvatar, {
+    mutationFn: clearAvatar,
+    networkMode: 'always',
+    scope: avatarScope,
+  })
 
   queryClient.setMutationDefaults(mutationKeys.markNotificationRead, {
     mutationFn: markNotificationRead,
