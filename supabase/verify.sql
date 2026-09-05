@@ -1,25 +1,30 @@
--- TrainHub database checks, after patches 001-025 and seed.sql.
+-- TrainHub database checks, after patches 001-026 and seed.sql.
 --
 -- One query on purpose: the Supabase SQL editor only renders the result of the
 -- LAST statement in a script, so a file of separate SELECTs silently shows you
 -- just the final one.
 --
--- EVERY ROW MUST READ PASS. There are no expected failures in this file. If a
--- row fails, the database does not hold what the application would have put
--- there -- fix the data, not the expectation.
+-- EVERY ROW MUST READ PASS ON A FRESHLY SEEDED DATABASE. Run `seed.sql`, then
+-- this. If a row fails, the database does not hold what the application would
+-- have put there -- fix the data, not the expectation.
 --
--- Three kinds of check, in this order:
+-- Four kinds of check, in this order:
 --
---   1. SCHEMA AND SECURITY -- the structure and the grants. Unchanged in
---      substance from the previous version of this file.
---   2. INTEGRITY -- every one of these counts VIOLATIONS and expects zero.
---      They re-derive, independently of `seed.sql`, the rules that the secure
---      RPCs enforce at write time: a session always has exercises, a run's
---      percentage matches the sets actually logged, a reward is worth what
---      `close_workout_run_secure` would have paid, a thread's member is still
---      assigned to its professional. This is the part that catches demo data
---      the application could never have produced.
---   3. DEMO READINESS -- the states a demo needs to be able to show at all.
+--   1. SCHEMA AND SECURITY -- the structure and the grants.
+--   2. INTEGRITY -- every one of these counts VIOLATIONS and expects zero, and
+--      every one is TRUE AT ALL TIMES. They re-derive, independently of
+--      `seed.sql`, the rules the secure RPCs enforce at write time: a session
+--      always has exercises, a run's percentage matches the sets actually
+--      logged, a reward is worth what `close_workout_run_secure` would have
+--      paid, a thread's member is still assigned to its professional.
+--   3. SEED STATE -- true of the database as `seed.sql` leaves it, and NOT
+--      invariant afterwards. Ordinary use can legitimately break these: a
+--      membership lapsing, or a professional pressing Suspend or Reactivate,
+--      changes who counts as active without touching the reward rows already
+--      earned -- which is deliberate, because points earned while active are
+--      kept. A failure here means "re-run the seed", not "the data is corrupt".
+--      Kept separate from INTEGRITY for exactly that reason.
+--   4. DEMO READINESS -- the states a demo needs to be able to show at all.
 --
 -- Caveat, unchanged: this runs as the dashboard's privileged role, which
 -- bypasses RLS. It proves the rows and policies EXIST; it does not prove the
@@ -115,7 +120,7 @@ from (
           p.proconfig && array['search_path=', 'search_path=""'], false)),
      '13'),
 
-    -- `patches/022` and `patches/023` added two more, and both must be as
+    -- `patches/022` and `patches/023` add three more, and each must be as
     -- hardened as the thirteen above.
     ('schema', 'patch 022/023 secure operations',
      (select count(*)::text
@@ -301,10 +306,20 @@ from (
         and w.points is distinct from floor(30.0 * calc.done / calc.target)::int),
      '0'),
 
-    -- The other direction: work that earned points and was never paid. The
-    -- second NOT EXISTS is the daily cap -- one award per session per day, so a
-    -- second run of the same session that day legitimately pays nothing.
-    ('integrity', 'earned runs with no reward',
+    -- =======================================================================
+    -- 3. SEED STATE -- true after `seed.sql`, not invariant afterwards
+    -- =======================================================================
+
+    -- Work that earned points and was never paid. The second NOT EXISTS is the
+    -- daily cap -- one award per session per day, so a second run of the same
+    -- session that day legitimately pays nothing.
+    --
+    -- NOT an invariant: the membership filter reads the member's status NOW,
+    -- while the reward was written when the run closed. Reactivating a
+    -- suspended member turns every reward-less run they already have into a
+    -- reported violation, and that is the app working, not failing. Alex is
+    -- seeded suspended precisely so his runs carry no points.
+    ('seed', 'earned runs with no reward',
      (select count(*)::text
       from public.workout_runs r
       join public.profiles m on m.id = r.member_id
@@ -332,8 +347,15 @@ from (
             and w2.reward_day = (r.started_at at time zone 'Europe/Rome')::date)),
      '0'),
 
-    -- `patches/023`: no points while the membership is suspended or elapsed.
-    ('integrity', 'rewards held by an inactive membership',
+    -- `patches/023`: no points are WRITTEN while the membership is suspended or
+    -- elapsed.
+    --
+    -- NOT an invariant either, and for the mirror-image reason: nothing
+    -- retracts points already earned, and nothing sweeps `subscription_status`
+    -- when `subscription_until` elapses. Lorenzo is seeded active with twelve
+    -- days left, so this row starts failing on the thirteenth day of an
+    -- untouched database; pressing Suspend on any member fails it at once.
+    ('seed', 'rewards held by an inactive membership',
      (select count(*)::text
       from public.rewards w join public.profiles m on m.id = w.member_id
       where m.subscription_status in ('suspended', 'expired')
@@ -353,13 +375,22 @@ from (
 
     -- `redeem_checkin_token` writes the check-in and the reward together, so a
     -- reward with no check-in behind it is a reward nobody earned.
+    --
+    -- Matched in BOTH day frames on purpose. `patches/024` stamped
+    -- `reward_day = current_date`, the database's UTC day, while
+    -- `close_workout_run_secure` uses the Rome day and `seed.sql` follows it --
+    -- so between midnight and 02:00 Rome the two disagreed, and one check-in
+    -- could pay twice in an Italian day while another paid nothing.
+    -- `patches/026` fixes the writer, but rows stamped before it keep their UTC
+    -- day and are not backfilled, so the tolerance stays.
     ('integrity', 'check-in rewards with no check-in that day',
      (select count(*)::text from public.rewards w
       where w.code like 'checkin:%'
         and not exists (
           select 1 from public.checkins c
           where c.member_id = w.member_id
-            and (c.created_at at time zone 'Europe/Rome')::date = w.reward_day)),
+            and ((c.created_at at time zone 'Europe/Rome')::date = w.reward_day
+                 or (c.created_at at time zone 'UTC')::date = w.reward_day))),
      '0'),
 
     ('integrity', 'check-in rewards worth other than ten points',
@@ -611,5 +642,5 @@ from (
 ) as t(section, check_name, actual, expected)
 order by
   case section when 'schema' then 1 when 'integrity' then 2
-               when 'cast' then 3 else 4 end,
+               when 'seed' then 3 when 'cast' then 4 else 5 end,
   check_name;

@@ -46,11 +46,18 @@ const identities = [
   },
 ]
 
+// Every table a signed-in role may read. Deliberately the same list as
+// `probe-rls.mjs` minus `app_config`, which no browser role may reach at all --
+// keep the two in step, or a new table ships unprobed. `nutrition_days` is the
+// cautionary one: patches/022 gives it no explicit GRANT and leans on 006's
+// default privileges, and `verify.sql` only counts THAT a policy exists, so a
+// policy returning nothing would leave every SQL check green while the member's
+// nutrition screen rendered empty.
 const READABLE_TABLES = [
   'profiles', 'exercises', 'workout_plans', 'workout_sessions', 'session_exercises',
-  'set_logs', 'workout_runs', 'nutrition_plans', 'meals', 'availability', 'appointments',
-  'threads', 'messages', 'rewards', 'checkins', 'checkin_tokens', 'body_metrics',
-  'push_subscriptions',
+  'set_logs', 'workout_runs', 'nutrition_plans', 'nutrition_days', 'meals',
+  'availability', 'appointments', 'threads', 'messages', 'rewards', 'checkins',
+  'checkin_tokens', 'body_metrics', 'push_subscriptions', 'notifications',
 ]
 
 let checks = 0

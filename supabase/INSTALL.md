@@ -50,7 +50,7 @@ In the **SQL editor**, in this order:
 1. `schema.sql`
 2. `policies.sql`
 
-### 3. Patches 001 → 025
+### 3. Patches 001 → 026
 
 In numeric order, one file at a time. Each one ends with its own PASS/FAIL
 block — read it before moving on.
@@ -84,13 +84,18 @@ the same public API the browser uses. Both need `.env.local`.
 
 ```bash
 node supabase/probe-rls.mjs        # what an anonymous caller can read
-node supabase/probe-security.mjs   # what each signed-in role can read and write
+node supabase/probe-security.mjs   # what each signed-in role can READ
 ```
 
 `probe-rls.mjs` is the one that catches a policy whose `using` clause never
 mentions `auth.uid()` — such a policy is public to anyone holding the
 publishable key, which ships in the JS bundle. `verify.sql` structurally cannot
 see that.
+
+`probe-security.mjs` exercises **reads only**. Every write in the app goes
+through a `security definer` RPC that would need a real signed-in session and
+real payloads to test, so the write side is covered by the RPCs' own
+authorization checks and by `verify.sql`'s grant rows, not here.
 
 ---
 
@@ -211,11 +216,11 @@ what tells you which copy is the live one.
 | 008 | Column grants so a thread member cannot rewrite the other party's message body. | — |
 | 009 | The QR access badge: `checkin_tokens` and `redeem_checkin_token`. | — |
 | 010 | Push notifications, database half: `app_config`, `notify_user`, the four notify triggers. | — |
-| 011 | Hardens the three oldest `security definer` functions against `pg_temp` shadowing. | `009`, `policies.sql` helpers |
+| 011 | Re-creates `is_professional()`, `owns_member()` and `handle_new_user()` with `set search_path = ''`. `= public` was not hardening: Postgres resolves an unqualified relation through `pg_temp` first, and any signed-in role can create a temp table. | `policies.sql` helpers, `schema.sql`'s trigger |
 | 012 | A professional booking an appointment notifies the member. | — |
 | 013 | `workout_runs` — one row per attempt at a session. The Phase 5A redesign. | — |
 | 014 | Adds `workout_runs.pct`. | — |
-| 015 | **The big one.** Rewrites every sensitive write as a checked `security definer` RPC and revokes direct table grants. | `003`, and the write policies from `policies.sql` |
+| 015 | **The big one.** Rewrites every sensitive write as a checked `security definer` RPC and revokes the direct INSERT/UPDATE/DELETE grants on ten tables. | `003`; the write policies it drops predate the current `policies.sql` |
 | 016 | Fixes the completion count: `LEAST(COALESCE(logged, 0), target_sets)`. | `015`'s `close_workout_run_secure` |
 | 017 | Lets a member author their own workout plan, not only their coach. | `015`'s `create_workout_plan_secure` |
 | 018 | One plan-creation call carries any number of sessions. | `017`'s `create_workout_plan_secure` |
@@ -226,6 +231,7 @@ what tells you which copy is the live one.
 | 023 | Gives `subscription_status` teeth: `has_active_subscription`, the professional-only status write, and the guard threaded into plan creation, booking and reward points. | `016`'s and `018`'s and `022`'s operations |
 | 024 | Ten points for checking in at the gym. | `015`'s `redeem_checkin_token` |
 | 025 | The `avatars` storage bucket and its four policies. | — |
+| 026 | Stamps a check-in reward with the Rome day instead of the database's UTC day, so it agrees with `close_workout_run_secure`. Without it a scan just after midnight paid twice in one Italian day, and one just before paid nothing. | `024`'s `redeem_checkin_token` |
 
 **Where the live version of each much-rewritten function is:**
 
@@ -235,7 +241,7 @@ what tells you which copy is the live one.
 | `close_workout_run_secure` | **023** (carries 016's `LEAST` fix) |
 | `create_nutrition_plan_secure` | **023** (shape from 022) |
 | `create_appointment_secure` | **023** |
-| `redeem_checkin_token` | **024** |
+| `redeem_checkin_token` | **026** |
 | `notify_on_appointment_status` | **021** |
 
 The patches are deliberately **not** squashed into a single consolidated schema.
@@ -289,11 +295,30 @@ past it before the seed can run -- for instance while emptying the project --
 either run the repair on its own:
 
 ```sql
-update auth.users set confirmation_token = '' where confirmation_token is null;
-update auth.users set recovery_token = '' where recovery_token is null;
-update auth.users set email_change = '' where email_change is null;
-update auth.users set email_change_token_new = '' where email_change_token_new is null;
+do $$
+declare v_col text;
+begin
+  foreach v_col in array array[
+    'confirmation_token', 'recovery_token', 'email_change',
+    'email_change_token_new', 'email_change_token_current',
+    'phone_change', 'phone_change_token', 'reauthentication_token'
+  ]
+  loop
+    if exists (
+      select 1 from information_schema.columns
+      where table_schema = 'auth' and table_name = 'users' and column_name = v_col
+    ) then
+      execute format('update auth.users set %I = %L where %I is null', v_col, '', v_col);
+    end if;
+  end loop;
+end $$;
 ```
+
+That is the same loop `seed.sql` runs, verbatim. Listing only the columns you
+have seen fail is how the error survives the repair: which ones lack a `DEFAULT`
+has varied between GoTrue releases, and the loop does not need to know — it sets
+every one of them that is currently NULL, and skips any the installed version
+does not have.
 
 or delete the rows from SQL, which bypasses GoTrue entirely:
 

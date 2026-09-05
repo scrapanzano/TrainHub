@@ -11,7 +11,7 @@
 -- ============================================================================
 --
 -- Run it in the Supabase SQL editor AFTER schema.sql, policies.sql and every
--- patch 001-025. See INSTALL.md for the full order and for the four auth users
+-- patch 001-026. See INSTALL.md for the full order and for the four auth users
 -- that must exist first.
 --
 -- RE-RUNNABLE, AND MEANT TO BE RE-RUN. Session state is DERIVED from the
@@ -245,12 +245,16 @@ begin
 
   -- GoTrue cannot read a user whose token columns are NULL.
   --
-  -- Four of them -- confirmation_token, recovery_token, email_change_token_new,
-  -- email_change -- have no DEFAULT in the auth schema, so an INSERT that omits
-  -- them leaves NULL. GoTrue scans those into plain Go `string` fields, a NULL
-  -- scan fails, and the whole request dies as `Database error loading user`.
-  -- The practical symptom is that Authentication -> Users can neither open NOR
-  -- DELETE the rows -- which is the state `patches/005` left the project in.
+  -- Not every one of these columns carries a DEFAULT, so an INSERT that omits
+  -- them leaves NULL behind. GoTrue scans them into plain Go `string` fields, a
+  -- NULL scan fails, and the whole request dies as `Database error loading
+  -- user`. Observed, not theorised: the rows `patches/005` inserted this way
+  -- could be neither opened NOR deleted from Authentication -> Users, while the
+  -- accounts created through the dashboard were fine.
+  --
+  -- Which columns lack a DEFAULT is left unstated on purpose -- it has varied
+  -- between GoTrue releases, and the loop below does not need to know: it sets
+  -- every one of them that is currently NULL.
   --
   -- Guarded by column existence rather than written as a flat UPDATE: the list
   -- has been stable in GoTrue for years, but naming a column a future release
@@ -397,9 +401,11 @@ begin
   -- =========================================================================
   -- 5. Availability.
   --
-  -- Weekday 0 = Sunday, matching the column's check constraint and the booking
-  -- screen. Marco keeps gym hours; Giulia consults two afternoons and a
-  -- Saturday morning, so the booking grid is visibly different per coach.
+  -- Weekday 0 = Sunday, matching `Date#getDay()` and the booking screen. The
+  -- column's check constraint only bounds the number to 0-6; which day each one
+  -- means is a convention the app carries, so the seed has to share it.
+  -- Marco keeps gym hours; Giulia consults two afternoons and a Saturday
+  -- morning, so the booking grid is visibly different per coach.
   -- =========================================================================
   insert into public.availability (pro_id, weekday, starts_at, ends_at)
   select v_marco, d, '09:00', '13:00' from generate_series(1, 5) d;
@@ -1352,8 +1358,10 @@ begin
   --     arbitrary -- there is no key linking a notification back to the row that
   --     caused it, so a faithful reconstruction is not available at any price
   --     worth paying here.
-  --   * mark everything older than nine hours read, which leaves the three most
-  --     recent per user unread and the bell showing a believable badge.
+  --   * mark everything older than nine hours read. The spread above puts the
+  --     newest row at now(), so the four most recent per user land at 0, 3, 6
+  --     and 9 hours -- and `< now() - interval '9 hours'` is false for the last
+  --     of them. Four unread each, and a bell with a believable badge.
   -- =========================================================================
   with ordered as (
     select id,

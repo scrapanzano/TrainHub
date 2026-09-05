@@ -98,7 +98,7 @@ contents, one at a time.
 |---|---|---|
 | 1 | `supabase/schema.sql` | Tables, enums, and the trigger that mirrors `auth.users` into `profiles` |
 | 2 | `supabase/policies.sql` | Row Level Security policies for every table |
-| 3 | `supabase/patches/001` … `025` | In numeric order, one at a time. **Skip `002` and `005`** — both are superseded by the seed and say so at the top. Most print their own PASS/FAIL block; read it before moving on |
+| 3 | `supabase/patches/001` … `026` | In numeric order, one at a time. **Skip `002` and `005`** — both are superseded by the seed and say so at the top. Most print their own PASS/FAIL block; read it before moving on |
 | 4 | `supabase/seed.sql` | The whole demo dataset: two coaches, seven members, plans, workout history, nutrition, chat, appointments, check-ins |
 | 5 | `supabase/verify.sql` | Schema, security and data-integrity checks |
 
@@ -129,7 +129,7 @@ Then, from your terminal:
 
 ```bash
 node supabase/probe-rls.mjs        # what an anonymous caller can read
-node supabase/probe-security.mjs   # what each signed-in role can read and write
+node supabase/probe-security.mjs   # what each signed-in role can READ
 ```
 
 Every row must read `PASS`. The first asks each table what it returns to a
@@ -137,6 +137,11 @@ caller holding only the publishable key — the question `verify.sql` structural
 **cannot** answer, because it runs as the dashboard's privileged role and
 bypasses RLS entirely. Phase 0 shipped a policy that looked fine and was public
 to the whole internet; no SQL check caught it.
+
+`probe-security.mjs` exercises **reads only**. Every write in the app goes
+through a `security definer` RPC that would need a real signed-in session and
+real payloads to test, so the write side is covered by the RPCs' own
+authorization checks and by `verify.sql`'s grant rows, not here.
 
 ### 6. Push notifications — VAPID keys *(optional)*
 

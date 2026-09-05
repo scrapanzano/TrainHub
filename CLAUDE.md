@@ -180,7 +180,7 @@ credentials, so any schema work ends in a handoff to Davide.
   function it supersedes.
 - `schema.sql`, `policies.sql`, `seed.sql` — a fresh install, in that order,
   after creating the four demo auth users with **Auto Confirm User** ticked.
-- `patches/001`…`025` — applied in order on top. They also carry their own
+- `patches/001`…`026` — applied in order on top. They also carry their own
   PASS/FAIL blocks. `009` (checkin tokens) and `010` (push notifications) are
   what Phase 4B's badge, scanner and push features depend on; `011` hardens the
   three oldest `security definer` functions against pg_temp shadowing.
@@ -193,8 +193,11 @@ credentials, so any schema work ends in a handoff to Davide.
   real teeth — a `has_active_subscription()` predicate plus a professional-only
   `set_subscription_status_secure` RPC, wired into plan creation, booking and
   reward points; `024` pays ten points for a gym check-in; `025` adds the
-  `avatars` storage bucket and its four policies. All must be applied, in
-  order, before the current branch's code will work against the database.
+  `avatars` storage bucket and its four policies; `026` makes the check-in
+  reward use the Rome day, so it stops disagreeing with
+  `close_workout_run_secure` about which day a scan belongs to. All must be
+  applied, in order, before the current branch's code will work against the
+  database.
   **`002` and `005` are superseded by `seed.sql` and must not be re-run** —
   each says so at the top of the file. `005` in particular writes workout
   sessions with no exercises, which the app itself rejects.

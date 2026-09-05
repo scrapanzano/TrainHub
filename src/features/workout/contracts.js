@@ -1,7 +1,9 @@
 import { createUuid } from '../../lib/uuid.js'
 
 /**
- * Freeze a session draft into the JSON contract consumed by patch 015.
+ * Freeze one session's drafted EXERCISES into the JSON contract
+ * `_insert_session_bundle` (patches/015) consumes. The session itself is
+ * `buildSessionPayloads` below; this is the array that hangs off it.
  *
  * IDs are created before the mutation is queued. That makes an offline replay
  * send the exact same exercise rows instead of inventing new IDs on every
