@@ -1,9 +1,12 @@
-# Valutazione euristica e passata di rifinitura
+# Passata di rifinitura UI/UX
 
-Questo documento accompagna il branch `ux-refinement`. Serve da traccia per il
-capitolo della relazione dedicato alla valutazione euristica: ogni riga lega un
-sintomo osservato all'euristica di Nielsen che viola e all'intervento che lo
+Registro della passata di rifinitura sul branch `ux-refinement`. Ogni riga lega
+un sintomo osservato all'euristica di Nielsen che viola e all'intervento che lo
 risolve, con il file in cui si trova.
+
+Le euristiche sono qui come criterio di ordinamento, non come adempimento: era
+il modo più utile per raggruppare una lista lunga di difetti eterogenei. Questo
+documento non è materiale per la relazione.
 
 ## Metodo
 
@@ -147,9 +150,8 @@ un redesign, e l'identità visiva del prototipo è parte del lavoro consegnato.
 
 Alla passata è seguita una revisione automatica dell'intero branch, indipendente
 da chi lo aveva scritto. Ha prodotto **sette rilievi, tutti confermati**
-rileggendo il codice: nessun falso positivo. Due meritano di essere citati
-nella relazione, perché mostrano difetti che una verifica manuale sul
-dispositivo non avrebbe fatto emergere.
+rileggendo il codice: nessun falso positivo. Due erano difetti che la verifica
+manuale sul dispositivo non aveva fatto emergere.
 
 **Il campo peso obbligatorio bloccava quattro esercizi.** Il catalogo contiene
 `Pull-up`, `Plank`, `Hanging Leg Raise` e `Russian Twist`, prescritti senza
@@ -187,8 +189,7 @@ unico senza via di ritorno ha ricevuto la freccia.
 ## Compromesso dichiarato: lo zoom
 
 `doc/review.md` chiedeva di disabilitare lo zoom in-app per avvicinare la resa
-a quella di un'applicazione nativa. La richiesta è stata accolta solo in parte,
-e la scelta va dichiarata nella relazione.
+a quella di un'applicazione nativa. La richiesta è stata accolta solo in parte.
 
 | Opzione | Effetto | Costo |
 |---|---|---|
@@ -204,8 +205,7 @@ funzionamento offline sono indipendenti da questa impostazione.
 ## Nota sui prototipi
 
 Tre interventi riguardano elementi corretti nel prototipo e sbagliati una volta
-implementati. Vale la pena citarli nella relazione perché mostrano il limite
-della prototipazione statica:
+implementati, e mostrano il limite della prototipazione statica:
 
 - **Il cerchio vuoto sulle card appuntamento** era pensato come controllo rapido
   "segna come fatto". Quel controllo non è mai stato realizzato, e il cerchio è

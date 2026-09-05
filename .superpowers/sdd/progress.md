@@ -2697,9 +2697,15 @@ it, `/m/trainer/appointments`, got its arrow.
 ### State
 Ten commits, 56 files, +2763/−973. Lint, build and 13/13 self-checks green at
 every batch; each one device-verified by Davide before its commit.
-`docs/ux-refinement-nielsen.md` carries the heuristic → symptom → change → file
-mapping for the report. It is deliberately written in Italian — it is source
-material for the LaTeX report, and the only Italian file in the repository.
+`docs/ux-refinement-nielsen.md` carries the symptom → change → file mapping for
+the pass, organised by the heuristic each change answers. It is written in
+Italian and is the only Italian file in the repository.
+
+It was written on the assumption that the report needed a heuristic-evaluation
+chapter. That assumption came from reading the Nielsen slides Davide shared as
+context; he never asked for such a chapter, and those slides belong to a
+different course. The document stands as a record of the pass, not as report
+material.
 
 
 ---
