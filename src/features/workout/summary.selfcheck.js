@@ -64,7 +64,11 @@ assert.equal(
   7.5,
 )
 
-assert.deepEqual(POINTS, { workout: 30 })
+// Pinned against the database, which is what actually awards them:
+// `close_workout_run_secure` (patches/023) and `redeem_checkin_token`
+// (patches/024). If a figure changes here without its patch, the app
+// promises points the server will not pay.
+assert.deepEqual(POINTS, { workout: 30, checkin: 10 })
 assert.equal(pointsForWorkout(), 30)
 
 assert.deepEqual(rewardProgress(1020, [{ points: 1000 }, { points: 1100 }]), {
